@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EchoWall Home Stats — Recording Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <main class="recording-stage">
+    <section class="container stats-section" aria-label="Echo Wall statistics recording demo" data-recording-stats data-counter-duration="5000" data-counter-state="idle">
+      <div class="stats-grid">
+        <article class="stat-card">
+          <span class="stat-icon">✏️</span>
+          <span class="stat-value" data-counter-target="1017" aria-label="1017">0</span>
+          <span class="stat-label">Visible notes</span>
+        </article>
+        <article class="stat-card">
+          <span class="stat-icon">🏛️</span>
+          <span class="stat-value" data-counter-target="12" aria-label="12">0</span>
+          <span class="stat-label">Communities</span>
+        </article>
+        <article class="stat-card">
+          <span class="stat-icon">📷</span>
+          <span class="stat-value" data-counter-target="53" aria-label="53">0</span>
+          <span class="stat-label">Photo notes</span>
+        </article>
+        <article class="stat-card">
+          <span class="stat-icon">🕒</span>
+          <span class="stat-value stat-value-text" aria-label="Aug 25, 2026">Aug <span data-counter-target="25" aria-hidden="true">0</span>, <span data-counter-target="2026" aria-hidden="true">0</span></span>
+          <span class="stat-label">Latest memory</span>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

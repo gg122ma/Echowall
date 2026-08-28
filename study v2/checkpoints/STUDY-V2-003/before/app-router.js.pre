@@ -1,0 +1,611 @@
+/**
+ * Echo Wall hash router and page-level UI controller.
+ * The original static HTML + CSS + vanilla JavaScript architecture is preserved.
+ */
+function getRoute() {
+  const hash = location.hash.replace(/^#\/?/, "") || "";
+  const parts = hash.split("/").filter(Boolean);
+  const toId = value => {
+    const id = Number(value);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  };
+
+  if (!parts.length) return { page: "home" };
+  if (parts[0] === "admin") return { page: "admin" };
+  if (parts[0] === "places") return { page: "places" };
+  // Study Notes V2 canonical routes (STUDY-V2-FOUNDATION-001). Study Notes
+  // is organized jurusan/semester/subjectCode — never by college — so
+  // there is no ":orgId" anywhere in this block; see the invariant comment
+  // at the top of data/study-subjects.js.
+  if (parts[0] === "study" && parts.length === 1) return { page: "study-home" };
+  if (parts[0] === "study" && parts.length === 2 && parts[1] === "upload") return { page: "study-upload" };
+  if (parts[0] === "study" && parts.length === 3 && parts[1] === "resource" && parts[2]) return { page: "study-resource", resourceId: decodeURIComponent(parts[2]) };
+  if (parts[0] === "study" && parts.length === 5 && parts[1] && parts[2] === "sem" && parts[3] && parts[4]) {
+    return { page: "study-subject", jurusanId: parts[1], semester: Number(parts[3]), subjectCode: decodeURIComponent(parts[4]) };
+  }
+  if (parts[0] === "study" && parts.length === 4 && parts[1] && parts[2] === "sem" && parts[3]) {
+    return { page: "study-jurusan", jurusanId: parts[1], semester: Number(parts[3]) };
+  }
+  if (parts[0] === "study" && parts.length === 2 && parts[1]) return { page: "study-jurusan", jurusanId: parts[1], semester: null };
+  if (parts[0] === "place" && parts.length === 3 && parts[1] && parts[2] === "wall") return { page: "place-wall", placeId: decodeURIComponent(parts[1]) };
+  if (parts[0] === "place" && parts[1]) return { page: "place", placeId: decodeURIComponent(parts[1]) };
+  // Community V2 canonical routes (COM-V2-002). Checked before the legacy "org"
+  // routes below so the new hub/landing pages take priority over the redirect.
+  if (parts[0] === "community" && parts.length === 1) return { page: "community-hub" };
+  if (parts[0] === "community" && parts.length === 2 && parts[1] === "all") return { page: "community-global" };
+  if (parts[0] === "community" && parts.length === 4 && parts[1] && parts[2] === "jurusan" && parts[3]) {
+    return { page: "wall", orgId: toId(parts[1]), majorId: toId(parts[3]) };
+  }
+  if (parts[0] === "community" && parts.length === 3 && parts[1] && parts[2] === "general") {
+    return { page: "community-college-general", orgId: toId(parts[1]) };
+  }
+  if (parts[0] === "community" && parts.length === 2 && parts[1]) return { page: "community-college", orgId: toId(parts[1]) };
+  if (parts[0] === "org" && parts.length === 4 && parts[1] && parts[2] === "building" && parts[3]) return { page: "org-building", orgId: toId(parts[1]), buildingId: decodeURIComponent(parts[3]) };
+  if (parts[0] === "org" && parts.length === 3 && parts[1] && parts[2] === "buildings") return { page: "org-buildings", orgId: toId(parts[1]) };
+  if (parts[0] === "org" && parts.length === 3 && parts[1] && parts[2] === "map") return { page: "org-map", orgId: toId(parts[1]) };
+  // Legacy alias (COM-V2-002): bare "#/org/:orgId" now redirects to the
+  // canonical "#/community/:orgId" College Landing page. org-building/
+  // org-buildings/org-map above are untouched — they belong to the separate
+  // multi-college map/building framework, not Community V2.
+  if (parts[0] === "org" && parts.length === 2 && parts[1]) return { page: "community-college", legacy: true, orgId: toId(parts[1]) };
+  if (parts[0] === "wall" && parts.length === 4) {
+    return { page: "wall", legacy: true, orgId: toId(parts[1]), majorId: toId(parts[3]) };
+  }
+  // Legacy alias (COM-V2-002): "#/wall/:orgId/:majorId" now redirects to the
+  // canonical "#/community/:orgId/jurusan/:majorId" route.
+  if (parts[0] === "wall" && parts.length === 3) {
+    return { page: "wall", legacy: true, orgId: toId(parts[1]), majorId: toId(parts[2]) };
+  }
+  return { page: "home" };
+}
+
+let pendingRouteScrollReset = false;
+
+function navigate(path) {
+  pendingRouteScrollReset = true;
+  if (location.hash === path) {
+    render();
+    return;
+  }
+  location.hash = path;
+}
+
+function getCanonicalBuildingWallHash(placeId) {
+  const candidateId = String(placeId || "").trim();
+  const building = typeof getCampusBuilding === "function" ? getCampusBuilding(candidateId) : null;
+  return building ? `#/place/${encodeURIComponent(building.id)}/wall` : "";
+}
+
+function navigateToBuildingWall(placeId) {
+  const wallHash = getCanonicalBuildingWallHash(placeId);
+  if (!wallHash) return false;
+  if (document.getElementById("app")) navigate(wallHash);
+  else location.assign(`index.html${wallHash}`);
+  return true;
+}
+
+window.navigateToBuildingWall = navigateToBuildingWall;
+
+function replaceRoute(path) {
+  pendingRouteScrollReset = true;
+  history.replaceState(null, "", `${location.pathname}${location.search}${path}`);
+  render();
+}
+
+function setRouteDocumentState(page) {
+  document.body.dataset.page = page;
+  document.body.classList.toggle('wall-route-active', page === 'wall' || page === 'place-wall');
+  document.body.classList.toggle('org-map-route-active', page === 'org-map');
+  const titles = {
+    home: "Echo Wall",
+    org: "Choose Your Space — Echo Wall",
+    wall: "Student Notes — Echo Wall",
+    places: "KMK Buildings — Echo Wall",
+    place: "Building Profile — Echo Wall",
+    "place-wall": "Building Wall — Echo Wall",
+    "org-map": "Campus Map — Echo Wall",
+    "org-buildings": "Building Registry — Echo Wall",
+    "org-building": "Building — Echo Wall",
+    admin: "Admin — Echo Wall",
+    "community-hub": "Community — Echo Wall",
+    "community-college": "College Community — Echo Wall",
+    "community-global": "All KM Students — Echo Wall",
+    "community-college-general": "College General — Echo Wall",
+    "study-home": "Study Notes — Echo Wall",
+    "study-jurusan": "Study Notes — Echo Wall",
+    "study-subject": "Study Notes — Echo Wall",
+    "study-resource": "Study Resource — Echo Wall",
+    "study-upload": "Upload Study Material — Echo Wall",
+  };
+  document.title = titles[page] || titles.home;
+}
+
+function render() {
+  const route = getRoute();
+  const app = document.getElementById("app");
+  if (!app) return;
+  if (route.page === "wall" && route.legacy && route.orgId && route.majorId) {
+    replaceRoute(`#/community/${route.orgId}/jurusan/${route.majorId}`);
+    return;
+  }
+  if (route.page === "community-college" && route.legacy && route.orgId) {
+    replaceRoute(`#/community/${route.orgId}`);
+    return;
+  }
+
+  if (route.page !== "org-map" && typeof teardownCampusMap === "function") teardownCampusMap();
+
+  setRouteDocumentState(route.page);
+  app.classList.remove("route-ready");
+  app.classList.add("route-changing");
+
+  if (route.page === "home") renderHome(app);
+  else if (route.page === "admin") renderAdmin(app);
+  else if (route.page === "places") renderPlaceDirectory(app);
+  else if (route.page === "place") renderPlaceProfile(app, route.placeId);
+  else if (route.page === "place-wall") renderBuildingWall(app, route.placeId);
+  else if (route.page === "org") renderOrgDetails(app, route.orgId);
+  else if (route.page === "community-hub") renderCommunityHub(app);
+  else if (route.page === "community-college") renderCollegeLanding(app, route.orgId);
+  else if (route.page === "community-global") renderCommunityGlobalWall(app);
+  else if (route.page === "community-college-general") renderCommunityCollegeGeneralWall(app, route.orgId);
+  else if (route.page === "org-map") renderOrgCampusMap(app, route.orgId);
+  else if (route.page === "org-buildings") renderOrgBuildingRegistry(app, route.orgId);
+  else if (route.page === "org-building") renderOrgBuildingDetail(app, route.orgId, route.buildingId);
+  else if (route.page === "study-home") renderStudyHome(app);
+  else if (route.page === "study-jurusan") renderStudyJurusan(app, route.jurusanId, route.semester);
+  else if (route.page === "study-subject") renderStudySubjectShell(app, route.jurusanId, route.semester, route.subjectCode);
+  else if (route.page === "study-resource") renderStudyResourceShell(app, route.resourceId);
+  else if (route.page === "study-upload") renderStudyUploadShell(app);
+  else if (route.page === "wall") {
+    const org = organizations.find(item => item.id === route.orgId);
+    const major = majors.find(item => item.id === route.majorId && item.orgId === route.orgId);
+    if (!org || !major) {
+      app.innerHTML = `
+        <section class="container error-page page-reveal">
+          <div class="error-illustration">🧭</div>
+          <p class="eyebrow">Route mismatch</p>
+          <h1>Wall not found</h1>
+          <p>The organization and stream in this link do not belong together.</p>
+          <button class="btn btn-primary" onclick="navigate('#/')">${I18n.t("org.back")}</button>
+        </section>`;
+    } else {
+      renderWall(app, route.orgId, route.majorId);
+    }
+  }
+
+  requestAnimationFrame(() => {
+    app.classList.remove("route-changing");
+    app.classList.add("route-ready");
+    initializeRenderedPage(route.page, route);
+    if (pendingRouteScrollReset) {
+      window.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: "auto",
+      });
+      pendingRouteScrollReset = false;
+    }
+  });
+}
+
+function initializeRenderedPage(page, route) {
+  initializeRevealElements();
+  if (page === "home") {
+    animateHomeCounters();
+    initializeHomeParallax();
+    initializeHomeCommunityCard();
+  }
+  if (page === "community-hub") {
+    initializeCommunityCollegeCardGlow();
+  }
+  if (page === "admin" && typeof initializeAdminAnimations === "function") {
+    initializeAdminAnimations();
+  }
+  if (page === "org-map" && typeof initializeCampusMapPage === "function") {
+    initializeCampusMapPage(route?.orgId);
+  }
+}
+
+function initializeRevealElements() {
+  const elements = document.querySelectorAll("[data-reveal]");
+  if (!elements.length) return;
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) {
+    elements.forEach(element => element.classList.add("is-visible"));
+    return;
+  }
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      entry.target.classList.add("is-visible");
+      observer.unobserve(entry.target);
+    });
+  }, { threshold: 0.12, rootMargin: "0px 0px -30px" });
+
+  elements.forEach(element => observer.observe(element));
+}
+
+function animateHomeCounters() {
+  const counters = document.querySelectorAll("[data-count]");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  counters.forEach(counter => {
+    const target = Number(counter.dataset.count || 0);
+    if (!Number.isFinite(target)) return;
+    if (reduceMotion) {
+      counter.textContent = String(target);
+      return;
+    }
+
+    const startedAt = performance.now();
+    const duration = 850;
+    const tick = now => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      counter.textContent = String(Math.round(target * eased));
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+function initializeHomeParallax() {
+  const stage = document.querySelector(".hero-visual");
+  if (!stage || window.matchMedia("(prefers-reduced-motion: reduce)").matches || window.matchMedia("(pointer: coarse)").matches) return;
+
+  const handleMove = event => {
+    const rect = stage.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
+    const y = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
+    stage.style.setProperty("--parallax-x", `${x * 7}px`);
+    stage.style.setProperty("--parallax-y", `${y * 5}px`);
+  };
+  const reset = () => {
+    stage.style.setProperty("--parallax-x", "0px");
+    stage.style.setProperty("--parallax-y", "0px");
+  };
+  stage.addEventListener("pointermove", handleMove);
+  stage.addEventListener("pointerleave", reset);
+}
+
+// COMMUNITY-V2-POLISH-004: shared pointer-follow "gold glow" engine. Used by
+// both the Homepage's single large Community CTA (HOMEPAGE-POLISH-002/
+// 002A/002B) and the Community Hub's 12 College Community cards — one
+// engine, two call sites, per-card independent state (no shared globals).
+// Only the pointer-glow layer is pointer-driven — it must track the cursor
+// across the FULL card (mouse at 20% x -> glow near 20%), not wobble in a
+// small range around a fixed corner like the original POLISH-002 draft did.
+// The ambient/rings layers on both card types are pure CSS (static
+// position, restrained opacity-only hover transition per POLISH-002B — see
+// the CSS comments in style-core.css) and need no JS at all; pointer-glow
+// is deliberately the only layer this engine (and the CSS hover rules)
+// ever push to full opacity, so it stays the single perceived "main light."
+// No GSAP — this project has no bundler/package manager (see CLAUDE.md) and
+// no GSAP vendor file exists — so a small requestAnimationFrame
+// damped-follow loop drives each card's own --pointer-x/--pointer-y. When
+// JS never runs (reduced motion or a coarse/touch pointer), the CSS var()
+// fallback (50%/50%, center) plus the :active-only opacity bump is what
+// those visitors see — no image swapping, nothing to "jump" to.
+//
+// Rect is cached at pointerenter (not re-read on every pointermove, per the
+// no-layout-thrashing requirement) and deliberately NOT re-cached on window
+// resize — with up to 12 cards on the Community Hub, a window-level resize
+// listener per card would outlive its (innerHTML-replaced) element on every
+// SPA navigation, a needless leak for an edge case (resizing the window
+// while actively hovering one specific small card) this component doesn't
+// need to handle perfectly; the next pointerenter always re-measures anyway.
+function initializePointerGlowCard(card) {
+  const DAMPING = 0.18;
+  let rect = card.getBoundingClientRect();
+  let current = { x: 50, y: 50 };
+  let target = { x: 50, y: 50 };
+  let raf = null;
+
+  const apply = () => {
+    card.style.setProperty("--pointer-x", `${current.x}%`);
+    card.style.setProperty("--pointer-y", `${current.y}%`);
+  };
+
+  const step = () => {
+    current.x += (target.x - current.x) * DAMPING;
+    current.y += (target.y - current.y) * DAMPING;
+    apply();
+    if (Math.abs(target.x - current.x) > 0.15 || Math.abs(target.y - current.y) > 0.15) {
+      raf = requestAnimationFrame(step);
+    } else {
+      current = { x: target.x, y: target.y };
+      apply();
+      raf = null;
+    }
+  };
+  const scheduleStep = () => { if (!raf) raf = requestAnimationFrame(step); };
+
+  const percentFromEvent = event => {
+    const px = event.clientX - rect.left;
+    const py = event.clientY - rect.top;
+    return {
+      x: Math.max(0, Math.min(100, (px / rect.width) * 100)),
+      y: Math.max(0, Math.min(100, (py / rect.height) * 100)),
+    };
+  };
+
+  card.addEventListener("pointerenter", event => {
+    if (event.pointerType === "touch") return;
+    rect = card.getBoundingClientRect();
+    // Jump (not ease) to the entry point so the glow appears exactly where
+    // the cursor entered, then every subsequent move eases smoothly.
+    current = percentFromEvent(event);
+    target = { x: current.x, y: current.y };
+    apply();
+  });
+  card.addEventListener("pointermove", event => {
+    if (event.pointerType === "touch") return;
+    target = percentFromEvent(event);
+    scheduleStep();
+  });
+  card.addEventListener("pointerleave", event => {
+    if (event.pointerType === "touch") return;
+    target = { x: 50, y: 50 };
+    scheduleStep();
+  });
+}
+
+function initializePointerGlowCards(selector) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || window.matchMedia("(pointer: coarse)").matches) return;
+  document.querySelectorAll(selector).forEach(card => initializePointerGlowCard(card));
+}
+
+function initializeHomeCommunityCard() {
+  initializePointerGlowCards("[data-home-community-card]");
+}
+
+function initializeCommunityCollegeCardGlow() {
+  initializePointerGlowCards("[data-pointer-glow-card]");
+}
+
+function getVisibleRuntimeNotes() {
+  return getRuntimeNotes().filter(note => note && !note.isHidden);
+}
+
+function getVisibleCommunityNotes(orgId, visibleNotes = getVisibleRuntimeNotes()) {
+  const canonicalOrgId = Number(orgId);
+  return visibleNotes.filter(note => note.contextType === "community" && Number(note.orgId) === canonicalOrgId);
+}
+
+function getCommunityNoteCount(orgId, visibleNotes = getVisibleRuntimeNotes()) {
+  return getVisibleCommunityNotes(orgId, visibleNotes).length;
+}
+
+function getVisibleCommunityCount(visibleNotes = getVisibleRuntimeNotes()) {
+  return new Set(visibleNotes
+    .filter(note => note.contextType === "community" && Number.isFinite(Number(note.orgId)))
+    .map(note => Number(note.orgId))).size;
+}
+
+function getVisiblePhotoNoteCount(visibleNotes = getVisibleRuntimeNotes()) {
+  return visibleNotes.filter(note => Boolean(getNoteImageSource(note))).length;
+}
+
+function getLatestVisibleNote(visibleNotes = getVisibleRuntimeNotes()) {
+  return visibleNotes
+    .slice()
+    .sort((a, b) => (Date.parse(b.createdAt || "") || 0) - (Date.parse(a.createdAt || "") || 0))[0] || null;
+}
+
+function getCommunityWallKey(note) {
+  if (note?.contextType !== "community") return "";
+  const explicitWallKey = String(note.wallKey || "");
+  if (/^community:\d+:\d+$/.test(explicitWallKey)) return explicitWallKey;
+  const orgId = Number(note.orgId);
+  const majorId = Number(note.majorId);
+  return Number.isInteger(orgId) && orgId > 0 && Number.isInteger(majorId) && majorId > 0
+    ? `community:${orgId}:${majorId}`
+    : "";
+}
+
+function renderHome(container) {
+  const visibleNotes = getVisibleRuntimeNotes();
+  const homepageVisibleNotesDisplay = visibleNotes.length;
+  const homepageCommunitiesDisplay = organizations.length;
+  const homepagePhotoNotesDisplay = getVisiblePhotoNoteCount(visibleNotes);
+  const latestNote = getLatestVisibleNote(visibleNotes);
+
+  container.innerHTML = `
+    <div class="home-page">
+      <section class="hero container">
+        <div class="hero-copy page-reveal">
+          <span class="badge badge-orange hero-badge">🎓 ${I18n.t("home.badge")}</span>
+          <p class="eyebrow">${I18n.t("home.eyebrow")}</p>
+          <h1>${I18n.t("home.title1")}<br><span>${I18n.t("home.title2")}</span></h1>
+          <p class="hero-description">${I18n.t("home.description")}</p>
+          <div class="hero-actions">
+            <button class="btn btn-primary btn-lg" onclick="document.getElementById('communities')?.scrollIntoView({behavior:'smooth'})">${I18n.t("home.explore")}</button>
+            <a class="btn btn-outline btn-lg" href="map.html">🗺️ ${I18n.t("home.openMap")}</a>
+          </div>
+          <div class="hero-trust-row">
+            <span><b>Text + photo</b> memories</span>
+            <span><b>${I18n.t("home.majorBrowsing")}</b></span>
+            <span><b>Admin</b> moderation</span>
+          </div>
+        </div>
+
+        <div class="hero-visual page-reveal" aria-label="Animated Echo Wall book illustration">
+          <div class="hero-orbit hero-orbit-one"></div>
+          <div class="hero-orbit hero-orbit-two"></div>
+          <article class="floating-note floating-note-a"><span>📚</span> “Revise a little every day.”</article>
+          <article class="floating-note floating-note-b"><span>💛</span> “You are not behind.”</article>
+          <article class="floating-note floating-note-c"><span>🏫</span> “Remember this place.”</article>
+          <div class="hero-book-halo"></div>
+          <img class="hero-book" src="assets/book-icon.png" alt="Open book, the Echo Wall symbol" />
+          <div class="hero-visual-caption"><span class="pulse-dot"></span> Every note keeps an experience alive</div>
+        </div>
+      </section>
+
+      <section class="container stats-section" aria-label="Echo Wall statistics">
+        <div class="stats-grid">
+          <article class="stat-card reveal-card" data-reveal style="--reveal-delay:0ms"><span class="stat-icon">✏️</span><span class="stat-value" data-count="${homepageVisibleNotesDisplay}">0</span><span class="stat-label">${I18n.t("home.visibleNotes")}</span></article>
+          <article class="stat-card reveal-card" data-reveal style="--reveal-delay:70ms"><span class="stat-icon">🏛️</span><span class="stat-value" data-count="${homepageCommunitiesDisplay}">0</span><span class="stat-label">${I18n.t("home.communities")}</span></article>
+          <article class="stat-card reveal-card" data-reveal style="--reveal-delay:140ms"><span class="stat-icon">📷</span><span class="stat-value" data-count="${homepagePhotoNotesDisplay}">0</span><span class="stat-label">${I18n.t("home.photoNotes")}</span></article>
+          <article class="stat-card reveal-card" data-reveal style="--reveal-delay:210ms"><span class="stat-icon">🕒</span><span class="stat-value stat-value-text">${latestNote ? formatDate(latestNote.createdAt, false) : "No posts"}</span><span class="stat-label">${I18n.t("home.latestMemory")}</span></article>
+        </div>
+      </section>
+
+      <section class="container" id="communities">
+        <button type="button" class="home-community-card reveal-card" data-reveal data-home-community-card onclick="navigate('#/community')" aria-label="${escapeHtml(I18n.t("community.hub.title"))} — ${escapeHtml(I18n.t("community.hub.globalDesc"))}">
+          <span class="home-community-card-rings" aria-hidden="true"></span>
+          <span class="home-community-card-ambient" aria-hidden="true"></span>
+          <span class="home-community-card-pointer-glow" aria-hidden="true"></span>
+          <span class="home-community-card-content">
+            <span class="eyebrow">${I18n.t("community.hub.eyebrow")}</span>
+            <span class="home-community-card-title">${I18n.t("community.hub.title")}</span>
+            <span class="home-community-card-desc">${I18n.t("community.hub.globalDesc")}</span>
+          </span>
+        </button>
+      </section>
+
+      <section class="container map-promo study-notes-promo reveal-card" data-reveal>
+        <div>
+          <p class="eyebrow">${I18n.t("study.home.eyebrow")}</p>
+          <h2>${I18n.t("study.home.title")}</h2>
+          <p>${I18n.t("study.home.desc")}</p>
+        </div>
+        <button class="btn btn-primary btn-lg" onclick="navigate('#/study')">${I18n.t("study.home.cta")} →</button>
+      </section>
+
+      <section class="container section-block building-home-section">
+        <div class="section-heading" data-reveal><div><p class="eyebrow">${I18n.t("places.eyebrow")}</p><h2>${I18n.t("home.buildings.title")}</h2></div><p>${I18n.t("home.buildings.description")}</p></div>
+        <div class="building-home-grid">${CAMPUS_BUILDINGS.slice(0,6).map((building,index) => `<button class="building-home-card reveal-card" data-reveal style="--reveal-delay:${index*55}ms" onclick="navigate('#/place/${encodeURIComponent(building.id)}')"><span>${escapeHtml(building.emoji)}</span><div><strong>${escapeHtml(building.name)}</strong><small>${getBuildingNotes(building.id).length} notes · ${escapeHtml(getBuildingZoneName(building))}</small></div><b>→</b></button>`).join("")}</div>
+        <div class="building-home-more"><button class="btn btn-outline btn-lg" onclick="navigate('#/places')">${I18n.t("places.title")} →</button></div>
+      </section>
+
+      <section class="container map-promo reveal-card" data-reveal>
+        <div>
+          <p class="eyebrow">${I18n.t("home.mapEyebrow")}</p>
+          <h2>${I18n.t("home.mapTitle")}</h2>
+          <p>${I18n.t("home.mapDesc")}</p>
+        </div>
+        <a class="btn btn-primary btn-lg" href="map.html">${I18n.t("home.mapAction")} →</a>
+      </section>
+
+      <section class="container section-block how-section">
+        <div class="section-heading centered" data-reveal>
+          <div><p class="eyebrow">${I18n.t("home.howEyebrow")}</p><h2>${I18n.t("home.howTitle")}</h2></div>
+          <p>${I18n.t("home.howDesc")}</p>
+        </div>
+        <div class="how-grid">
+          <article class="how-card reveal-card" data-reveal style="--reveal-delay:0ms"><span class="how-number">01</span><div class="how-icon">🏛️</div><h3>${I18n.t("home.step1Title")}</h3><p>${I18n.t("home.step1Desc")}</p></article>
+          <article class="how-card reveal-card" data-reveal style="--reveal-delay:90ms"><span class="how-number">02</span><div class="how-icon">📖</div><h3>${I18n.t("home.step2Title")}</h3><p>${I18n.t("home.step2Desc")}</p></article>
+          <article class="how-card reveal-card" data-reveal style="--reveal-delay:180ms"><span class="how-number">03</span><div class="how-icon">📌</div><h3>${I18n.t("home.step3Title")}</h3><p>${I18n.t("home.step3Desc")}</p></article>
+        </div>
+      </section>
+
+      <footer class="container site-footer">
+        <div class="footer-brand"><img src="assets/book-icon.png" alt="" /><div><strong>Echo Wall</strong><span>Experience worth passing on.</span></div></div>
+        <div class="footer-actions"><span>© 2026 Matriks EchoWall</span></div>
+      </footer>
+    </div>`;
+}
+
+function renderOrgHeaderActions(orgId) {
+  const hasCampusMap = typeof getCampusMapConfig === "function" && getCampusMapConfig(orgId);
+  if (!hasCampusMap) return "";
+  return `<div class="org-header-actions">
+    <button type="button" class="btn btn-outline btn-sm btn-round" onclick="navigate('#/org/${orgId}/map')">${I18n.t("campusMap.button")}</button>
+    <button type="button" class="btn btn-outline btn-sm btn-round" onclick="navigate('#/org/${orgId}/buildings')">${I18n.t("buildingRegistry.button")}</button>
+  </div>`;
+}
+
+function renderOrgDetails(container, orgId) {
+  const org = organizations.find(item => item.id === orgId);
+  if (!org) {
+    container.innerHTML = `<section class="container error-page"><h1>Community not found</h1><button class="btn btn-primary" onclick="navigate('#/')">Back home</button></section>`;
+    return;
+  }
+
+  if (org.comingSoon) {
+    selectedMajor = null;
+    container.innerHTML = `
+      <div class="container org-page page-reveal">
+        <button class="page-back" onclick="navigate('#/')">← ${I18n.t("org.back")}</button>
+        <header class="org-header">
+          <div class="org-header-icon">${org.emoji}</div>
+          <div><p class="eyebrow">${I18n.t("org.workspace")}</p><h1>${escapeHtml(org.name)}</h1><div class="org-header-meta"><span class="org-meta-tag">${escapeHtml(org.type)}</span><span>${getCommunityNoteCount(org.id)} visible notes</span></div></div>
+          ${renderOrgHeaderActions(org.id)}
+        </header>
+        <section class="selection-shell">
+          <div class="empty-state">${I18n.t("org.comingSoon")}</div>
+        </section>
+      </div>`;
+    return;
+  }
+
+  const orgMajors = majors.filter(item => item.orgId === orgId);
+  if (!orgMajors.some(item => item.id === selectedMajor)) selectedMajor = orgMajors[0]?.id || null;
+
+  const majorItems = orgMajors.map((major, index) => `
+    <button class="selection-item ${selectedMajor === major.id ? "selected" : ""}" style="--item-delay:${index * 55}ms" onclick="selectMajorItem(${major.id})" aria-pressed="${selectedMajor === major.id}">
+      <span class="selection-icon">🌿</span><span><strong>${escapeHtml(major.name)}</strong><small>Stream / programme</small></span><span class="selection-check">✓</span>
+    </button>`).join("") || `<div class="empty-state">${I18n.t("org.noMajors")}</div>`;
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/')">← ${I18n.t("org.back")}</button>
+      <header class="org-header">
+        <div class="org-header-icon">${org.emoji}</div>
+        <div><p class="eyebrow">${I18n.t("org.workspace")}</p><h1>${escapeHtml(org.name)}</h1><div class="org-header-meta"><span class="org-meta-tag">${escapeHtml(org.type)}</span><span>${getCommunityNoteCount(org.id)} visible notes</span></div></div>
+        ${renderOrgHeaderActions(org.id)}
+      </header>
+      <section class="selection-shell">
+        <div class="selection-grid" style="grid-template-columns:minmax(0,1fr)">
+          <div class="selection-col"><div class="selection-heading"><span>01</span><div><h2>${I18n.t("org.selectMajor")}</h2><p>${I18n.t("org.selectMajorDesc")}</p></div></div><div class="selection-list">${majorItems}</div></div>
+        </div>
+      </section>
+      <div class="enter-wall-box">
+        <div><span class="enter-wall-icon">📖</span><h3>${I18n.t("org.ready")}</h3><p>${I18n.t("org.readyDesc")}</p></div>
+        <button class="btn btn-primary btn-lg btn-round" onclick="enterWallCanvas(${orgId})">${I18n.t("org.enter")} →</button>
+      </div>
+    </div>`;
+}
+
+function selectMajorItem(id) {
+  selectedMajor = id;
+  render();
+}
+
+function enterWallCanvas(orgId) {
+  const majorIsValid = majors.some(item => item.id === selectedMajor && item.orgId === orgId);
+  if (!majorIsValid) {
+    showToast("Please select a valid stream.");
+    return;
+  }
+  navigate(`#/wall/${orgId}/${selectedMajor}`);
+}
+
+function initializeGlobalUi() {
+  const navbar = document.querySelector(".navbar");
+  const updateNavbar = () => navbar?.classList.toggle("is-scrolled", window.scrollY > 8);
+  updateNavbar();
+  window.addEventListener("scroll", updateNavbar, { passive: true });
+}
+
+if (document.getElementById("app")) {
+  window.addEventListener("hashchange", render);
+  window.addEventListener("echo:authchange", () => {
+    if (getRoute().page === "admin") render();
+  });
+  window.addEventListener("echo:languagechange", () => { I18n.apply(); render(); AuthUI?.renderNavbar?.(); });
+  window.addEventListener("echo:runtimenoteschange", event => {
+    const page = getRoute().page;
+    if (event.detail?.type === "seed-ready" || ["home", "places", "place"].includes(page)) render();
+  });
+  window.addEventListener("DOMContentLoaded", () => {
+    loadNotes();
+    void loadDefaultDemoSeed();
+    initializeGlobalUi();
+    I18n.apply();
+    ThemeService.apply();
+    render();
+  });
+}

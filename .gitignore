@@ -1,0 +1,12 @@
+﻿.DS_Store
+**/.DS_Store
+
+.claude/
+
+.env
+.env.*
+!.env.example
+
+*.log
+
+/video/8月1日(1).mp4

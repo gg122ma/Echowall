@@ -1,0 +1,167 @@
+/**
+ * Study Notes V2 — Browse UI (STUDY-V2-001 foundation).
+ * Spec: study note/02_EchoWall_Study_Notes_V2_详细架构规格书.pdf.
+ *
+ * Router entry points only, called from app-router.js render()/getRoute() —
+ * this file owns no route-dispatch logic itself (per the spec's own file
+ * structure guidance: "app-router.js 只做路由分发"). Reads
+ * window.StudyResourceService (services/study-resource-service.js).
+ *
+ * SCOPE OF THIS STAGE: Jurusan picker (#/study) and a Semester/Subject
+ * browse shell (#/study/:jurusan[/sem/:semester]). Subject Detail (full
+ * resource list + year grouping), Resource Detail/PDF Viewer, Upload, and
+ * Admin Moderation are explicitly future stages (STUDY-V2-003 through 008)
+ * — the routes exist here as real, working "coming soon" shells (not 404s,
+ * per the spec's route-foundation requirement) but intentionally render no
+ * PDF list/viewer/upload form yet.
+ *
+ * INVARIANT: nothing in this file may group or navigate resources by
+ * College — see the invariant comment at the top of data/study-subjects.js
+ * and services/study-resource-service.js. Every render function below is
+ * keyed by jurusan/semester/subjectCode only.
+ *
+ * Must load after app-router.js (uses navigate()/escapeHtml()) and after
+ * services/study-resource-service.js.
+ */
+function studyCurrentLanguage() {
+  return typeof I18n !== "undefined" && I18n.getLanguage ? I18n.getLanguage() : "en";
+}
+
+function studySubjectDisplayName(subject) {
+  const lang = studyCurrentLanguage();
+  if (subject.name && subject.name[lang]) return subject.name[lang];
+  if (subject.name && subject.name.en) return subject.name.en;
+  return subject.code;
+}
+
+function renderStudyNotFound(container, backHash, backLabel) {
+  container.innerHTML = `
+    <section class="container error-page page-reveal">
+      <div class="error-illustration">📚</div>
+      <p class="eyebrow">Route mismatch</p>
+      <h1>Study Notes page not found</h1>
+      <p>This Study Notes link does not match a known programme.</p>
+      <button class="btn btn-primary" onclick="navigate('${backHash}')">${escapeHtml(backLabel)}</button>
+    </section>`;
+}
+
+function renderStudyHome(container) {
+  const jurusanList = StudyResourceService.getJurusanList();
+  const cards = jurusanList.map((jurusan, index) => {
+    const count = StudyResourceService.getResourceCountForJurusan(jurusan.id);
+    const name = jurusan.name[studyCurrentLanguage()] || jurusan.name.en;
+    return `
+      <button class="selection-item study-jurusan-item" style="--item-delay:${index * 55}ms" onclick="navigate('#/study/${jurusan.id}')">
+        <span class="selection-icon">${jurusan.emoji}</span>
+        <span><strong>${escapeHtml(name)}</strong><small>${count} ${I18n.t("study.resourceCountLabel")}</small></span>
+        <span class="selection-check">→</span>
+      </button>`;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/')">← ${I18n.t("nav.home")}</button>
+      <header class="org-header">
+        <div class="org-header-icon">📚</div>
+        <div><p class="eyebrow">${I18n.t("study.hub.eyebrow")}</p><h1>${I18n.t("study.hub.title")}</h1><p class="study-hub-desc">${I18n.t("study.hub.desc")}</p></div>
+      </header>
+      <section class="selection-shell">
+        <div class="section-heading" style="margin-bottom:18px"><div><h2>${I18n.t("study.hub.chooseJurusan")}</h2><p>${I18n.t("study.hub.chooseJurusanDesc")}</p></div></div>
+        <div class="selection-list">${cards}</div>
+      </section>
+    </div>`;
+}
+
+function renderStudyJurusan(container, jurusanId, semesterFilter) {
+  const jurusan = StudyResourceService.getJurusanById(jurusanId);
+  if (!jurusan) {
+    renderStudyNotFound(container, "#/study", I18n.t("study.hub.title"));
+    return;
+  }
+  const lang = studyCurrentLanguage();
+  const name = jurusan.name[lang] || jurusan.name.en;
+  const semesters = semesterFilter ? [semesterFilter] : [1, 2];
+
+  const semesterBlocks = semesters.map(semester => {
+    const subjects = StudyResourceService.getSubjectsByJurusanAndSemester(jurusanId, semester);
+    const items = subjects.map((subject, index) => {
+      const count = StudyResourceService.getResourceCountForSubject(subject.code);
+      return `
+        <button class="selection-item" style="--item-delay:${index * 55}ms" onclick="navigate('#/study/${jurusanId}/sem/${semester}/${subject.code}')">
+          <span class="selection-icon">📄</span>
+          <span><strong>${escapeHtml(subject.code)}</strong><small>${escapeHtml(studySubjectDisplayName(subject))} · ${count} ${I18n.t("study.resourceCountLabel")}</small></span>
+          <span class="selection-check">→</span>
+        </button>`;
+    }).join("") || `<div class="empty-state">${I18n.t("study.noSubjectsYet")}</div>`;
+    return `
+      <section class="selection-shell" style="margin-top:24px">
+        <div class="section-heading" style="margin-bottom:18px"><div><h2>${I18n.t("study.semesterLabel")} ${semester}</h2></div></div>
+        <div class="selection-list">${items}</div>
+      </section>`;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/study')">← ${I18n.t("study.hub.title")}</button>
+      <header class="org-header">
+        <div class="org-header-icon">${jurusan.emoji}</div>
+        <div><p class="eyebrow">${I18n.t("study.hub.title")}</p><h1>${escapeHtml(name)}</h1></div>
+      </header>
+      ${semesterBlocks}
+    </div>`;
+}
+
+function renderStudySubjectShell(container, jurusanId, semester, subjectCode) {
+  const jurusan = StudyResourceService.getJurusanById(jurusanId);
+  const subject = StudyResourceService.getSubjectByCode(subjectCode);
+  if (!jurusan || !subject || subject.jurusan !== jurusanId) {
+    renderStudyNotFound(container, "#/study", I18n.t("study.hub.title"));
+    return;
+  }
+  const count = StudyResourceService.getResourceCountForSubject(subjectCode);
+  const backHash = `#/study/${jurusanId}`;
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('${backHash}')">← ${escapeHtml(jurusan.name[studyCurrentLanguage()] || jurusan.name.en)}</button>
+      <header class="org-header">
+        <div class="org-header-icon">📄</div>
+        <div><p class="eyebrow">${I18n.t("study.semesterLabel")} ${escapeHtml(String(semester))}</p><h1>${escapeHtml(subjectCode)}</h1><div class="org-header-meta"><span>${escapeHtml(studySubjectDisplayName(subject))}</span></div></div>
+      </header>
+      <section class="selection-shell">
+        <div class="empty-state">
+          <p><strong>${count}</strong> ${I18n.t("study.resourceCountLabel")}</p>
+          <p>${I18n.t("study.subjectComingSoon")}</p>
+        </div>
+      </section>
+    </div>`;
+}
+
+function renderStudyResourceShell(container, resourceId) {
+  const resource = StudyResourceService.getResourceById(resourceId);
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/study')">← ${I18n.t("study.hub.title")}</button>
+      <header class="org-header">
+        <div class="org-header-icon">📄</div>
+        <div><p class="eyebrow">${I18n.t("study.hub.title")}</p><h1>${resource ? escapeHtml(resource.title) : I18n.t("study.resourceNotFound")}</h1></div>
+      </header>
+      <section class="selection-shell">
+        <div class="empty-state">${I18n.t("study.viewerComingSoon")}</div>
+      </section>
+    </div>`;
+}
+
+function renderStudyUploadShell(container) {
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/study')">← ${I18n.t("study.hub.title")}</button>
+      <header class="org-header">
+        <div class="org-header-icon">⬆️</div>
+        <div><p class="eyebrow">${I18n.t("study.hub.title")}</p><h1>${I18n.t("study.upload.title")}</h1></div>
+      </header>
+      <section class="selection-shell">
+        <div class="empty-state">${I18n.t("study.upload.comingSoon")}</div>
+      </section>
+    </div>`;
+}

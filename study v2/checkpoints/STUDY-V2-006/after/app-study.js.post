@@ -1,0 +1,554 @@
+/**
+ * Study Notes V2 — Browse UI.
+ * Spec: study note/02_EchoWall_Study_Notes_V2_详细架构规格书.pdf.
+ *
+ * Router entry points only, called from app-router.js render()/getRoute() —
+ * this file owns no route-dispatch logic itself (per the spec's own file
+ * structure guidance: "app-router.js 只做路由分发"). Reads
+ * window.StudyResourceService (services/study-resource-service.js).
+ *
+ * STUDY-V2-FOUNDATION-001 built the Jurusan picker (#/study). STUDY-V2-003
+ * split the combined Semester+Subject shell into the real 3-level Browse
+ * Hierarchy. STUDY-V2-004 made the Subject page show real resources instead
+ * of a placeholder. STUDY-V2-006 (this revision) connects real file
+ * opening for resources in the curated Competition Demo File Set:
+ *
+ *   #/study                              -> renderStudyHome        (pick Jurusan)
+ *   #/study/:jurusan                     -> renderStudyJurusan     (pick Semester)
+ *   #/study/:jurusan/sem/:semester       -> renderStudySemester    (pick Subject)
+ *   #/study/:jurusan/sem/:semester/:code -> renderStudySubjectShell (real resource
+ *                                            list, tabbed by category, PSPM/Pre-Pra-PSPM
+ *                                            grouped by year, Question<->Scheme paired)
+ *   #/study/resource/:resourceId         -> renderStudyResourceDetail (real metadata;
+ *                                            real "Open PDF"/"Open file" for demo-set
+ *                                            resources, honest disabled state otherwise —
+ *                                            see that function's own comment)
+ *
+ * Search/Filter (STUDY-V2-005), Upload (STUDY-V2-007), and Admin Moderation
+ * (STUDY-V2-008) are still future stages — Upload's route exists as a real,
+ * working "coming soon" shell (not a 404) but this stage does not touch it.
+ *
+ * INVARIANT: nothing in this file may group or navigate resources by
+ * College. The canonical browse hierarchy is Jurusan -> Semester ->
+ * Subject Code, period — see the invariant comment at the top of
+ * data/study-subjects.js and services/study-resource-service.js. Every
+ * render function below is keyed by jurusan/semester/subjectCode only.
+ *
+ * Must load after app-router.js (uses navigate()/escapeHtml()) and after
+ * services/study-resource-service.js.
+ */
+function studyCurrentLanguage() {
+  return typeof I18n !== "undefined" && I18n.getLanguage ? I18n.getLanguage() : "en";
+}
+
+function studySubjectDisplayName(subject) {
+  const lang = studyCurrentLanguage();
+  if (subject.name && subject.name[lang]) return subject.name[lang];
+  if (subject.name && subject.name.en) return subject.name.en;
+  return subject.code;
+}
+
+function studyJurusanDisplayName(jurusan) {
+  return jurusan.name[studyCurrentLanguage()] || jurusan.name.en;
+}
+
+// Formats a small, real (never fabricated) "PSPM · Notes · Practice"-style
+// tag line from whatever resourceType values a subject's publishable
+// resources actually have — see StudyResourceService.getResourceTypesForSubject().
+// Falls back to nothing (empty string) rather than guessing when a subject
+// has zero publishable resources yet.
+function studyResourceTypeBadges(subjectCode) {
+  const types = StudyResourceService.getResourceTypesForSubject(subjectCode);
+  if (!types.length) return "";
+  const labels = types.map(type => I18n.t(`study.type.${type}`)).join(" · ");
+  return `<small class="study-type-badges">${escapeHtml(labels)}</small>`;
+}
+
+// Lightweight, non-interactive breadcrumb text (the actual navigation
+// control is still the "back" button on every level, per the request's
+// "至少必须做到 Subject -> Semester -> Jurusan -> Study Notes" minimum —
+// this is the "Browse 层级必须清晰" clarity layer on top of that).
+function studyBreadcrumb(parts) {
+  return escapeHtml(parts.filter(Boolean).join(" · "));
+}
+
+// --- STUDY-V2-004: Resource List + Year Grouping -----------------------
+//
+// studySubjectViewState holds the CURRENTLY RENDERED subject page's data —
+// set once by renderStudySubjectShell(), then read/mutated by the tab
+// (setStudyResourceCategory) and pagination (studyLoadMoreResources)
+// handlers below, which only touch the #study-resource-list container
+// (same partial-re-render pattern app-wall.js's setCategoryFilter/
+// setSortOrder/setPostTypeFilter already use for its filter bar — reused
+// here for consistency, not reinvented). It is intentionally NOT
+// per-category state: "Load more" bumps one shared limit that applies to
+// whichever view is currently showing (see studyResourceListHtml()).
+let studySubjectViewState = null;
+const STUDY_RESOURCE_PAGE_SIZE = 15;
+
+// The two categories the spec asks to browse by exam year (section 8).
+// Everything else renders as a flat list. Order here is display order
+// within the "All" composition (studyAllCategoriesHtml).
+const STUDY_YEAR_GROUPED_ORDER = ["pspm", "pre_pra_pspm"];
+
+function studyResourceCategoryLabel(category) {
+  return category === "all" ? I18n.t("study.category.all") : I18n.t(`study.category.${category}`);
+}
+
+function studyVerificationBadgeHtml(verificationStatus) {
+  // All real data in this manifest is currently "unverified" (bulk import,
+  // no human review yet — see STUDY-V2-002) so these positive badges will
+  // not appear until STUDY-V2-008's moderation stage actually marks
+  // something verified. Never shown speculatively.
+  if (verificationStatus === "verified_source") return `<span class="study-badge study-badge-verified">${I18n.t("study.verifiedSource")}</span>`;
+  if (verificationStatus === "verified_file") return `<span class="study-badge study-badge-verified">${I18n.t("study.verifiedMaterial")}</span>`;
+  return "";
+}
+
+function studySourceLabel(resource) {
+  if (resource.sourceCollege) return `${I18n.t("study.sourceLabel")}: ${escapeHtml(resource.sourceCollege)}`;
+  if (resource.sourceType === "official") return I18n.t("study.sourceOfficial");
+  return I18n.t("study.sourceUnspecified");
+}
+
+function studyYearLabel(resource) {
+  if (resource.examSessionLabel) return resource.examSessionLabel;
+  if (resource.yearStart) return `${resource.yearStart}/${resource.yearEnd || resource.yearStart}`;
+  return I18n.t("study.yearUnspecified");
+}
+
+// A single resource row. `showPairedScheme` is only true inside a
+// year-grouped list (PSPM/Pre-Pra-PSPM) — it looks up the row's paired
+// Answer Scheme (via relatedResourceId, spec section 10) and renders an
+// explicit "Answer Scheme available" link so Question <-> Scheme reads as
+// one set, never two unrelated rows (spec section 11 — this is also why
+// the flat "Other Resources"/per-category lists never pass
+// showPairedScheme: a scheme already nested under its Question here must
+// not ALSO appear as a second, unrelated-looking row in the same view).
+// STUDY-V2-006: a real, lightweight file-type badge + quick "Open" link,
+// shown only when the resource is actually in the curated demo file set
+// (StudyResourceService.getResourceFileUrl/getResourceFileType — never
+// guessed/constructed here). Deliberately minimal per the spec's own "不要
+// 把列表变复杂" instruction — the row's title button still always routes to
+// Resource Detail; this is an additional, optional shortcut, not a
+// replacement for it.
+function studyResourceFileBadgeHtml(resource) {
+  const fileType = StudyResourceService.getResourceFileType(resource);
+  return fileType ? `<span class="study-badge study-badge-file">${escapeHtml(I18n.t(`study.fileType.${fileType}`))}</span>` : "";
+}
+
+function studyResourceQuickOpenHtml(resource) {
+  const fileUrl = StudyResourceService.getResourceFileUrl(resource);
+  if (!fileUrl) return "";
+  const isPdf = StudyResourceService.isResourceFilePdf(resource);
+  const linkAttrs = isPdf ? 'target="_blank" rel="noopener noreferrer"' : "download";
+  return `<a class="study-row-open" href="${escapeHtml(fileUrl)}" ${linkAttrs}>${I18n.t("study.openShort")} →</a>`;
+}
+
+function studyResourceRowHtml(resource, { showPairedScheme = false } = {}) {
+  const category = StudyResourceService.getResourceCategory(resource);
+  const badge = studyVerificationBadgeHtml(resource.verificationStatus);
+  const related = showPairedScheme && resource.relatedResourceId ? StudyResourceService.getRelatedResource(resource) : null;
+  const pairHtml = related && related.resourceType === "answer_scheme" && StudyResourceService.isResourcePublishable(related)
+    ? `<button class="study-pair-link" onclick="navigate('#/study/resource/${related.id}')">↳ ${I18n.t("study.answerSchemeAvailable")} →</button>`
+    : "";
+  return `
+    <div class="study-resource-row">
+      <span class="study-resource-icon" aria-hidden="true">📄</span>
+      <div class="study-resource-main">
+        <button class="study-resource-title" onclick="navigate('#/study/resource/${resource.id}')">${escapeHtml(resource.title)}</button>
+        <small>${escapeHtml(studyResourceCategoryLabel(category))} · ${escapeHtml(studyYearLabel(resource))}</small>
+        <small class="study-resource-source">${studySourceLabel(resource)}${badge}${studyResourceFileBadgeHtml(resource)}</small>
+        ${pairHtml}
+      </div>
+      ${studyResourceQuickOpenHtml(resource)}
+    </div>`;
+}
+
+function studyYearGroupedListHtml(items, state) {
+  const groups = new Map();
+  for (const resource of items) {
+    const key = resource.yearStart && resource.yearEnd ? `${resource.yearStart}-${resource.yearEnd}` : "unspecified";
+    if (!groups.has(key)) groups.set(key, { yearStart: resource.yearStart, items: [] });
+    groups.get(key).items.push(resource);
+  }
+  const sortedGroups = [...groups.values()].sort((a, b) => {
+    if (a.yearStart == null) return 1;
+    if (b.yearStart == null) return -1;
+    return b.yearStart - a.yearStart; // newest -> oldest, per spec section 9
+  });
+  // Budget by ROW count, not group count — a single exam year can have many
+  // rows (multiple sets/parts/source colleges), so capping "first N years"
+  // alone does not actually bound the rendered DOM size (a real subject in
+  // this manifest rendered 113 rows from a 15-year cap before this fix).
+  // Always show at least one full year group even if it alone exceeds the
+  // budget, so a subject with one huge year doesn't render nothing.
+  let rowBudget = state.visibleLimit;
+  const visibleGroups = [];
+  for (const group of sortedGroups) {
+    if (visibleGroups.length > 0 && rowBudget <= 0) break;
+    visibleGroups.push(group);
+    rowBudget -= group.items.length;
+  }
+  const groupsHtml = visibleGroups.map(group => {
+    const label = group.yearStart ? studyYearLabel(group.items[0]) : I18n.t("study.yearUnspecified");
+    const rows = group.items.map(resource => studyResourceRowHtml(resource, { showPairedScheme: true })).join("");
+    return `<div class="study-year-group"><h4>${escapeHtml(label)}</h4>${rows}</div>`;
+  }).join("");
+  const loadMore = visibleGroups.length < sortedGroups.length
+    ? `<button class="btn btn-outline study-load-more" onclick="studyLoadMoreResources()">${I18n.t("study.loadMore")}</button>` : "";
+  return groupsHtml + loadMore;
+}
+
+function studyFlatListHtml(items, state) {
+  const visibleItems = items.slice(0, state.visibleLimit);
+  const rows = visibleItems.map(resource => studyResourceRowHtml(resource, { showPairedScheme: false })).join("");
+  const loadMore = items.length > state.visibleLimit
+    ? `<button class="btn btn-outline study-load-more" onclick="studyLoadMoreResources()">${I18n.t("study.loadMore")}</button>` : "";
+  return rows + loadMore;
+}
+
+// The default "All" composition: year-grouped sections (PSPM, then
+// Pre/Pra-PSPM) followed by a flat "Other Resources" bucket for everything
+// else — matches the spec's own section-2 worked example almost exactly.
+// Answer Scheme items already nested under a Question above are excluded
+// from "Other Resources" (would otherwise be a real duplicate within this
+// same composed view); a scheme with no matching Question still appears
+// there normally (spec section 12).
+function studyAllCategoriesHtml(state) {
+  const byCategory = {};
+  for (const resource of state.resources) {
+    const category = StudyResourceService.getResourceCategory(resource);
+    (byCategory[category] = byCategory[category] || []).push(resource);
+  }
+
+  const pairedSchemeIds = new Set();
+  for (const key of STUDY_YEAR_GROUPED_ORDER) {
+    for (const resource of byCategory[key] || []) {
+      if (resource.relatedResourceId) pairedSchemeIds.add(resource.relatedResourceId);
+    }
+  }
+
+  let html = "";
+  for (const key of STUDY_YEAR_GROUPED_ORDER) {
+    const items = byCategory[key];
+    if (!items || !items.length) continue;
+    html += `<div class="study-section"><h3>${escapeHtml(studyResourceCategoryLabel(key))}</h3>${studyYearGroupedListHtml(items, state)}</div>`;
+  }
+
+  const otherItems = state.resources.filter(resource => {
+    const category = StudyResourceService.getResourceCategory(resource);
+    if (STUDY_YEAR_GROUPED_ORDER.includes(category)) return false;
+    if (category === "answer_scheme" && pairedSchemeIds.has(resource.id)) return false;
+    return true;
+  });
+  if (otherItems.length) {
+    html += `<div class="study-section"><h3>${escapeHtml(I18n.t("study.otherResourcesHeading"))}</h3>${studyFlatListHtml(otherItems, state)}</div>`;
+  }
+
+  return html || `<div class="empty-state">${I18n.t("study.noResourcesInCategory")}</div>`;
+}
+
+function studyResourceListHtml() {
+  const state = studySubjectViewState;
+  if (!state) return "";
+  if (state.category === "all") return studyAllCategoriesHtml(state);
+
+  const filtered = state.resources.filter(resource => StudyResourceService.getResourceCategory(resource) === state.category);
+  if (!filtered.length) return `<div class="empty-state">${I18n.t("study.noResourcesInCategory")}</div>`;
+  if (StudyResourceService.isYearGroupedCategory(state.category)) return studyYearGroupedListHtml(filtered, state);
+  return studyFlatListHtml(filtered, state);
+}
+
+function studyResourceTabsHtml(resources) {
+  const counts = {};
+  for (const resource of resources) {
+    const category = StudyResourceService.getResourceCategory(resource);
+    counts[category] = (counts[category] || 0) + 1;
+  }
+  const presentCategories = StudyResourceService.RESOURCE_CATEGORY_ORDER.filter(category => counts[category]);
+  if (presentCategories.length <= 1) return ""; // nothing meaningful to filter by — skip the tab bar entirely
+  const tabs = ["all", ...presentCategories].map(category => {
+    const count = category === "all" ? resources.length : counts[category];
+    return `<button class="study-tab ${category === "all" ? "active" : ""}" data-study-category="${category}" onclick="setStudyResourceCategory('${category}')">${escapeHtml(studyResourceCategoryLabel(category))} <span class="study-tab-count">${count}</span></button>`;
+  }).join("");
+  return `<div class="study-tabs">${tabs}</div>`;
+}
+
+// Same partial-re-render pattern as app-wall.js's setCategoryFilter().
+function setStudyResourceCategory(category) {
+  if (!studySubjectViewState) return;
+  studySubjectViewState.category = category;
+  studySubjectViewState.visibleLimit = STUDY_RESOURCE_PAGE_SIZE;
+  document.querySelectorAll("[data-study-category]").forEach(button => button.classList.toggle("active", button.dataset.studyCategory === category));
+  const listElement = document.getElementById("study-resource-list");
+  if (listElement) listElement.innerHTML = studyResourceListHtml();
+}
+
+function studyLoadMoreResources() {
+  if (!studySubjectViewState) return;
+  studySubjectViewState.visibleLimit += STUDY_RESOURCE_PAGE_SIZE;
+  const listElement = document.getElementById("study-resource-list");
+  if (listElement) listElement.innerHTML = studyResourceListHtml();
+}
+// -------------------------------------------------------------------------
+
+function renderStudyNotFound(container, backHash, backLabel) {
+  container.innerHTML = `
+    <section class="container error-page page-reveal">
+      <div class="error-illustration">📚</div>
+      <p class="eyebrow">Route mismatch</p>
+      <h1>Study Notes page not found</h1>
+      <p>This Study Notes link does not match a known programme.</p>
+      <button class="btn btn-primary" onclick="navigate('${backHash}')">${escapeHtml(backLabel)}</button>
+    </section>`;
+}
+
+function renderStudyHome(container) {
+  const jurusanList = StudyResourceService.getJurusanList();
+  const cards = jurusanList.map((jurusan, index) => {
+    const count = StudyResourceService.getResourceCountForJurusan(jurusan.id);
+    const name = jurusan.name[studyCurrentLanguage()] || jurusan.name.en;
+    return `
+      <button class="selection-item study-jurusan-item" style="--item-delay:${index * 55}ms" onclick="navigate('#/study/${jurusan.id}')">
+        <span class="selection-icon">${jurusan.emoji}</span>
+        <span><strong>${escapeHtml(name)}</strong><small>${count} ${I18n.t("study.resourceCountLabel")}</small></span>
+        <span class="selection-check">→</span>
+      </button>`;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/')">← ${I18n.t("nav.home")}</button>
+      <header class="org-header">
+        <div class="org-header-icon">📚</div>
+        <div><p class="eyebrow">${I18n.t("study.hub.eyebrow")}</p><h1>${I18n.t("study.hub.title")}</h1><p class="study-hub-desc">${I18n.t("study.hub.desc")}</p></div>
+      </header>
+      <section class="selection-shell">
+        <div class="section-heading" style="margin-bottom:18px"><div><h2>${I18n.t("study.hub.chooseJurusan")}</h2><p>${I18n.t("study.hub.chooseJurusanDesc")}</p></div></div>
+        <div class="selection-list">${cards}</div>
+      </section>
+    </div>`;
+}
+
+// #/study/:jurusan — Semester picker. Deliberately does NOT list any
+// subjects itself (that was STUDY-V2-FOUNDATION-001's shortcut, fixed by
+// this stage) — it only shows Semester 1 / Semester 2 as the next level to
+// pick, each with real subject/resource counts.
+function renderStudyJurusan(container, jurusanId) {
+  const jurusan = StudyResourceService.getJurusanById(jurusanId);
+  if (!jurusan) {
+    renderStudyNotFound(container, "#/study", I18n.t("study.hub.title"));
+    return;
+  }
+  const name = studyJurusanDisplayName(jurusan);
+
+  const semesterCards = [1, 2].map((semester, index) => {
+    const subjectCount = StudyResourceService.getSubjectsByJurusanAndSemester(jurusanId, semester).length;
+    const resourceCount = StudyResourceService.getResourceCountForJurusanSemester(jurusanId, semester);
+    return `
+      <button class="study-semester-card reveal-card" data-reveal style="--reveal-delay:${index * 70}ms" onclick="navigate('#/study/${jurusanId}/sem/${semester}')">
+        <span class="study-semester-icon">📘</span>
+        <span class="study-semester-title">${I18n.t("study.semesterLabel")} ${semester}</span>
+        <small>${subjectCount} ${I18n.t("study.subjectCountLabel")} · ${resourceCount} ${I18n.t("study.resourceCountLabel")}</small>
+      </button>`;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/study')">← ${I18n.t("study.hub.title")}</button>
+      <header class="org-header">
+        <div class="org-header-icon">${jurusan.emoji}</div>
+        <div><p class="eyebrow">${studyBreadcrumb([I18n.t("study.hub.title")])}</p><h1>${escapeHtml(name)}</h1></div>
+      </header>
+      <section class="selection-shell">
+        <div class="section-heading" style="margin-bottom:18px"><div><h2>${I18n.t("study.jurusan.chooseSemester")}</h2><p>${I18n.t("study.jurusan.chooseSemesterDesc")}</p></div></div>
+        <div class="study-semester-grid">${semesterCards}</div>
+      </section>
+    </div>`;
+}
+
+// #/study/:jurusan/sem/:semester — Subject Code list for that
+// Jurusan+Semester. This is the real "browse hierarchy" leaf per this
+// stage's scope — subjects come entirely from data/study-subjects.js,
+// nothing hardcoded, nothing fabricated when the list is empty.
+function renderStudySemester(container, jurusanId, semester) {
+  const jurusan = StudyResourceService.getJurusanById(jurusanId);
+  const canonicalSemester = Number(semester);
+  const isValidSemester = canonicalSemester === 1 || canonicalSemester === 2;
+  if (!jurusan || !isValidSemester) {
+    renderStudyNotFound(container, jurusan ? `#/study/${jurusanId}` : "#/study", jurusan ? studyJurusanDisplayName(jurusan) : I18n.t("study.hub.title"));
+    return;
+  }
+  const name = studyJurusanDisplayName(jurusan);
+  const subjects = StudyResourceService.getSubjectsByJurusanAndSemester(jurusanId, canonicalSemester);
+
+  const items = subjects.map((subject, index) => {
+    const count = StudyResourceService.getResourceCountForSubject(subject.code);
+    const displayName = studySubjectDisplayName(subject);
+    const showName = displayName !== subject.code;
+    return `
+      <button class="selection-item" style="--item-delay:${index * 55}ms" onclick="navigate('#/study/${jurusanId}/sem/${canonicalSemester}/${subject.code}')">
+        <span class="selection-icon">📄</span>
+        <span>
+          <strong>${escapeHtml(subject.code)}</strong>
+          <small>${showName ? `${escapeHtml(displayName)} · ` : ""}${count} ${I18n.t("study.resourceCountLabel")}</small>
+          ${studyResourceTypeBadges(subject.code)}
+        </span>
+        <span class="selection-check">→</span>
+      </button>`;
+  }).join("") || `<div class="empty-state">${I18n.t("study.noSubjectsYet")}</div>`;
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/study/${jurusanId}')">← ${escapeHtml(name)}</button>
+      <header class="org-header">
+        <div class="org-header-icon">${jurusan.emoji}</div>
+        <div><p class="eyebrow">${studyBreadcrumb([I18n.t("study.hub.title"), name])}</p><h1>${I18n.t("study.semesterLabel")} ${canonicalSemester}</h1></div>
+      </header>
+      <section class="selection-shell">
+        <div class="section-heading" style="margin-bottom:18px"><div><h2>${I18n.t("study.semester.chooseSubject")}</h2></div></div>
+        <div class="selection-list">${items}</div>
+      </section>
+    </div>`;
+}
+
+// #/study/:jurusan/sem/:semester/:subjectCode — STUDY-V2-004: this now
+// shows the subject's real resources (queried in the ROUTE's own
+// jurusan+semester context, per the request's explicit "不能只用
+// subjectCode 然后忽略 route context" instruction — see
+// getResourcesForSubjectInContext() in the service), grouped/tabbed per
+// studyResourceListHtml() above. Only publishable resources ever reach
+// this function (getResourcesForSubjectInContext() already filters through
+// getPublishableResources()) — manual_review/rejected/duplicate items are
+// never rendered here.
+function renderStudySubjectShell(container, jurusanId, semester, subjectCode) {
+  const jurusan = StudyResourceService.getJurusanById(jurusanId);
+  const canonicalSemester = Number(semester);
+  const isValidSemester = canonicalSemester === 1 || canonicalSemester === 2;
+  const subject = StudyResourceService.getSubjectByCode(subjectCode);
+  if (!jurusan || !isValidSemester || !subject || subject.jurusan !== jurusanId || subject.semester !== canonicalSemester) {
+    renderStudyNotFound(container, jurusan ? `#/study/${jurusanId}` : "#/study", jurusan ? studyJurusanDisplayName(jurusan) : I18n.t("study.hub.title"));
+    return;
+  }
+  const name = studyJurusanDisplayName(jurusan);
+  const resources = StudyResourceService.getResourcesForSubjectInContext(jurusanId, canonicalSemester, subjectCode);
+  const backHash = `#/study/${jurusanId}/sem/${canonicalSemester}`;
+
+  const subjectDisplayName = studySubjectDisplayName(subject);
+  const showSubjectName = subjectDisplayName !== subject.code;
+
+  studySubjectViewState = { jurusanId, semester: canonicalSemester, subjectCode, resources, category: "all", visibleLimit: STUDY_RESOURCE_PAGE_SIZE };
+
+  const bodyHtml = resources.length
+    ? `${studyResourceTabsHtml(resources)}<div id="study-resource-list">${studyResourceListHtml()}</div>`
+    : `<div class="empty-state">${I18n.t("study.subjectEmptyState")}</div>`;
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('${backHash}')">← ${I18n.t("study.semesterLabel")} ${canonicalSemester}</button>
+      <header class="org-header">
+        <div class="org-header-icon">📄</div>
+        <div>
+          <p class="eyebrow">${studyBreadcrumb([I18n.t("study.hub.title"), name, `${I18n.t("study.semesterLabel")} ${canonicalSemester}`])}</p>
+          <h1>${escapeHtml(subjectCode)}</h1>
+          ${showSubjectName ? `<div class="org-header-meta"><span>${escapeHtml(subjectDisplayName)}</span></div>` : ""}
+          <p class="study-subject-count">${resources.length} ${I18n.t("study.resourceCountLabel")}</p>
+        </div>
+      </header>
+      <section class="selection-shell">${bodyHtml}</section>
+    </div>`;
+}
+
+// #/study/resource/:resourceId — STUDY-V2-004: real metadata (subject,
+// semester, type, year, source, verification, paired Question/Scheme).
+// Gated by isResourcePublishable() so a guessed/stray resourceId can never
+// leak a manual_review/rejected/duplicate item through a direct link — the
+// same "hide from ordinary users" rule every list view already applies. No
+// sourceRelativePath/sourceBatch/fileId is ever rendered here — those are
+// internal provenance fields, not user-facing (and never a local absolute
+// path to begin with — see scripts/build-study-manifest.mjs).
+//
+// STUDY-V2-006: "Open file" is now real for any resource in the curated
+// Competition Demo File Set (StudyResourceService.getResourceFileUrl() —
+// this function never builds a path itself). PDF opens in a new tab via the
+// browser's own native viewer (spec section 10: no custom renderer needed
+// for v1); non-PDF (docx/pptx/doc) uses the `download` attribute rather
+// than pretending the browser can preview it (spec section 9). A resource
+// NOT in the demo set (fileUrl is null) still shows a disabled button, but
+// with an honest "not included in this demo" note — distinct from "not
+// connected yet," since file serving genuinely is connected now, this
+// particular file just wasn't part of the curated set (see
+// scripts/build-study-demo-files.mjs for why the full ~2.5GB set wasn't
+// copied wholesale).
+function renderStudyResourceDetail(container, resourceId) {
+  const resource = StudyResourceService.getResourceById(resourceId);
+  if (!resource || !StudyResourceService.isResourcePublishable(resource)) {
+    renderStudyNotFound(container, "#/study", I18n.t("study.hub.title"));
+    return;
+  }
+  const jurusan = StudyResourceService.getJurusanById(resource.jurusan);
+  const subject = StudyResourceService.getSubjectByCode(resource.subjectCode);
+  const jurusanName = jurusan ? studyJurusanDisplayName(jurusan) : resource.jurusan;
+  const backHash = `#/study/${resource.jurusan}/sem/${resource.semester}/${resource.subjectCode}`;
+  const category = StudyResourceService.getResourceCategory(resource);
+  const verificationBadge = studyVerificationBadgeHtml(resource.verificationStatus) || `<span class="study-badge">${I18n.t("study.unverified")}</span>`;
+
+  const related = StudyResourceService.getRelatedResource(resource);
+  const relatedHtml = related && StudyResourceService.isResourcePublishable(related)
+    ? `<div class="study-related-resource">
+         <p class="study-related-label">${resource.resourceType === "answer_scheme" ? I18n.t("study.relatedQuestion") : I18n.t("study.relatedScheme")}</p>
+         <button class="btn btn-outline" onclick="navigate('#/study/resource/${related.id}')">${escapeHtml(related.title)} →</button>
+       </div>`
+    : "";
+
+  const fileUrl = StudyResourceService.getResourceFileUrl(resource);
+  const fileType = StudyResourceService.getResourceFileType(resource);
+  const isPdf = StudyResourceService.isResourceFilePdf(resource);
+  const fileTypeBadge = fileType ? `<span class="study-badge study-badge-file">${escapeHtml(I18n.t(`study.fileType.${fileType}`))}</span>` : "";
+  const fileOpenHtml = fileUrl
+    ? `<a class="btn btn-primary" href="${escapeHtml(fileUrl)}" ${isPdf ? 'target="_blank" rel="noopener noreferrer"' : "download"}>${isPdf ? I18n.t("study.openPdf") : I18n.t("study.openFile")}</a> ${fileTypeBadge}`
+    : `<button class="btn btn-primary" disabled title="${escapeHtml(I18n.t("study.fileUnavailableInDemo"))}">${I18n.t("study.openFile")}</button>
+       <p class="study-file-note">${I18n.t("study.fileUnavailableInDemoNote")}</p>`;
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('${backHash}')">← ${escapeHtml(resource.subjectCode)}</button>
+      <header class="org-header">
+        <div class="org-header-icon">📄</div>
+        <div>
+          <p class="eyebrow">${studyBreadcrumb([I18n.t("study.hub.title"), jurusanName, `${I18n.t("study.semesterLabel")} ${resource.semester}`, resource.subjectCode])}</p>
+          <h1>${escapeHtml(resource.title)}</h1>
+        </div>
+      </header>
+      <section class="selection-shell study-resource-detail">
+        <dl class="study-detail-grid">
+          <div><dt>${I18n.t("study.detail.subject")}</dt><dd>${escapeHtml(resource.subjectCode)}${subject ? ` · ${escapeHtml(studySubjectDisplayName(subject))}` : ""}</dd></div>
+          <div><dt>${I18n.t("study.detail.semester")}</dt><dd>${I18n.t("study.semesterLabel")} ${resource.semester}</dd></div>
+          <div><dt>${I18n.t("study.detail.type")}</dt><dd>${escapeHtml(studyResourceCategoryLabel(category))}</dd></div>
+          <div><dt>${I18n.t("study.detail.year")}</dt><dd>${escapeHtml(studyYearLabel(resource))}</dd></div>
+          <div><dt>${I18n.t("study.detail.source")}</dt><dd>${studySourceLabel(resource)}</dd></div>
+          <div><dt>${I18n.t("study.detail.verification")}</dt><dd>${verificationBadge}</dd></div>
+        </dl>
+        ${resource.description ? `<p class="study-detail-description">${escapeHtml(resource.description)}</p>` : ""}
+        ${relatedHtml}
+        <div class="study-file-open">
+          ${fileOpenHtml}
+        </div>
+      </section>
+    </div>`;
+}
+
+function renderStudyUploadShell(container) {
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/study')">← ${I18n.t("study.hub.title")}</button>
+      <header class="org-header">
+        <div class="org-header-icon">⬆️</div>
+        <div><p class="eyebrow">${I18n.t("study.hub.title")}</p><h1>${I18n.t("study.upload.title")}</h1></div>
+      </header>
+      <section class="selection-shell">
+        <div class="empty-state">${I18n.t("study.upload.comingSoon")}</div>
+      </section>
+    </div>`;
+}

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf7f2" />
+  <meta name="description" content="Standalone Echo Wall AI Campus Guide prompt-focus recording scene." />
+  <title>AI Campus Guide Prompt Focus — Echo Wall Video Demo</title>
+  <link rel="icon" type="image/png" href="../../assets/book-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&amp;family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="recording-page">
+  <nav class="navbar" aria-label="Primary navigation">
+    <a class="navbar-brand" href="#" aria-label="Echo Wall home" tabindex="-1">
+      <span class="navbar-icon navbar-logo-image"><img src="../../assets/book-icon.png" alt="" /></span>
+      <span>Echo Wall</span>
+    </a>
+
+    <div class="navbar-actions navbar-actions-expanded">
+      <a class="btn btn-outline btn-sm btn-round" href="#" tabindex="-1">Echo Map</a>
+      <div class="preference-menu">
+        <button class="preference-trigger" type="button" tabindex="-1" aria-label="Language">
+          <span class="preference-current">EN</span>
+          <span class="preference-chevron" aria-hidden="true">▾</span>
+        </button>
+      </div>
+      <div class="preference-menu">
+        <button class="preference-trigger" type="button" tabindex="-1" aria-label="Theme">
+          <span class="preference-current">Auto</span>
+          <span class="preference-chevron" aria-hidden="true">▾</span>
+        </button>
+      </div>
+      <div class="user-nav-actions">
+        <button class="account-trigger" type="button" tabindex="-1" aria-label="Account: LA">
+          <span class="account-avatar" aria-hidden="true">LA</span>
+          <span class="account-trigger-name">LA</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main id="app">
+    <div class="home-page">
+      <section class="hero container" aria-label="Echo Wall introduction">
+        <div class="hero-copy">
+          <span class="badge badge-orange hero-badge">🎓 Passing the Torch</span>
+          <p class="eyebrow">Student knowledge · campus memory · shared experience</p>
+          <h1>Echoes of Experience,<br /><span>Pinned to the Wall</span></h1>
+          <p class="hero-description">A student-led space where advice, memories and real campus experience stay useful for the people who come next.</p>
+          <div class="hero-actions">
+            <button class="btn btn-primary btn-lg" type="button" tabindex="-1">Explore Communities</button>
+            <a class="btn btn-outline btn-lg" href="#" tabindex="-1">🗺️ Open Echo Map</a>
+          </div>
+          <div class="hero-trust-row">
+            <span><b>Text + photo</b> memories</span>
+            <span><b>Browse by major</b></span>
+            <span><b>Admin</b> moderation</span>
+          </div>
+        </div>
+
+        <div class="hero-visual" aria-label="Echo Wall book illustration">
+          <div class="hero-orbit hero-orbit-one"></div>
+          <div class="hero-orbit hero-orbit-two"></div>
+          <article class="floating-note floating-note-a"><span>📚</span> “Revise a little every day.”</article>
+          <article class="floating-note floating-note-b"><span>💛</span> “You are not behind.”</article>
+          <article class="floating-note floating-note-c"><span>🏫</span> “Remember this place.”</article>
+          <div class="hero-book-halo"></div>
+          <img class="hero-book" src="../../assets/book-icon.png" alt="Open book, the Echo Wall symbol" />
+          <div class="hero-visual-caption"><span class="pulse-dot"></span> Every note keeps an experience alive</div>
+        </div>
+      </section>
+
+      <section class="container stats-section" aria-label="Echo Wall statistics">
+        <div class="stats-grid">
+          <article class="stat-card"><span class="stat-icon">✏️</span><span class="stat-value">1,017</span><span class="stat-label">Visible notes</span></article>
+          <article class="stat-card"><span class="stat-icon">🏛️</span><span class="stat-value">12</span><span class="stat-label">Communities</span></article>
+          <article class="stat-card"><span class="stat-icon">📷</span><span class="stat-value">53</span><span class="stat-label">Photo notes</span></article>
+          <article class="stat-card"><span class="stat-icon">🕒</span><span class="stat-value stat-value-text">Aug 25, 2026</span><span class="stat-label">Latest memory</span></article>
+        </div>
+      </section>
+
+      <section class="container" aria-label="Community entry">
+        <div class="home-community-card">
+          <span class="home-community-card-rings" aria-hidden="true"></span>
+          <span class="home-community-card-ambient" aria-hidden="true"></span>
+          <span class="home-community-card-content">
+            <span class="eyebrow">Choose your community</span>
+            <span class="home-community-card-title">Community</span>
+            <span class="home-community-card-desc">A shared space for every Matriculation student across all colleges.</span>
+          </span>
+          <span class="home-community-card-cta">Enter community <span aria-hidden="true">→</span></span>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <section class="ai-assistant ai-assistant--visible" role="dialog" aria-modal="true" aria-label="KMK campus assistant">
+    <header class="ai-assistant-header">
+      <div class="ai-assistant-avatar" aria-hidden="true">✦</div>
+      <div>
+        <p>Echo Wall · KMK guide</p>
+        <h2>Ask Echo</h2>
+      </div>
+      <button class="ai-assistant-close" type="button" tabindex="-1" aria-label="Close">×</button>
+    </header>
+
+    <div class="ai-assistant-body">
+      <div class="ai-messages" aria-label="Conversation">
+        <div class="ai-message ai-message-assistant">
+          <p>Hi! I'm Echo, your KMK campus guide. Ask me anything about our campus buildings, facilities, or student services.</p>
+        </div>
+      </div>
+
+      <div class="ai-suggestions" aria-label="Suggested questions">
+        <button class="quick-prompt" data-prompt="library" type="button" tabindex="-1">Where is the library?</button>
+        <button class="quick-prompt" data-prompt="sports" type="button" tabindex="-1">Show sports facilities</button>
+        <button class="quick-prompt" data-prompt="cafeteria" type="button" tabindex="-1">Where is the cafeteria?</button>
+      </div>
+    </div>
+
+    <div class="ai-assistant-form" aria-label="Ask a question">
+      <label class="visually-hidden" for="ai-assistant-input">Ask a question</label>
+      <input id="ai-assistant-input" type="text" tabindex="-1" readonly placeholder="Ask about KMK campus…" />
+      <button type="button" tabindex="-1" aria-label="Send">↑</button>
+    </div>
+    <p class="ai-assistant-disclaimer">Campus guide responses use public KMK information.</p>
+  </section>
+
+  <button class="bisheng-launcher" type="button" tabindex="-1" aria-label="AI assistant">
+    <span aria-hidden="true">✦</span>
+  </button>
+
+  <div id="focus-overlay" aria-hidden="true"></div>
+  <div id="focus-stage" aria-hidden="true">
+    <div id="prompt-contact-shadow" class="prompt-contact-shadow"></div>
+    <div id="prompt-clone-mount"></div>
+  </div>
+
+  <p id="sequence-status" class="visually-hidden" aria-live="polite">Normal Echo Wall page.</p>
+  <noscript>This recording scene needs JavaScript to play the prompt-focus sequence.</noscript>
+  <script src="script.js"></script>
+</body>
+</html>

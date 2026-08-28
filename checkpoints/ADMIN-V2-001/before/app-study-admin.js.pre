@@ -1,0 +1,386 @@
+/**
+ * Study Notes V2 — Admin Moderation (STUDY-V2-008).
+ *
+ * Integrates into the existing #/admin panel as a third source
+ * (`adminState.sourceType === "study"`) rather than a separate admin system
+ * — see the entry point comment in app-admin.js's `renderAdmin()`.
+ * Read/write access to submissions goes exclusively through
+ * `window.StudyUploadService` (services/study-submission-service.js); this
+ * file never touches indexedDB directly and never mutates
+ * `window.STUDY_RESOURCE_MANIFEST`.
+ *
+ * Reuses app-study.js's cascading option-builders
+ * (studyUploadJurusanOptionsHtml / studyUploadSemesterOptionsHtml /
+ * studyUploadSubjectOptionsHtml / studyUploadTypeOptionsHtml /
+ * studyUploadSubtypeOptionsHtml / studyUploadSourceTypeOptionsHtml /
+ * studyUploadRelatedOptionsHtml) for the metadata-edit form instead of
+ * reimplementing the same Jurusan->Semester->Subject/Type->Subtype taxonomy
+ * a second time — must load after app-study.js.
+ *
+ * Only a Global Admin (AuthService.isCurrentUserAdmin()) ever reaches this
+ * panel — requireAdminAccess() (app-admin.js) gates every mutating action
+ * the same way it already gates community/map moderation. There is no
+ * separate "Study Moderator" role in this prototype (see
+ * services/permission-service.js's own header comment on why a front-end-only
+ * sub-role would not be a real security boundary).
+ */
+
+let adminStudyState = {
+  statusFilter: "pending",
+  subjectFilter: "all",
+  duplicateFilter: "all",
+  expandedId: null,
+  rejectingId: null,
+};
+
+const ADMIN_STUDY_REJECT_REASONS = ["wrong_subject", "duplicate", "corrupt_file", "irrelevant", "permission_issue", "other"];
+const ADMIN_STUDY_VERIFICATION_LEVELS = ["unverified", "verified_source", "verified_file"];
+
+function adminStudyQueue() {
+  if (!window.StudyUploadService) return [];
+  return StudyUploadService.getModerationQueue({
+    moderationStatus: adminStudyState.statusFilter,
+    subjectCode: adminStudyState.subjectFilter !== "all" ? adminStudyState.subjectFilter : undefined,
+    duplicateStatus: adminStudyState.duplicateFilter !== "all" ? adminStudyState.duplicateFilter : undefined,
+  });
+}
+
+function adminStudyFileSizeLabel(bytes) {
+  if (!Number.isFinite(bytes)) return "";
+  return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function adminStudyStatusBadge(status) {
+  const cls = status === "approved" ? "admin-status-visible" : status === "rejected" ? "admin-status-hidden" : "admin-status-pending";
+  return `<span class="admin-status ${cls}">${escapeHtml(I18n.t(`admin.study.status.${status}`))}</span>`;
+}
+
+function adminStudyDuplicateBadge(record) {
+  if (record.duplicateStatus === "exact") return `<span class="admin-meta-badge admin-study-duplicate-exact">${I18n.t("admin.study.duplicateExact")}</span>`;
+  if (record.duplicateStatus === "likely") return `<span class="admin-meta-badge admin-study-duplicate-likely">${I18n.t("admin.study.duplicateLikely")}</span>`;
+  return "";
+}
+
+function adminStudyRelatedLabel(record) {
+  if (!record.relatedResourceId) return "";
+  const related = StudyUploadService.getSubmissionById(record.relatedResourceId) || StudyResourceService.getResourceById(record.relatedResourceId);
+  const title = related ? related.title : record.relatedResourceId;
+  return `<div class="admin-note-foot"><span>${I18n.t("study.upload.field.related")}: ${escapeHtml(title)}</span></div>`;
+}
+
+function adminStudyVerifySelectHtml(record) {
+  return `
+    <label class="admin-study-verify">
+      <span class="admin-filter-label">${I18n.t("admin.study.verificationLabel")}</span>
+      <select class="form-select" onchange="adminStudySetVerification('${record.id}', this.value)">
+        ${ADMIN_STUDY_VERIFICATION_LEVELS.map(level => `<option value="${level}" ${record.verificationStatus === level ? "selected" : ""}>${escapeHtml(I18n.t(`admin.study.verification.${level}`))}</option>`).join("")}
+      </select>
+    </label>`;
+}
+
+function adminStudyRejectFormHtml(record) {
+  return `
+    <div class="admin-study-reject-form">
+      <label class="form-group">
+        <span class="form-label">${I18n.t("admin.study.rejectReasonLabel")}</span>
+        <select id="admin-study-reject-reason-${record.id}" class="form-select">
+          ${ADMIN_STUDY_REJECT_REASONS.map(reason => `<option value="${reason}">${escapeHtml(I18n.t(`admin.study.rejectReason.${reason}`))}</option>`).join("")}
+        </select>
+      </label>
+      <label class="form-group">
+        <span class="form-label">${I18n.t("admin.study.rejectDetailLabel")}</span>
+        <textarea id="admin-study-reject-detail-${record.id}" class="form-textarea" placeholder="${escapeHtml(I18n.t("admin.study.rejectDetailPlaceholder"))}"></textarea>
+      </label>
+      <div class="admin-study-form-actions">
+        <button type="button" class="btn btn-primary btn-sm admin-danger" onclick="adminStudyConfirmReject('${record.id}')">${I18n.t("admin.study.confirmReject")}</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="adminStudyToggleReject('${record.id}')">${I18n.t("admin.study.cancel")}</button>
+      </div>
+    </div>`;
+}
+
+// Metadata-correction form (spec section 39) — reuses app-study.js's own
+// cascading option-builders so the taxonomy is defined in exactly one
+// place. "Save & Approve" is the only exit (matches the spec's own worked
+// test case: correct metadata, then approve, then confirm it's public with
+// the corrected values) — this stage does not add a separate "save without
+// approving" action, out of scope per the spec's own field list.
+function adminStudyEditFormHtml(record) {
+  const id = record.id;
+  return `
+    <div class="admin-study-edit-form">
+      <div class="study-upload-grid">
+        <div class="form-group"><label class="form-label">${I18n.t("study.upload.field.title")}</label><input id="admin-study-title-${id}" class="form-input" type="text" value="${escapeHtml(record.title)}"></div>
+        <div class="form-group"><label class="form-label">${I18n.t("study.upload.field.jurusan")}</label><select id="admin-study-jurusan-${id}" class="form-select" onchange="adminStudyOnJurusanChange('${id}')">${studyUploadJurusanOptionsHtml(record.jurusan)}</select></div>
+        <div class="form-group"><label class="form-label">${I18n.t("study.upload.field.semester")}</label><select id="admin-study-semester-${id}" class="form-select" onchange="adminStudyOnSemesterChange('${id}')">${studyUploadSemesterOptionsHtml(record.jurusan, record.semester)}</select></div>
+        <div class="form-group"><label class="form-label">${I18n.t("study.upload.field.subject")}</label><select id="admin-study-subject-${id}" class="form-select" onchange="adminStudyRefreshRelated('${id}')">${studyUploadSubjectOptionsHtml(record.jurusan, record.semester, record.subjectCode)}</select></div>
+        <div class="form-group"><label class="form-label">${I18n.t("study.upload.field.type")}</label><select id="admin-study-type-${id}" class="form-select" onchange="adminStudyOnTypeChange('${id}')">${studyUploadTypeOptionsHtml(record.resourceType)}</select></div>
+        <div class="form-group"><label class="form-label">${I18n.t("study.upload.field.subtype")}</label><select id="admin-study-subtype-${id}" class="form-select">${studyUploadSubtypeOptionsHtml(record.resourceType, record.resourceSubtype)}</select></div>
+        <div class="form-group"><label class="form-label">${I18n.t("study.upload.field.topic")}</label><input id="admin-study-topic-${id}" class="form-input" type="text" value="${escapeHtml(record.topic || "")}"></div>
+        <div class="form-group"><label class="form-label">${I18n.t("study.upload.field.yearStart")}</label><input id="admin-study-year-start-${id}" class="form-input" type="number" value="${record.yearStart ?? ""}"></div>
+        <div class="form-group"><label class="form-label">${I18n.t("study.upload.field.yearEnd")}</label><input id="admin-study-year-end-${id}" class="form-input" type="number" value="${record.yearEnd ?? ""}"></div>
+        <div class="form-group"><label class="form-label">${I18n.t("study.upload.field.examSession")}</label><input id="admin-study-session-${id}" class="form-input" type="text" value="${escapeHtml(record.examSessionLabel || "")}"></div>
+        <div class="form-group"><label class="form-label">${I18n.t("study.upload.field.sourceCollege")}</label><input id="admin-study-source-college-${id}" class="form-input" type="text" value="${escapeHtml(record.sourceCollege || "")}"></div>
+        <div class="form-group"><label class="form-label">${I18n.t("study.upload.field.sourceType")}</label><select id="admin-study-source-type-${id}" class="form-select">${studyUploadSourceTypeOptionsHtml(record.sourceType)}</select></div>
+      </div>
+      <div class="form-group"><label class="form-label">${I18n.t("study.upload.field.related")}</label><select id="admin-study-related-${id}" class="form-select">${studyUploadRelatedOptionsHtml(record.subjectCode, record.resourceType, record.relatedResourceId)}</select></div>
+      <div class="form-group"><label class="form-label">${I18n.t("study.upload.field.description")}</label><textarea id="admin-study-description-${id}" class="form-textarea">${escapeHtml(record.description || "")}</textarea></div>
+      <div class="admin-study-form-actions">
+        <button type="button" class="btn btn-primary btn-sm" onclick="adminStudySaveAndApprove('${id}')">${I18n.t("admin.study.saveAndApprove")}</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="adminStudyToggleExpand('${id}')">${I18n.t("admin.study.cancel")}</button>
+      </div>
+    </div>`;
+}
+
+function adminStudySubmissionRowHtml(record, index = 0) {
+  const isExpanded = adminStudyState.expandedId === record.id;
+  const isRejecting = adminStudyState.rejectingId === record.id;
+  return `
+    <article class="admin-note-row admin-study-row" style="--admin-row-delay:${Math.min(index * 30, 300)}ms">
+      <div class="admin-note-thumb"><span>📄</span></div>
+      <div class="admin-note-main">
+        <div class="admin-note-meta">
+          ${adminStudyStatusBadge(record.moderationStatus)}
+          <span class="admin-meta-badge">${escapeHtml(record.subjectCode)} · ${I18n.t("study.semesterLabel")} ${record.semester}</span>
+          <span class="admin-meta-badge">${escapeHtml(I18n.t(`study.type.${record.resourceType}`))}</span>
+          ${adminStudyDuplicateBadge(record)}
+        </div>
+        <p class="admin-note-content"><strong>${escapeHtml(record.title)}</strong></p>
+        <div class="admin-note-foot">
+          <span>${I18n.t("admin.study.file")}: ${escapeHtml(record.fileName || "")} (${adminStudyFileSizeLabel(record.fileSize)})</span>
+          <span>${I18n.t("admin.study.contributor")}: ${escapeHtml(record.contributorUserId || "—")}</span>
+          <span>${formatDate(record.createdAt, true)}</span>
+        </div>
+        ${adminStudyRelatedLabel(record)}
+        ${record.moderationStatus === "rejected" && record.rejectionReason ? `<div class="admin-note-foot"><span>${I18n.t("admin.study.rejectReasonLabel")}: ${escapeHtml(record.rejectionReason)}</span></div>` : ""}
+      </div>
+      <div class="admin-note-actions admin-study-actions">
+        <button type="button" class="btn btn-outline btn-sm" onclick="adminStudyOpenFile('${record.id}')">${I18n.t("admin.study.openFile")}</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="adminStudyToggleExpand('${record.id}')">${isExpanded ? I18n.t("admin.study.hideDetails") : I18n.t("admin.study.editDetails")}</button>
+        ${record.moderationStatus === "pending" ? `
+          <button type="button" class="btn btn-primary btn-sm" onclick="adminStudyApprove('${record.id}')">${I18n.t("admin.study.approve")}</button>
+          <button type="button" class="btn btn-outline btn-sm admin-danger" onclick="adminStudyToggleReject('${record.id}')">${I18n.t("admin.study.reject")}</button>` : ""}
+        ${record.moderationStatus === "approved" ? adminStudyVerifySelectHtml(record) : ""}
+      </div>
+      ${isRejecting ? adminStudyRejectFormHtml(record) : ""}
+      ${isExpanded ? adminStudyEditFormHtml(record) : ""}
+    </article>`;
+}
+
+function adminStudyStatsHtml() {
+  const all = window.StudyUploadService ? StudyUploadService.getCachedSubmissions() : [];
+  const pending = all.filter(item => item.moderationStatus === "pending").length;
+  const approved = all.filter(item => item.moderationStatus === "approved").length;
+  const rejected = all.filter(item => item.moderationStatus === "rejected").length;
+  const possibleDuplicate = all.filter(item => item.moderationStatus === "pending" && item.duplicateStatus === "likely").length;
+  return [
+    ["🕓", I18n.t("admin.study.statPending"), pending],
+    ["✅", I18n.t("admin.study.statApproved"), approved],
+    ["🚫", I18n.t("admin.study.statRejected"), rejected],
+    ["⚠️", I18n.t("admin.study.statDuplicate"), possibleDuplicate],
+  ];
+}
+
+// Status/Subject/Duplicate filters — Subject options are always computed
+// from the submissions that actually exist (same "never a fixed/hardcoded
+// list" rule the rest of Study Notes V2 already follows for years/subtypes/
+// source colleges).
+function adminStudyFilterBarHtml() {
+  const all = window.StudyUploadService ? StudyUploadService.getCachedSubmissions() : [];
+  const subjects = [...new Set(all.map(item => item.subjectCode))].sort();
+  const statusOptions = ["pending", "approved", "rejected", "all"];
+  return `
+    <div class="admin-filters admin-study-filters">
+      <label class="admin-filter-select">
+        <span class="admin-filter-label">${I18n.t("admin.study.filterStatus")}</span>
+        <select class="form-select" onchange="adminStudySetFilter('statusFilter', this.value)">
+          ${statusOptions.map(status => `<option value="${status}" ${adminStudyState.statusFilter === status ? "selected" : ""}>${escapeHtml(I18n.t(`admin.study.status.${status}`))}</option>`).join("")}
+        </select>
+      </label>
+      <label class="admin-filter-select">
+        <span class="admin-filter-label">${I18n.t("admin.study.filterSubject")}</span>
+        <select class="form-select" onchange="adminStudySetFilter('subjectFilter', this.value)">
+          <option value="all" ${adminStudyState.subjectFilter === "all" ? "selected" : ""}>${I18n.t("study.filters.allOption")}</option>
+          ${subjects.map(subject => `<option value="${escapeHtml(subject)}" ${adminStudyState.subjectFilter === subject ? "selected" : ""}>${escapeHtml(subject)}</option>`).join("")}
+        </select>
+      </label>
+      <label class="admin-filter-select">
+        <span class="admin-filter-label">${I18n.t("admin.study.filterDuplicate")}</span>
+        <select class="form-select" onchange="adminStudySetFilter('duplicateFilter', this.value)">
+          <option value="all" ${adminStudyState.duplicateFilter === "all" ? "selected" : ""}>${I18n.t("study.filters.allOption")}</option>
+          <option value="likely" ${adminStudyState.duplicateFilter === "likely" ? "selected" : ""}>${I18n.t("admin.study.duplicateLikely")}</option>
+          <option value="none" ${adminStudyState.duplicateFilter === "none" ? "selected" : ""}>${I18n.t("admin.study.duplicateNone")}</option>
+        </select>
+      </label>
+    </div>`;
+}
+
+// The full self-contained panel (sidebar included — see the entry-point
+// comment in app-admin.js's renderAdmin() for why the sidebar is duplicated
+// here instead of extracted into a shared helper).
+function renderAdminStudyPanel(container) {
+  const queue = adminStudyQueue();
+  const pendingCount = window.StudyUploadService ? StudyUploadService.getCachedSubmissions().filter(item => item.moderationStatus === "pending").length : 0;
+  container.innerHTML = `
+    <div class="admin-shell page-reveal">
+      <aside class="admin-sidebar">
+        <nav class="admin-nav" aria-label="Admin sections">
+          <button class="admin-nav-item" onclick="adminSetSource('community')"><span>📝</span><span>${I18n.t("admin.sourceCommunity")}</span><b></b></button>
+          <button class="admin-nav-item" onclick="adminSetSource('map')"><span>🗺️</span><span>${I18n.t("admin.sourceMap")}</span><b></b></button>
+          <button class="admin-nav-item active" onclick="adminSetSource('study')"><span>📚</span><span>${I18n.t("admin.study.navLabel")}</span><b>${pendingCount}</b></button>
+          <a class="admin-nav-item" href="map.html"><span>📍</span><span>Open Echo Map</span><b>↗</b></a>
+        </nav>
+        <button class="admin-logout" onclick="adminLogout()"><span>↪</span> Sign out</button>
+      </aside>
+      <main class="admin-main">
+        <header class="admin-header">
+          <div><p class="eyebrow">${I18n.t("admin.study.eyebrow")}</p><h1>${I18n.t("admin.study.title")}</h1><p>${I18n.t("admin.study.desc")}</p></div>
+          <div class="admin-header-actions"><button class="btn btn-outline btn-sm" onclick="navigate('#/')">View website ↗</button></div>
+        </header>
+        <section class="admin-stats">
+          ${adminStudyStatsHtml().map((stat, index) => `<article class="admin-stat" style="--admin-delay:${index * 70}ms"><span class="admin-stat-icon">${stat[0]}</span><div><span>${stat[1]}</span><strong>${stat[2]}</strong></div></article>`).join("")}
+        </section>
+        <section class="admin-panel">
+          <div class="admin-panel-header">
+            <div><p class="eyebrow">${I18n.t("admin.study.queueEyebrow")}</p><h2>${I18n.t("admin.study.queueTitle")}</h2><p><span class="match-count">${queue.length}</span> ${I18n.t("admin.study.matching")}</p></div>
+          </div>
+          ${adminStudyFilterBarHtml()}
+          <div class="admin-note-list">
+            ${queue.length ? queue.map(adminStudySubmissionRowHtml).join("") : `<div class="admin-empty"><span>🗂️</span><h3>${I18n.t("admin.study.emptyTitle")}</h3><p>${I18n.t("admin.study.emptyDesc")}</p></div>`}
+          </div>
+        </section>
+      </main>
+    </div>`;
+}
+
+function adminStudySetFilter(key, value) {
+  if (!requireAdminAccess()) return;
+  adminStudyState[key] = value;
+  render();
+}
+
+function adminStudyToggleExpand(id) {
+  if (!requireAdminAccess()) return;
+  adminStudyState.expandedId = adminStudyState.expandedId === id ? null : id;
+  adminStudyState.rejectingId = null;
+  render();
+}
+
+function adminStudyToggleReject(id) {
+  if (!requireAdminAccess()) return;
+  adminStudyState.rejectingId = adminStudyState.rejectingId === id ? null : id;
+  adminStudyState.expandedId = null;
+  render();
+}
+
+async function adminStudyOpenFile(submissionId) {
+  try {
+    const blob = await StudyUploadService.getFileBlobBySubmissionId(submissionId);
+    if (!blob) { if (typeof showToast === "function") showToast(I18n.t("study.upload.fileMissing")); return; }
+    const objectUrl = URL.createObjectURL(blob);
+    window.open(objectUrl, "_blank", "noopener");
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+  } catch (error) {
+    if (typeof showToast === "function") showToast(error instanceof Error ? error.message : "Could not open this file.");
+  }
+}
+
+function adminStudyOnJurusanChange(id) {
+  const jurusanId = document.getElementById(`admin-study-jurusan-${id}`).value;
+  document.getElementById(`admin-study-semester-${id}`).innerHTML = studyUploadSemesterOptionsHtml(jurusanId, "");
+  document.getElementById(`admin-study-subject-${id}`).innerHTML = studyUploadSubjectOptionsHtml(jurusanId, "", "");
+  adminStudyRefreshRelated(id);
+}
+
+function adminStudyOnSemesterChange(id) {
+  const jurusanId = document.getElementById(`admin-study-jurusan-${id}`).value;
+  const semester = document.getElementById(`admin-study-semester-${id}`).value;
+  document.getElementById(`admin-study-subject-${id}`).innerHTML = studyUploadSubjectOptionsHtml(jurusanId, semester, "");
+  adminStudyRefreshRelated(id);
+}
+
+function adminStudyOnTypeChange(id) {
+  const resourceType = document.getElementById(`admin-study-type-${id}`).value;
+  document.getElementById(`admin-study-subtype-${id}`).innerHTML = studyUploadSubtypeOptionsHtml(resourceType, "");
+  adminStudyRefreshRelated(id);
+}
+
+function adminStudyRefreshRelated(id) {
+  const subjectCode = document.getElementById(`admin-study-subject-${id}`)?.value;
+  const resourceType = document.getElementById(`admin-study-type-${id}`)?.value;
+  const relatedSelect = document.getElementById(`admin-study-related-${id}`);
+  if (relatedSelect) relatedSelect.innerHTML = studyUploadRelatedOptionsHtml(subjectCode, resourceType, "");
+}
+
+function adminStudyReadEditForm(id) {
+  const value = elementId => document.getElementById(elementId)?.value;
+  return {
+    title: value(`admin-study-title-${id}`),
+    jurusan: value(`admin-study-jurusan-${id}`),
+    semester: value(`admin-study-semester-${id}`),
+    subjectCode: value(`admin-study-subject-${id}`),
+    resourceType: value(`admin-study-type-${id}`),
+    resourceSubtype: value(`admin-study-subtype-${id}`) || null,
+    topic: value(`admin-study-topic-${id}`) || null,
+    yearStart: value(`admin-study-year-start-${id}`) || null,
+    yearEnd: value(`admin-study-year-end-${id}`) || null,
+    examSessionLabel: value(`admin-study-session-${id}`) || null,
+    sourceCollege: value(`admin-study-source-college-${id}`) || null,
+    sourceType: value(`admin-study-source-type-${id}`),
+    relatedResourceId: value(`admin-study-related-${id}`) || null,
+    description: value(`admin-study-description-${id}`) || null,
+  };
+}
+
+function adminStudyErrorMessage(error) {
+  const key = error instanceof Error ? error.message : "";
+  const translated = I18n.t(key);
+  return translated && translated !== key ? translated : (key || "Something went wrong.");
+}
+
+async function adminStudyApprove(id) {
+  if (!requireAdminAccess()) return;
+  try {
+    await StudyUploadService.approveSubmission(id, {});
+    if (typeof showToast === "function") showToast(I18n.t("admin.study.approved"));
+    adminStudyState.expandedId = null;
+  } catch (error) {
+    if (typeof showToast === "function") showToast(adminStudyErrorMessage(error));
+  }
+}
+
+async function adminStudySaveAndApprove(id) {
+  if (!requireAdminAccess()) return;
+  const patch = adminStudyReadEditForm(id);
+  try {
+    await StudyUploadService.approveSubmission(id, patch);
+    if (typeof showToast === "function") showToast(I18n.t("admin.study.approved"));
+    adminStudyState.expandedId = null;
+  } catch (error) {
+    if (typeof showToast === "function") showToast(adminStudyErrorMessage(error));
+  }
+}
+
+async function adminStudyConfirmReject(id) {
+  if (!requireAdminAccess()) return;
+  const reasonKey = document.getElementById(`admin-study-reject-reason-${id}`)?.value;
+  const detail = document.getElementById(`admin-study-reject-detail-${id}`)?.value?.trim();
+  const reasonLabel = I18n.t(`admin.study.rejectReason.${reasonKey}`);
+  const reason = detail ? `${reasonLabel}: ${detail}` : reasonLabel;
+  try {
+    await StudyUploadService.rejectSubmission(id, reason);
+    if (typeof showToast === "function") showToast(I18n.t("admin.study.rejected"));
+    adminStudyState.rejectingId = null;
+  } catch (error) {
+    if (typeof showToast === "function") showToast(adminStudyErrorMessage(error));
+  }
+}
+
+async function adminStudySetVerification(id, verificationStatus) {
+  if (!requireAdminAccess()) return;
+  try {
+    await StudyUploadService.setVerification(id, verificationStatus);
+    if (typeof showToast === "function") showToast(I18n.t("admin.study.verificationUpdated"));
+  } catch (error) {
+    if (typeof showToast === "function") showToast(adminStudyErrorMessage(error));
+  }
+}

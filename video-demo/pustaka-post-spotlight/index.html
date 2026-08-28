@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf7f2" />
+  <meta name="description" content="Standalone Echo Wall Pustaka post spotlight recording scene." />
+  <title>Pustaka Building Wall — Echo Wall</title>
+  <link rel="icon" type="image/png" href="../../assets/book-icon.png" />
+  <link rel="preload" as="image" href="../../vid%20note%20buildings/6077934093636145760.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&amp;family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body id="demo-stage">
+  <a class="skip-link" href="#wall-canvas">Skip to the wall</a>
+
+  <nav class="navbar" aria-label="Primary navigation">
+    <a class="navbar-brand" href="#" aria-label="Echo Wall home">
+      <span class="navbar-icon"><img src="../../assets/book-icon.png" alt="" /></span>
+      <span>Echo Wall</span>
+    </a>
+
+    <div class="navbar-actions">
+      <a class="btn btn-outline btn-sm btn-round" href="#" aria-label="Echo Map">Echo Map</a>
+
+      <button class="preference-trigger" type="button" aria-label="Language: English">
+        <span class="preference-label">Language</span>
+        <strong>EN</strong>
+        <span class="preference-chevron" aria-hidden="true">▾</span>
+      </button>
+
+      <button class="preference-trigger" type="button" aria-label="Theme: Light">
+        <span class="preference-label">Theme</span>
+        <strong>Light</strong>
+        <span class="preference-chevron" aria-hidden="true">▾</span>
+      </button>
+
+      <button class="account-trigger" type="button" aria-label="User account: LA">
+        <span class="account-avatar" aria-hidden="true">LA</span>
+        <span class="account-trigger-name">LA</span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="wall-page" aria-label="Pustaka Building Wall">
+    <div class="wall-sticky-stack">
+      <header class="wall-context-bar">
+        <div class="wall-context-main">
+          <button class="wall-back-btn" type="button" aria-label="Leave this wall">←</button>
+          <div class="wall-context-icon" aria-hidden="true">📚</div>
+          <div class="wall-context-copy">
+            <p class="wall-context-kicker">Learning &amp; Teaching</p>
+            <div class="wall-context-title">
+              <h1>Pustaka (Perpustakaan)</h1>
+              <span class="wall-title-count">43 notes</span>
+            </div>
+          </div>
+        </div>
+        <div class="wall-context-meta">
+          <span class="wall-live-dot" aria-hidden="true"></span>
+          <span>Shared experience wall</span>
+        </div>
+      </header>
+
+      <div class="toolbar" aria-label="Wall controls">
+        <div class="toolbar-scroll">
+          <div class="filter-group" aria-label="Category filters">
+            <button class="filter-btn active" type="button" aria-pressed="true">All</button>
+            <button class="filter-btn" type="button">📚 Academic</button>
+            <button class="filter-btn" type="button">🎖️ Activities</button>
+            <button class="filter-btn" type="button">🏫 Campus life</button>
+            <button class="filter-btn" type="button">💛 Support</button>
+          </div>
+
+          <span class="toolbar-divider" aria-hidden="true"></span>
+
+          <div class="filter-group compact" aria-label="Sort order">
+            <button class="filter-btn active" type="button" aria-pressed="true">🔥 Hot</button>
+            <button class="filter-btn" type="button">🕒 New</button>
+          </div>
+        </div>
+
+        <div class="toolbar-actions">
+          <label class="search-box">
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <span class="visually-hidden">Search</span>
+            <input class="search-input" type="search" placeholder="Search notes or authors" aria-label="Search notes or authors" />
+          </label>
+          <button class="btn btn-primary btn-round wall-compose-btn" type="button"><span aria-hidden="true">＋</span> Leave a Note</button>
+        </div>
+      </div>
+    </div>
+
+    <section class="wall-canvas-wrap" aria-label="Sticky Wall">
+      <div class="wall-canvas-grid" aria-hidden="true"></div>
+      <div class="wall-canvas wall-layout-1" id="wall-canvas" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <div id="page-dim" aria-hidden="true"></div>
+
+  <div id="focus-portal" aria-hidden="true">
+    <div class="focus-halo"></div>
+    <div id="focus-card-mount"></div>
+    <svg class="orbit-glow" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <rect class="orbit-beam orbit-beam-outer" x="1.5" y="1.5" width="97" height="97" rx="8" ry="8" pathLength="1" />
+      <rect class="orbit-beam orbit-beam-core" x="1.5" y="1.5" width="97" height="97" rx="8" ry="8" pathLength="1" />
+    </svg>
+    <div class="final-pulse" aria-hidden="true"></div>
+  </div>
+
+  <noscript>This recording scene needs JavaScript to render the Sticky Wall.</noscript>
+  <script src="script.js"></script>
+</body>
+</html>

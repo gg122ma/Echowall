@@ -1,0 +1,766 @@
+// Retire the former standalone Admin session. Account roles are the only permission source.
+function clearLegacyAdminSession() {
+  try {
+    localStorage.removeItem("echo-wall-admin-session");
+  } catch {
+    // Storage cleanup must never block account-based access checks or sign-out.
+  }
+}
+clearLegacyAdminSession();
+
+let adminState = {
+  search: "",
+  category: "all",
+  visibility: "all",
+  orgId: "all",
+  sort: "new",
+  sourceType: "community",
+};
+
+let activeAdminFilter = null;
+let activeAdminFilterIndex = -1;
+let adminFilterListenersReady = false;
+let adminMapNotes = [];
+let adminMapNotesStatus = "idle";
+let adminMapNotesError = "";
+let adminMapNotesUnsubscribe = null;
+
+// ADMIN-V2-001: compatibility wrapper only — AdminPermissionService
+// (services/admin-permission-service.js) is the real Role/Scope/Permission
+// source of truth. This function now answers "can this user see the admin
+// shell at all" (any active RoleAssignment, real or bootstrap/legacy), NOT
+// "is this user a global admin" — section-specific actions must check the
+// specific AdminPermissionService permission they need (see
+// requireCommunityModerationAccess()/requireStudyModerationAccess() below),
+// not this generic function.
+function isCurrentUserAdmin() {
+  const user = window.AuthService?.getCurrentUser?.();
+  return Boolean(window.AdminPermissionService?.canAccessAdminPanel?.(user));
+}
+
+function requireAdminAccess() {
+  if (isCurrentUserAdmin()) return true;
+  if (typeof showToast === "function") showToast(I18n.t("admin.accessDenied"));
+  if (typeof getRoute === "function" && getRoute().page === "admin") render();
+  return false;
+}
+
+// Community + Map moderation share one gate today (they always have —
+// app-admin.js has never distinguished them), backed by
+// AdminPermissionService.canModerateGlobalCommunity(). Real per-college
+// Community moderation UI is ADMIN-V2-005, not built in this stage; a
+// COLLEGE_ADMIN-only user therefore cannot reach these two tabs yet (see
+// reports/REPORT_ADMIN-V2-001.md's Known Limitations).
+function canAccessCommunityModeration() {
+  const user = window.AuthService?.getCurrentUser?.();
+  return Boolean(window.AdminPermissionService?.canModerateGlobalCommunity?.(user));
+}
+
+function requireCommunityModerationAccess() {
+  if (canAccessCommunityModeration()) return true;
+  if (typeof showToast === "function") showToast(I18n.t("admin.accessDenied"));
+  if (typeof getRoute === "function" && getRoute().page === "admin") render();
+  return false;
+}
+
+// Study Moderation's own gate — deliberately separate from
+// requireAdminAccess() so a Global Moderator or College Admin who can
+// reach the admin shell (they hold SOME active RoleAssignment) still
+// cannot open or act on the Study tab.
+function canAccessStudyModeration() {
+  const user = window.AuthService?.getCurrentUser?.();
+  return Boolean(window.AdminPermissionService?.canModerateStudy?.(user));
+}
+
+function requireStudyModerationAccess() {
+  if (canAccessStudyModeration()) return true;
+  if (typeof showToast === "function") showToast(I18n.t("admin.accessDenied"));
+  if (typeof getRoute === "function" && getRoute().page === "admin") render();
+  return false;
+}
+
+function renderAdmin(container) {
+  const user = window.AuthService?.getCurrentUser?.() || null;
+  if (!user || !isCurrentUserAdmin()) {
+    renderAdminAccessState(container, user);
+    return;
+  }
+
+  // ADMIN-V2-001: which sections this signed-in admin-panel user can
+  // actually see. A user who can reach the shell (isCurrentUserAdmin()
+  // above passed) is not guaranteed either of these — e.g. a
+  // COLLEGE_ADMIN or CONTENT_REVIEWER in this stage has neither, since
+  // real per-college Community UI is ADMIN-V2-005 and there is no
+  // Content Review UI yet. Normalize adminState.sourceType to a section
+  // this user is actually permitted, instead of trusting whatever it was
+  // last set to (defense against a stale/forged sourceType).
+  const canCommunitySection = canAccessCommunityModeration();
+  const canStudySection = canAccessStudyModeration();
+  if (adminState.sourceType === "study" && !canStudySection) {
+    adminState.sourceType = canCommunitySection ? "community" : "none";
+  } else if (adminState.sourceType !== "study" && !canCommunitySection) {
+    adminState.sourceType = canStudySection ? "study" : "none";
+  }
+
+  if (adminState.sourceType === "none") {
+    renderAdminNoSectionState(container, user);
+    return;
+  }
+
+  // STUDY-V2-008: Study Moderation is a third admin source, but its panel
+  // shape (metadata edit forms, duplicate flags, verification levels) is
+  // different enough from the notes/map source-switch machinery below that
+  // reusing it would mean threading a third case through every function in
+  // this file. Early-returning to a self-contained renderer (defined in
+  // app-study-admin.js, loaded after this file) keeps the existing,
+  // already-tested community/map rendering completely untouched — the
+  // tradeoff is ~15 duplicated lines of sidebar markup between the two
+  // functions, an accepted, deliberate simplification (see
+  // study v2/reports/REPORT_STUDY-V2-008.md).
+  if (adminState.sourceType === "study") {
+    renderAdminStudyPanel(container);
+    return;
+  }
+
+  const mapNotes = adminMapNotes.slice();
+
+  const communityNotes = getAdminCommunityNotes();
+  const visibleNotes = communityNotes.filter(note => !note.isHidden).length;
+  const hiddenNotes = communityNotes.filter(note => note.isHidden).length;
+  const photoNotes = communityNotes.filter(note => getNoteImageSource(note)).length;
+  const totalVotes = communityNotes.reduce((sum, note) => sum + Number(note.upvotes || 0) + Number(note.downvotes || 0), 0);
+  const visibleMap = mapNotes.filter(note => !note.isHidden).length;
+  const hiddenMap = mapNotes.filter(note => note.isHidden).length;
+  const latestNote = communityNotes.slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0];
+  const activeIsMap = adminState.sourceType === "map";
+  const filteredItems = activeIsMap ? getAdminFilteredMapNotes() : getAdminFilteredNotes();
+  const filterDefinitions = getAdminFilterDefinitions(activeIsMap);
+
+  const stats = activeIsMap
+    ? [
+        ["🗺️", "Total pins", mapNotes.length, "All saved map notes"],
+        ["👁️", "Visible", visibleMap, "Displayed on Echo Map"],
+        ["🔒", "Hidden", hiddenMap, "Removed from public view"],
+        ["📍", "Coverage", "KMK", "Location-based records"],
+      ]
+    : [
+        ["📝", "Total notes", communityNotes.length, "Community records only"],
+        ["👁️", "Visible", visibleNotes, "Publicly readable"],
+        ["📷", "Photo notes", photoNotes, "Notes with attached media"],
+        ["👍", "Votes", totalVotes, "All up and down votes"],
+      ];
+
+  container.innerHTML = `
+    <div class="admin-shell page-reveal">
+      <aside class="admin-sidebar">
+        <nav class="admin-nav" aria-label="Admin sections">
+          <button class="admin-nav-item ${!activeIsMap ? "active" : ""}" onclick="adminSetTab('notes')"><span>📝</span><span>${I18n.t("admin.sourceCommunity")}</span><b>${communityNotes.length}</b></button>
+          <button class="admin-nav-item ${activeIsMap ? "active" : ""}" onclick="adminSetTab('map')"><span>🗺️</span><span>${I18n.t("admin.sourceMap")}</span><b>${mapNotes.length}</b></button>
+          ${canStudySection ? `<button class="admin-nav-item" onclick="adminSetSource('study')"><span>📚</span><span>${I18n.t("admin.study.navLabel")}</span><b>${window.StudyUploadService ? StudyUploadService.getCachedSubmissions().filter(r => r.moderationStatus === "pending").length : 0}</b></button>` : ""}
+          <a class="admin-nav-item" href="map.html"><span>📍</span><span>Open Echo Map</span><b>↗</b></a>
+          <button class="admin-nav-item" onclick="adminExportNotes()"><span>⇩</span><span>Export JSON</span><b></b></button>
+        </nav>
+        <button class="admin-logout" onclick="adminLogout()"><span>↪</span> Sign out</button>
+      </aside>
+
+      <main class="admin-main">
+        <header class="admin-header">
+          <div><p class="eyebrow">Moderation centre</p><h1>${activeIsMap ? "Map Pin Management" : "Content Management"}</h1><p>${activeIsMap ? "Review location-based notes placed around KMK campus." : "Review text and photo notes shared across communities."}</p></div>
+          <div class="admin-header-actions"><span class="admin-system-status"><i></i> Prototype online</span><button class="btn btn-outline btn-sm" onclick="navigate('#/')">View website ↗</button></div>
+        </header>
+
+        <section class="admin-stats">
+          ${stats.map((stat, index) => `<article class="admin-stat" style="--admin-delay:${index * 70}ms"><span class="admin-stat-icon">${stat[0]}</span><div><span>${stat[1]}</span><strong data-admin-count="${typeof stat[2] === "number" ? stat[2] : ""}">${stat[2]}</strong><small>${stat[3]}</small></div></article>`).join("")}
+        </section>
+
+        <section class="admin-panel">
+          <div class="admin-source-switch" role="tablist" aria-label="${I18n.t("admin.sourceLabel")}">
+            <button type="button" role="tab" aria-selected="${!activeIsMap}" tabindex="${!activeIsMap ? "0" : "-1"}" class="admin-source-option ${!activeIsMap ? "active" : ""}" onclick="adminSetSource('community')" onkeydown="adminHandleSourceKeydown(event)"><span aria-hidden="true">▤</span>${I18n.t("admin.sourceCommunity")}</button>
+            <button type="button" role="tab" aria-selected="${activeIsMap}" tabindex="${activeIsMap ? "0" : "-1"}" class="admin-source-option ${activeIsMap ? "active" : ""}" onclick="adminSetSource('map')" onkeydown="adminHandleSourceKeydown(event)"><span aria-hidden="true">⌖</span>${I18n.t("admin.sourceMap")}</button>
+          </div>
+          <div class="admin-panel-header">
+            <div><p class="eyebrow">${activeIsMap ? "Location moderation" : "Note moderation"}</p><h2>${activeIsMap ? "KMK map pins" : "Community notes"}</h2><p><span class="match-count">${filteredItems.length}</span> matching records${latestNote && !activeIsMap ? ` · latest ${formatDate(latestNote.createdAt, false)}` : ""}</p></div>
+            <div class="admin-actions">
+              <button class="btn btn-outline btn-sm" onclick="adminExportNotes()">Export JSON</button>
+              ${!activeIsMap ? `<button class="btn btn-outline btn-sm admin-danger" onclick="adminResetNotes()">Reset demo data</button>` : ""}
+            </div>
+          </div>
+
+          <div class="admin-filters ${activeIsMap ? "admin-filters-map" : ""}">
+            <label class="admin-search"><span>⌕</span><input type="search" placeholder="${activeIsMap ? "Search map pins or authors" : "Search notes or authors"}" value="${escapeHtml(adminState.search)}" oninput="adminSetSearch(event)" /><i class="filter-indicator ${adminState.search ? "active" : ""}">Filtering</i></label>
+            ${filterDefinitions.map(renderAdminFilterSelect).join("")}
+          </div>
+
+          <div class="admin-note-list">
+            ${activeIsMap && adminMapNotesStatus === "loading"
+              ? `<div class="admin-empty"><span>◌</span><h3>Loading Map Notes</h3><p>Reading the active Map Note provider.</p></div>`
+              : activeIsMap && adminMapNotesStatus === "error"
+                ? `<div class="admin-empty"><span>!</span><h3>Map Notes unavailable</h3><p>${escapeHtml(adminMapNotesError)}</p><button class="btn btn-outline btn-sm" type="button" onclick="adminRetryMapNotes()">Retry</button></div>`
+                : filteredItems.length ? filteredItems.map(activeIsMap ? renderAdminMapNoteRow : renderAdminNoteRow).join("") : `<div class="admin-empty"><span>🗂️</span><h3>No matching records</h3><p>Try clearing the search or changing a filter.</p></div>`}
+          </div>
+        </section>
+      </main>
+    </div>`;
+  initializeAdminFilters();
+  initializeAdminMapNotes(activeIsMap);
+}
+
+function renderAdminAccessState(container, user) {
+  const signedIn = Boolean(user);
+  const title = I18n.t(signedIn ? "admin.accessDenied" : "admin.signInRequired");
+  const description = I18n.t(signedIn ? "admin.noAccess" : "admin.signInToContinue");
+  const account = signedIn
+    ? '<p class="admin-login-description"><strong>' + escapeHtml(user.displayName) + '</strong><br />' + escapeHtml(user.email) + '</p>'
+    : '';
+  const primaryAction = signedIn
+    ? '<button class="btn btn-outline btn-full" type="button" onclick="adminLogout()">' + I18n.t("admin.signOut") + '</button>'
+    : '<button class="btn btn-primary btn-full btn-lg" type="button" onclick="AuthUI.open(&quot;login&quot;)">' + I18n.t("admin.signIn") + '</button>';
+  container.innerHTML =
+    '<div class="admin-login-page page-reveal">' +
+      '<section class="admin-login-visual">' +
+        '<div class="admin-login-copy"><img src="assets/book-icon.png" alt="Echo Wall" /><p class="eyebrow">' + I18n.t("admin.dashboard") + '</p><h1>' + title + '</h1><p>' + description + '</p></div>' +
+        '<div class="admin-login-preview"><span>🛡️ ' + I18n.t("admin.localPrototype") + '</span></div>' +
+      '</section>' +
+      '<section class="admin-login-panel"><div class="admin-login-card">' +
+        '<div class="admin-login-mark">A</div><p class="eyebrow">' + I18n.t("admin.dashboard") + '</p><h2>' + title + '</h2>' +
+        '<p class="admin-login-description">' + description + '</p>' + account + primaryAction +
+        '<button class="btn btn-ghost btn-full" type="button" onclick="navigate(&quot;#/&quot;)">← ' + I18n.t("admin.returnWebsite") + '</button>' +
+      '</div></section>' +
+    '</div>';
+}
+
+// ADMIN-V2-001: a signed-in user can hold a real RoleAssignment (so they
+// pass canAccessAdminPanel()) without that assignment unlocking any
+// section this stage actually built a panel for -- e.g. a plain
+// COLLEGE_ADMIN or CONTENT_REVIEWER right now, since real per-college
+// Community UI is ADMIN-V2-005 and Content Review UI does not exist yet.
+// This keeps the shell itself reachable (proving the RoleAssignment is
+// live) without pretending there is a moderation queue to show.
+function renderAdminNoSectionState(container, user) {
+  container.innerHTML =
+    '<div class="admin-login-page page-reveal">' +
+      '<section class="admin-login-visual">' +
+        '<div class="admin-login-copy"><img src="assets/book-icon.png" alt="Echo Wall" /><p class="eyebrow">' + I18n.t("admin.dashboard") + '</p><h1>No sections assigned yet</h1><p>Your account has an active role, but no moderation section in this build is enabled for it yet.</p></div>' +
+        '<div class="admin-login-preview"><span>🛡️ ' + I18n.t("admin.localPrototype") + '</span></div>' +
+      '</section>' +
+      '<section class="admin-login-panel"><div class="admin-login-card">' +
+        '<div class="admin-login-mark">A</div><p class="eyebrow">' + I18n.t("admin.dashboard") + '</p><h2>No sections assigned yet</h2>' +
+        '<p class="admin-login-description"><strong>' + escapeHtml(user.displayName) + '</strong><br />' + escapeHtml(user.email) + '</p>' +
+        '<p class="admin-login-description">Role-scoped moderation UI for this account arrives in a later Admin V2 stage.</p>' +
+        '<button class="btn btn-outline btn-full" type="button" onclick="adminLogout()">' + I18n.t("admin.signOut") + '</button>' +
+        '<button class="btn btn-ghost btn-full" type="button" onclick="navigate(&quot;#/&quot;)">← ' + I18n.t("admin.returnWebsite") + '</button>' +
+      '</div></section>' +
+    '</div>';
+}
+
+function renderAdminNoteRow(note, index = 0) {
+  const isBuildingNote = note.contextType === "building";
+  const building = isBuildingNote ? getCampusBuilding(note.placeId) : null;
+  const org = organizations.find(item => String(item.id) === String(note.orgId));
+  const batch = batches.find(item => String(item.id) === String(note.batchId));
+  const major = majors.find(item => String(item.id) === String(note.majorId));
+  const author = note.isAnonymous ? "Anonymous" : (note.authorNickname || "User");
+  const statusClass = note.isHidden ? "admin-status-hidden" : "admin-status-visible";
+  const statusText = note.isHidden ? "Hidden" : "Visible";
+  const imageSource = getNoteImageSource(note);
+  const noteId = Number(note.id);
+  const categoryLabel = { academic: "Academic", koko: "Activities", campus_life: "Campus life", emotional: "Support" }[note.category] || "Other";
+
+  return `
+    <article class="admin-note-row" style="--admin-row-delay:${Math.min(index * 30, 300)}ms">
+      <div class="admin-note-thumb ${imageSource ? "has-image" : ""}">${imageSource ? `<img src="${imageSource}" alt="${escapeHtml(note.imageName || "Attached note photo")}" loading="lazy" />` : `<span>${{ academic:"📚",koko:"🎖️",campus_life:"🏫",emotional:"💛" }[note.category] || "📝"}</span>`}</div>
+      <div class="admin-note-main">
+        <div class="admin-note-meta"><span class="admin-status ${statusClass}">${statusText}</span><span class="admin-meta-badge">${categoryLabel}</span><span>${isBuildingNote ? `🏢 ${escapeHtml(building?.name || note.placeId || "Unknown building")}` : escapeHtml(org?.name || "Unknown")}</span>${!isBuildingNote && batch ? `<span>· ${escapeHtml(batch.label)}</span>` : ""}${!isBuildingNote && major ? `<span>· ${escapeHtml(major.name)}</span>` : ""}</div>
+        <p class="admin-note-content">${escapeHtml(note.content || "")}</p>
+        <div class="admin-note-foot"><span>By <b>${escapeHtml(author)}</b></span><span>${formatDate(note.createdAt, true)}</span><span>Score <b>${Number(note.score || 0)}</b></span></div>
+      </div>
+      <div class="admin-note-actions"><button class="btn btn-outline btn-sm" onclick="adminToggleHidden(${noteId})">${note.isHidden ? "Show" : "Hide"}</button><button class="btn btn-outline btn-sm admin-danger" onclick="adminDeleteNote(${noteId})">Delete</button></div>
+    </article>`;
+}
+
+function renderAdminMapNoteRow(note, index = 0) {
+  const author = note.author || "Anonymous";
+  const statusClass = note.isHidden ? "admin-status-hidden" : "admin-status-visible";
+  const statusText = note.isHidden ? "Hidden" : "Visible";
+  const recordKey = String(note.recordKey || "");
+  const sourceType = String(note.sourceType || "");
+  const markerColor = /^#[0-9a-f]{6}$/i.test(String(note.color || "")) ? note.color : "#8b5e3c";
+  const allowedIcons = new Set(["📌", "💬", "❤️", "💡", "🌟"]);
+  const markerIcon = allowedIcons.has(note.icon) ? note.icon : "📌";
+  const latitude = Number(note.lat);
+  const longitude = Number(note.lng);
+  const timestamp = Number(note.timestamp);
+  const coordinateText = Number.isFinite(latitude) && Number.isFinite(longitude) ? `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` : "Invalid coordinates";
+
+  return `
+    <article class="admin-note-row" data-map-record-key="${escapeHtml(recordKey)}" data-map-source-type="${escapeHtml(sourceType)}" style="--admin-row-delay:${Math.min(index * 30, 300)}ms">
+      <div class="admin-note-thumb map-pin-thumb" style="--pin-color:${markerColor}"><span>${markerIcon}</span></div>
+      <div class="admin-note-main">
+        <div class="admin-note-meta"><span class="admin-status ${statusClass}">${statusText}</span><span class="admin-meta-badge">Map pin</span><span>${coordinateText}</span></div>
+        <p class="admin-note-content">${escapeHtml(note.text || "")}</p>
+        <div class="admin-note-foot"><span>By <b>${escapeHtml(author)}</b></span><span>${Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString() : "Unknown date"}</span></div>
+      </div>
+      <div class="admin-note-actions"><button class="btn btn-outline btn-sm" data-map-record-key="${escapeHtml(recordKey)}" onclick="adminToggleMapHidden(this.dataset.mapRecordKey)">${note.isHidden ? "Show" : "Hide"}</button><button class="btn btn-outline btn-sm admin-danger" data-map-record-key="${escapeHtml(recordKey)}" onclick="adminDeleteMapNote(this.dataset.mapRecordKey)">Delete</button></div>
+    </article>`;
+}
+
+function initializeAdminAnimations() {
+  const counters = document.querySelectorAll("[data-admin-count]");
+  counters.forEach(counter => {
+    const target = Number(counter.dataset.adminCount || 0);
+    if (!Number.isFinite(target) || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const start = performance.now();
+    const tick = now => {
+      const progress = Math.min(1, (now - start) / 650);
+      counter.textContent = String(Math.round(target * (1 - Math.pow(1 - progress, 3))));
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    counter.textContent = "0";
+    requestAnimationFrame(tick);
+  });
+}
+
+function getAdminCommunityNotes() {
+  return Array.isArray(notes) ? notes.filter(note => note?.contextType === "community") : [];
+}
+
+function initializeAdminMapNotes(activeIsMap) {
+  if (!adminMapNotesUnsubscribe && window.MapNoteService) {
+    adminMapNotesUnsubscribe = MapNoteService.subscribe(() => {
+      if (adminState.sourceType === "map") void loadAdminMapNotes();
+      else adminMapNotesStatus = "idle";
+    });
+  }
+  if (activeIsMap && adminMapNotesStatus === "idle") void loadAdminMapNotes();
+}
+
+async function loadAdminMapNotes() {
+  if (!window.MapNoteService || adminMapNotesStatus === "loading") return;
+  adminMapNotesStatus = "loading";
+  adminMapNotesError = "";
+  if (adminState.sourceType === "map") render();
+  try {
+    await MapNoteService.ready();
+    adminMapNotes = await MapNoteService.list({ visibility:"all", sort:"newest" });
+    adminMapNotesStatus = "ready";
+  } catch (error) {
+    adminMapNotes = [];
+    adminMapNotesStatus = "error";
+    adminMapNotesError = error instanceof Error ? error.message : "Map Note provider failed.";
+  }
+  if (adminState.sourceType === "map") render();
+}
+
+function adminRetryMapNotes() {
+  if (!requireCommunityModerationAccess() || adminState.sourceType !== "map") return;
+  adminMapNotesStatus = "idle";
+  void loadAdminMapNotes();
+}
+
+function getAdminFilterDefinitions(activeIsMap) {
+  const visibility = {
+    key: "visibility",
+    label: I18n.t("admin.filterVisibility"),
+    options: [
+      ["all", I18n.t("admin.filterAllVisibility")],
+      ["visible", I18n.t("admin.filterVisible")],
+      ["hidden", I18n.t("admin.filterHidden")],
+    ],
+  };
+  const sort = {
+    key: "sort",
+    label: I18n.t("admin.filterSort"),
+    options: activeIsMap
+      ? [["new", I18n.t("admin.filterNewest")], ["old", I18n.t("admin.filterOldest")]]
+      : [["new", I18n.t("admin.filterNewest")], ["hot", I18n.t("admin.filterHighest")], ["low", I18n.t("admin.filterLowest")]],
+  };
+  if (activeIsMap) return [visibility, sort];
+  return [
+    {
+      key: "orgId",
+      label: I18n.t("admin.filterCommunity"),
+      options: [["all", I18n.t("admin.filterAllCommunities")]].concat(
+        organizations.map(org => [String(org.id), String(org.name)])
+      ),
+    },
+    {
+      key: "category",
+      label: I18n.t("admin.filterCategory"),
+      options: [
+        ["all", I18n.t("admin.filterAllCategories")],
+        ["academic", I18n.t("admin.filterAcademic")],
+        ["koko", I18n.t("admin.filterActivities")],
+        ["campus_life", I18n.t("admin.filterCampusLife")],
+        ["emotional", I18n.t("admin.filterSupport")],
+      ],
+    },
+    visibility,
+    sort,
+  ];
+}
+
+function renderAdminFilterSelect(definition) {
+  const currentValue = String(adminState[definition.key] ?? "all");
+  const selected = definition.options.find(option => option[0] === currentValue) || definition.options[0];
+  const controlId = `admin-filter-${definition.key}`;
+  return `
+    <div class="admin-filter-select" data-admin-filter="${escapeHtml(definition.key)}">
+      <label class="admin-filter-label" for="${controlId}-trigger">${escapeHtml(definition.label)}</label>
+      <select id="${controlId}" class="admin-filter-native" tabindex="-1" aria-hidden="true">
+        ${definition.options.map(option => `<option value="${escapeHtml(option[0])}" ${option[0] === selected[0] ? "selected" : ""}>${escapeHtml(option[1])}</option>`).join("")}
+      </select>
+      <button id="${controlId}-trigger" type="button" class="admin-filter-trigger" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="admin-filter-menu" data-admin-filter-trigger="${escapeHtml(definition.key)}">
+        <span>${escapeHtml(selected[1])}</span><i aria-hidden="true">⌄</i>
+      </button>
+    </div>`;
+}
+
+function initializeAdminFilters() {
+  closeAdminFilterMenu(false);
+  document.querySelectorAll("[data-admin-filter-trigger]").forEach(trigger => {
+    trigger.addEventListener("click", () => toggleAdminFilterMenu(trigger));
+    trigger.addEventListener("keydown", adminFilterTriggerKeydown);
+  });
+  if (adminFilterListenersReady) return;
+  adminFilterListenersReady = true;
+  document.addEventListener("pointerdown", event => {
+    if (!activeAdminFilter) return;
+    const menu = document.getElementById("admin-filter-menu");
+    if (!menu?.contains(event.target) && !activeAdminFilter.contains(event.target)) closeAdminFilterMenu(false);
+  });
+  document.addEventListener("keydown", event => {
+    if (!activeAdminFilter) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeAdminFilterMenu(true);
+    } else if (event.key === "Tab") {
+      closeAdminFilterMenu(false);
+    }
+  });
+  window.addEventListener("resize", () => closeAdminFilterMenu(false));
+  window.addEventListener("scroll", () => closeAdminFilterMenu(false), true);
+}
+
+function toggleAdminFilterMenu(trigger) {
+  if (activeAdminFilter === trigger) {
+    closeAdminFilterMenu(true);
+    return;
+  }
+  openAdminFilterMenu(trigger);
+}
+
+function openAdminFilterMenu(trigger) {
+  closeAdminFilterMenu(false);
+  const key = trigger.dataset.adminFilterTrigger;
+  const select = document.getElementById(`admin-filter-${key}`);
+  if (!select) return;
+  const menu = document.createElement("div");
+  menu.id = "admin-filter-menu";
+  menu.className = "admin-filter-menu";
+  menu.setAttribute("role", "listbox");
+  menu.setAttribute("aria-labelledby", trigger.id);
+  Array.from(select.options).forEach((option, index) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "admin-filter-option";
+    item.setAttribute("role", "option");
+    item.setAttribute("aria-selected", String(option.value === select.value));
+    item.dataset.value = option.value;
+    item.textContent = option.textContent;
+    item.addEventListener("click", () => selectAdminFilterOption(index));
+    item.addEventListener("pointermove", () => setAdminFilterActiveIndex(index));
+    menu.appendChild(item);
+  });
+  document.body.appendChild(menu);
+  activeAdminFilter = trigger;
+  activeAdminFilterIndex = Math.max(0, select.selectedIndex);
+  trigger.setAttribute("aria-expanded", "true");
+  positionAdminFilterMenu();
+  setAdminFilterActiveIndex(activeAdminFilterIndex);
+  menu.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+}
+
+function positionAdminFilterMenu() {
+  const menu = document.getElementById("admin-filter-menu");
+  if (!menu || !activeAdminFilter) return;
+  const rect = activeAdminFilter.getBoundingClientRect();
+  const margin = 8;
+  const width = Math.min(Math.max(rect.width, 190), window.innerWidth - margin * 2);
+  menu.style.width = `${width}px`;
+  menu.style.left = `${Math.max(margin, Math.min(rect.left, window.innerWidth - width - margin))}px`;
+  const menuHeight = Math.min(menu.scrollHeight, 270);
+  const roomBelow = window.innerHeight - rect.bottom - margin;
+  const openAbove = roomBelow < menuHeight && rect.top > roomBelow;
+  menu.classList.toggle("opens-up", openAbove);
+  menu.style.top = openAbove
+    ? `${Math.max(margin, rect.top - menuHeight - 6)}px`
+    : `${Math.min(window.innerHeight - menuHeight - margin, rect.bottom + 6)}px`;
+}
+
+function adminFilterTriggerKeydown(event) {
+  if (!["Enter", " ", "ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const wasOpen = activeAdminFilter === event.currentTarget;
+  if (!wasOpen) openAdminFilterMenu(event.currentTarget);
+  const menu = document.getElementById("admin-filter-menu");
+  const last = Math.max(0, (menu?.children.length || 1) - 1);
+  if (event.key === "ArrowDown") setAdminFilterActiveIndex(Math.min(last, activeAdminFilterIndex + 1));
+  else if (event.key === "ArrowUp") setAdminFilterActiveIndex(Math.max(0, activeAdminFilterIndex - 1));
+  else if (event.key === "Home") setAdminFilterActiveIndex(0);
+  else if (event.key === "End") setAdminFilterActiveIndex(last);
+  else if (wasOpen) selectAdminFilterOption(activeAdminFilterIndex);
+}
+
+function setAdminFilterActiveIndex(index) {
+  const options = Array.from(document.querySelectorAll("#admin-filter-menu .admin-filter-option"));
+  if (!options.length) return;
+  activeAdminFilterIndex = Math.max(0, Math.min(index, options.length - 1));
+  options.forEach((option, optionIndex) => option.classList.toggle("active", optionIndex === activeAdminFilterIndex));
+  options[activeAdminFilterIndex].scrollIntoView({ block: "nearest" });
+}
+
+function selectAdminFilterOption(index) {
+  const trigger = activeAdminFilter;
+  const option = document.querySelectorAll("#admin-filter-menu .admin-filter-option")[index];
+  const key = trigger?.dataset.adminFilterTrigger;
+  const select = key ? document.getElementById(`admin-filter-${key}`) : null;
+  if (!trigger || !option || !select) return;
+  select.value = option.dataset.value;
+  closeAdminFilterMenu(false);
+  adminSetFilter(key, select.value);
+}
+
+function closeAdminFilterMenu(returnFocus) {
+  const trigger = activeAdminFilter;
+  document.getElementById("admin-filter-menu")?.remove();
+  if (trigger) trigger.setAttribute("aria-expanded", "false");
+  activeAdminFilter = null;
+  activeAdminFilterIndex = -1;
+  if (returnFocus && trigger?.isConnected) trigger.focus();
+}
+
+function adminLogout() {
+  clearLegacyAdminSession();
+  AuthService.signOut();
+}
+
+function adminSetTab(tab) {
+  adminSetSource(tab === "map" ? "map" : "community");
+}
+
+function adminSetSource(sourceType) {
+  if (!["community", "map", "study"].includes(sourceType)) return;
+  // ADMIN-V2-001: each source has its OWN permission, not just generic
+  // admin-panel access — this is what stops a Study Moderator switching
+  // into Community/Map, and a Global Moderator/College Admin switching
+  // into Study, even though both hold some active RoleAssignment.
+  const hasSourceAccess = sourceType === "study" ? requireStudyModerationAccess() : requireCommunityModerationAccess();
+  if (!hasSourceAccess) return;
+  closeAdminFilterMenu(false);
+  if (adminState.sourceType === sourceType) return;
+  adminState.sourceType = sourceType;
+  adminState.search = "";
+  adminState.orgId = "all";
+  adminState.category = "all";
+  adminState.visibility = "all";
+  adminState.sort = "new";
+  render();
+}
+
+function adminHandleSourceKeydown(event) {
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const sourceType = event.key === "ArrowLeft" || event.key === "Home" ? "community" : "map";
+  adminSetSource(sourceType);
+  requestAnimationFrame(() => {
+    document.querySelector(`.admin-source-option[aria-selected="true"]`)?.focus();
+  });
+}
+
+function adminSetSearch(e) {
+  if (!requireCommunityModerationAccess()) return;
+  adminState.search = e.target.value;
+
+  if (adminState.search) {
+    e.target.style.borderColor = "#e67e22";
+    e.target.style.backgroundColor = "rgba(255,165,0,0.01)";
+  } else {
+    e.target.style.borderColor = "";
+    e.target.style.backgroundColor = "";
+  }
+
+  const listContainer = document.querySelector(".admin-note-list");
+  const countLabel = document.querySelector(".match-count");
+  const indicator = document.querySelector(".filter-indicator");
+
+  if (adminState.sourceType === "map") {
+    if (listContainer) {
+      const filteredMapNotes = getAdminFilteredMapNotes();
+      if (countLabel) countLabel.textContent = filteredMapNotes.length;
+      if (indicator) indicator.style.display = adminState.search ? "inline-block" : "none";
+      listContainer.innerHTML = filteredMapNotes.length 
+        ? filteredMapNotes.map(renderAdminMapNoteRow).join("") 
+        : `<div class="empty-state">No map pins match these filters.</div>`;
+    } else {
+      render();
+    }
+    return;
+  }
+
+  if (listContainer) {
+    const filteredNotes = getAdminFilteredNotes();
+    
+    if (countLabel) countLabel.textContent = filteredNotes.length;
+    if (indicator) indicator.style.display = adminState.search ? "inline-block" : "none";
+    
+    listContainer.innerHTML = filteredNotes.length 
+      ? filteredNotes.map(renderAdminNoteRow).join("") 
+      : `<div class="empty-state">No notes match these filters.</div>`;
+  } else {
+    render();
+  }
+}
+
+function adminSetFilter(key, value) {
+  if (!requireCommunityModerationAccess()) return;
+  const allowedKeys = adminState.sourceType === "map"
+    ? ["visibility", "sort"]
+    : ["orgId", "category", "visibility", "sort"];
+  if (!allowedKeys.includes(key)) return;
+  adminState[key] = value;
+  render();
+}
+
+function getAdminFilteredNotes() {
+  if (!canAccessCommunityModeration()) return [];
+  let result = getAdminCommunityNotes();
+  const q = adminState.search.trim().toLowerCase();
+
+  if (q) {
+    result = result.filter(note => {
+      const author = note.isAnonymous ? "anonymous" : String(note.authorNickname || "user").toLowerCase();
+      const content = String(note.content || "").toLowerCase();
+      return content.includes(q) || author.includes(q);
+    });
+  }
+  if (adminState.orgId !== "all") result = result.filter(note => String(note.orgId) === String(adminState.orgId));
+  if (adminState.category !== "all") result = result.filter(note => note.category === adminState.category);
+  if (adminState.visibility === "visible") result = result.filter(note => !note.isHidden);
+  if (adminState.visibility === "hidden") result = result.filter(note => note.isHidden);
+
+  if (adminState.sort === "hot") result.sort((a, b) => (b.score || 0) - (a.score || 0));
+  else if (adminState.sort === "low") result.sort((a, b) => (a.score || 0) - (b.score || 0));
+  else result.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+  return result;
+}
+
+function getAdminFilteredMapNotes() {
+  if (!canAccessCommunityModeration()) return [];
+  let mapNotes = adminMapNotes.slice();
+  const q = adminState.search.trim().toLowerCase();
+
+  if (q) {
+    mapNotes = mapNotes.filter(note => {
+      const author = String(note.author || "anonymous").toLowerCase();
+      const text = String(note.text || "").toLowerCase();
+      return text.includes(q) || author.includes(q);
+    });
+  }
+  if (adminState.visibility === "visible") mapNotes = mapNotes.filter(note => !note.isHidden);
+  if (adminState.visibility === "hidden") mapNotes = mapNotes.filter(note => note.isHidden);
+  mapNotes.sort((a, b) => adminState.sort === "old" ? a.timestamp - b.timestamp : b.timestamp - a.timestamp);
+  return mapNotes;
+}
+
+function adminToggleHidden(id) {
+  if (!requireCommunityModerationAccess() || adminState.sourceType !== "community") return;
+  const note = notes.find(n => n.id === id && n.contextType === "community");
+  if (!note) return;
+  note.isHidden = !note.isHidden;
+  saveNotes();
+  render();
+  showToast(note.isHidden ? "Note hidden from public wall." : "Note is visible again.");
+}
+
+function requireAdminMapModerationRecord(recordKey) {
+  const target = String(recordKey || "");
+  if (!target) throw new Error("An explicit Map Note recordKey or sourceType target is required.");
+  const matches = adminMapNotes.filter(note => String(note.recordKey || "") === target);
+  if (matches.length !== 1) {
+    throw new Error(matches.length
+      ? "The Map Note recordKey is ambiguous."
+      : "The Map Note target no longer exists.");
+  }
+  return matches[0];
+}
+
+async function adminToggleMapHidden(recordKey) {
+  if (!requireCommunityModerationAccess() || adminState.sourceType !== "map") return;
+  try {
+    const note = requireAdminMapModerationRecord(recordKey);
+    await MapNoteService.setHidden(note.recordKey, !note.isHidden);
+    showToast?.(note.isHidden ? "Map pin is visible again." : "Map pin hidden from public map.");
+  } catch (error) {
+    showToast?.(error instanceof Error ? error.message : "Map Note update failed.");
+  }
+}
+
+function adminDeleteNote(id) {
+  if (!requireCommunityModerationAccess() || adminState.sourceType !== "community") return;
+  const target = notes.find(note => note.id === id && note.contextType === "community");
+  if (!target) return;
+  if (!confirm("Delete this note permanently?")) return;
+  notes = notes.filter(note => note !== target);
+  saveNotes();
+  render();
+  showToast("Note deleted.");
+}
+
+async function adminDeleteMapNote(recordKey) {
+  if (!requireCommunityModerationAccess() || adminState.sourceType !== "map") return;
+  let note;
+  try {
+    note = requireAdminMapModerationRecord(recordKey);
+  } catch (error) {
+    showToast?.(error instanceof Error ? error.message : "Map Note deletion failed.");
+    return;
+  }
+  if (!confirm("Delete this map pin permanently?")) return;
+  try {
+    await MapNoteService.delete(note.recordKey);
+    showToast?.("Map pin permanently deleted.");
+  } catch (error) {
+    showToast?.(error instanceof Error ? error.message : "Map Note deletion failed.");
+  }
+}
+
+function adminResetNotes() {
+  if (!requireCommunityModerationAccess() || adminState.sourceType !== "community") return;
+  if (!confirm("Are you sure you want to clear your local storage changes?")) return;
+  localStorage.removeItem("echo-wall-notes");
+  location.reload();
+}
+
+async function adminExportNotes() {
+  if (!requireCommunityModerationAccess()) return;
+  let exportItems;
+  try {
+    exportItems = adminState.sourceType === "map"
+      ? await MapNoteService.exportData()
+      : getAdminCommunityNotes();
+  } catch (error) {
+    showToast?.(error instanceof Error ? error.message : "Export failed.");
+    return;
+  }
+  const data = JSON.stringify(exportItems, null, 2);
+  const blob = new Blob([data], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = adminState.sourceType === "map" ? "echo-wall-map-notes.json" : "echo-wall-community-notes.json";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}

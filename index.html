@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="assets/book-icon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf7f2" />
+  <meta name="description" content="Echo Wall is a student knowledge and campus memory platform for Malaysian matriculation colleges." />
+  <title>Echo Wall</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Edu+NSW+ACT+Cursive:wght@400..700&family=Inter:wght@300;400;500;600;700;800&family=Satisfy&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style-core.css" />
+  <link rel="stylesheet" href="style-wall.css" />
+  <link rel="stylesheet" href="style-comments.css" />
+  <link rel="stylesheet" href="style-admin.css" />
+  <link rel="stylesheet" href="style-study.css" />
+  <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css" />
+</head>
+<body>
+  <a class="skip-link" href="#app">Skip to content</a>
+
+  <nav class="navbar" aria-label="Primary navigation">
+    <a href="#/" class="navbar-brand" aria-label="Echo Wall home">
+      <span class="navbar-icon navbar-logo-image"><img src="assets/book-icon.png" alt="" /></span>
+      <span>Echo Wall</span>
+    </a>
+    <div class="navbar-actions navbar-actions-expanded">
+      <a href="map.html" class="btn btn-outline btn-sm btn-round" data-i18n="nav.map">Echo Map</a>
+      <div class="preference-menu" data-preference-menu="language">
+        <button class="preference-trigger" type="button" aria-expanded="false" aria-label="Language">
+          <span class="preference-current">EN</span>
+          <span class="preference-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="preference-options" hidden>
+          <button type="button" role="menuitemradio" aria-checked="true" data-value="en">EN</button>
+          <button type="button" role="menuitemradio" aria-checked="false" data-value="ms">BM</button>
+          <button type="button" role="menuitemradio" aria-checked="false" data-value="zh">中文</button>
+        </div>
+      </div>
+      <div class="preference-menu" data-preference-menu="theme">
+        <button class="preference-trigger" type="button" aria-expanded="false" aria-label="Theme">
+          <span class="preference-current">Auto</span>
+          <span class="preference-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="preference-options" hidden>
+          <button type="button" role="menuitemradio" aria-checked="true" data-value="system">Auto</button>
+          <button type="button" role="menuitemradio" aria-checked="false" data-value="light">Light</button>
+          <button type="button" role="menuitemradio" aria-checked="false" data-value="dark">Dark</button>
+        </div>
+      </div>
+      <div id="user-nav-actions" class="user-nav-actions"></div>
+    </div>
+  </nav>
+
+  <main id="app" tabindex="-1"></main>
+
+  <div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal(event)" role="dialog" aria-modal="true" aria-label="Note details">
+    <div class="modal-card" id="modal-card" onclick="event.stopPropagation()">
+      <button class="modal-close" onclick="closeModal()" aria-label="Close note details">✕</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <div id="drawer-overlay" class="drawer-overlay hidden" onclick="closeDrawer()" role="dialog" aria-modal="true" aria-label="Leave a note">
+    <div class="drawer" onclick="event.stopPropagation()">
+      <div class="drawer-header">
+        <div>
+          <span class="drawer-kicker">Share with the next batch</span>
+          <h3 class="drawer-title">Leave a Note</h3>
+        </div>
+        <button class="drawer-close" onclick="closeDrawer()" aria-label="Close note form">✕</button>
+      </div>
+      <form id="note-form" onsubmit="handleFormSubmit(event)">
+        <fieldset class="form-group identity-choice-group" id="post-type-group">
+          <legend class="form-label" data-i18n="form.postType">Post Type</legend>
+          <div class="identity-choice-options">
+            <label class="identity-choice">
+              <input type="radio" id="form-post-type-discussion" name="post-type" value="discussion" checked />
+              <span class="identity-choice-card">
+                <span class="identity-choice-heading" data-i18n="form.postTypeDiscussion">Discussion</span>
+                <small data-i18n="form.postTypeDiscussionHint">Share or start a conversation</small>
+              </span>
+            </label>
+            <label class="identity-choice">
+              <input type="radio" id="form-post-type-question" name="post-type" value="question" />
+              <span class="identity-choice-card">
+                <span class="identity-choice-heading" data-i18n="form.postTypeQuestion">Question</span>
+                <small data-i18n="form.postTypeQuestionHint">Ask something and get replies</small>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+        <div class="form-group">
+          <label class="form-label" for="form-content" data-i18n="form.note">Your Note</label>
+          <textarea id="form-content" class="form-textarea" placeholder="Share your experience, advice, or encouragement here..." maxlength="500" required></textarea>
+          <div class="form-hint form-counter" id="char-count">0 / 500</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="form-image"><span data-i18n="form.photo">Photo</span> <span class="form-optional" data-i18n="form.optional">optional</span></label>
+          <label class="photo-upload-box" for="form-image">
+            <span class="photo-upload-icon">📷</span>
+            <span><strong>Add one photo</strong><small>JPG, PNG or WebP · max 8 MB</small></span>
+          </label>
+          <input type="file" id="form-image" class="form-file visually-hidden" accept="image/jpeg,image/png,image/webp" onchange="handleImageSelection(event)" />
+          <p class="form-hint">The browser compresses the photo before storage. This adapter can later be replaced by Cloudinary upload.</p>
+          <div id="image-status" class="form-hint" role="status" aria-live="polite"></div>
+          <div id="image-preview" class="image-preview hidden">
+            <img id="image-preview-img" alt="Selected photo preview" />
+            <button type="button" class="image-remove-btn" onclick="removeSelectedImage()" aria-label="Remove selected photo">✕</button>
+          </div>
+          <div class="photo-crop-controls">
+            <label class="form-label" for="form-crop-scale"><span data-i18n="form.cropScale">Photo crop scale</span> <b id="crop-scale-value">100%</b></label>
+            <input id="form-crop-scale" type="range" min="1" max="1.8" step="0.05" value="1" oninput="updateCropScale(event)" />
+            <label class="form-label" for="form-image-fit" data-i18n="form.cropFit">Photo fit</label>
+            <input type="hidden" id="form-image-fit" value="cover" onchange="updateImageFit(event)" />
+            <div class="note-select" data-note-select="image-fit">
+              <button class="note-select-trigger" id="form-image-fit-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="form-image-fit-listbox">
+                <span class="note-select-current"><span class="fit-swatch fit-swatch-cover" aria-hidden="true"><i></i></span><span data-note-select-label data-i18n="form.fitCover">Crop to fill</span></span><span class="note-select-chevron" aria-hidden="true">▾</span>
+              </button>
+              <div class="note-select-menu note-select-menu-fit" id="form-image-fit-listbox" role="listbox" aria-labelledby="form-image-fit-trigger" hidden>
+                <div class="note-select-options">
+                  <button type="button" role="option" aria-selected="true" data-value="cover" data-i18n-key="form.fitCover"><span class="fit-swatch fit-swatch-cover" aria-hidden="true"><i></i></span><span data-i18n="form.fitCover">Crop to fill</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                  <button type="button" role="option" aria-selected="false" data-value="contain" data-i18n-key="form.fitContain"><span class="fit-swatch fit-swatch-contain" aria-hidden="true"><i></i></span><span data-i18n="form.fitContain">Show full photo</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="form-category" data-i18n="form.category">Category</label>
+            <input type="hidden" id="form-category" value="academic" />
+            <div class="note-select" data-note-select="category">
+              <button class="note-select-trigger" id="form-category-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="form-category-listbox">
+                <span class="note-select-current"><span class="category-choice-icon" aria-hidden="true">📚</span><span data-note-select-label data-i18n="form.categoryAcademic">Academic Advice</span></span><span class="note-select-chevron" aria-hidden="true">▾</span>
+              </button>
+              <div class="note-select-menu note-select-menu-category" id="form-category-listbox" role="listbox" aria-labelledby="form-category-trigger" hidden>
+                <div class="note-select-options">
+                  <button type="button" role="option" aria-selected="true" data-value="academic" data-i18n-key="form.categoryAcademic"><span class="category-choice-icon" aria-hidden="true">📚</span><span data-i18n="form.categoryAcademic">Academic Advice</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                  <button type="button" role="option" aria-selected="false" data-value="koko" data-i18n-key="form.categoryKoko"><span class="category-choice-icon" aria-hidden="true">🎖️</span><span data-i18n="form.categoryKoko">Co-curricular Activity</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                  <button type="button" role="option" aria-selected="false" data-value="campus_life" data-i18n-key="form.categoryCampus"><span class="category-choice-icon" aria-hidden="true">🏫</span><span data-i18n="form.categoryCampus">Campus Life</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                  <button type="button" role="option" aria-selected="false" data-value="emotional" data-i18n-key="form.categoryEmotional"><span class="category-choice-icon" aria-hidden="true">💛</span><span data-i18n="form.categoryEmotional">Emotional Support</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="form-shape" data-i18n="form.shape">Shape</label>
+            <input type="hidden" id="form-shape" value="rounded" />
+            <div class="note-select" data-note-select="shape">
+              <button class="note-select-trigger" id="form-shape-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="form-shape-listbox">
+                <span class="note-select-current"><span class="shape-swatch shape-swatch-rounded" aria-hidden="true"></span><span data-note-select-label data-i18n="form.shapeRounded">Rounded</span></span><span class="note-select-chevron" aria-hidden="true">▾</span>
+              </button>
+              <div class="note-select-menu note-select-menu-shape" id="form-shape-listbox" role="listbox" aria-labelledby="form-shape-trigger" hidden>
+                <div class="note-select-options">
+                  <button type="button" role="option" aria-selected="true" data-value="rounded" data-i18n-key="form.shapeRounded"><span class="shape-swatch shape-swatch-rounded" aria-hidden="true"></span><span data-i18n="form.shapeRounded">Rounded</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                  <button type="button" role="option" aria-selected="false" data-value="square" data-i18n-key="form.shapeSquare"><span class="shape-swatch shape-swatch-square" aria-hidden="true"></span><span data-i18n="form.shapeSquare">Square</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                  <button type="button" role="option" aria-selected="false" data-value="rect" data-i18n-key="form.shapeRect"><span class="shape-swatch shape-swatch-rect" aria-hidden="true"></span><span data-i18n="form.shapeRect">Rectangle</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                  <button type="button" role="option" aria-selected="false" data-value="circle" data-i18n-key="form.shapeCircle"><span class="shape-swatch shape-swatch-circle" aria-hidden="true"></span><span data-i18n="form.shapeCircle">Circle</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                  <button type="button" role="option" aria-selected="false" data-value="envelope" data-i18n-key="form.shapeEnvelope"><span class="shape-swatch shape-swatch-envelope" aria-hidden="true"></span><span data-i18n="form.shapeEnvelope">Envelope</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                  <button type="button" role="option" aria-selected="false" data-value="torn" data-i18n-key="form.shapeTorn"><span class="shape-swatch shape-swatch-torn" aria-hidden="true"></span><span data-i18n="form.shapeTorn">Torn Edge</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                  <button type="button" role="option" aria-selected="false" data-value="speech" data-i18n-key="form.shapeSpeech"><span class="shape-swatch shape-swatch-speech" aria-hidden="true"></span><span data-i18n="form.shapeSpeech">Speech Bubble</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                  <button type="button" role="option" aria-selected="false" data-value="polaroid" data-i18n-key="form.shapePolaroid"><span class="shape-swatch shape-swatch-polaroid" aria-hidden="true"></span><span data-i18n="form.shapePolaroid">Polaroid</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                  <button type="button" role="option" aria-selected="false" data-value="ticket" data-i18n-key="form.shapeTicket"><span class="shape-swatch shape-swatch-ticket" aria-hidden="true"></span><span data-i18n="form.shapeTicket">Ticket</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                  <button type="button" role="option" aria-selected="false" data-value="hexagon" data-i18n-key="form.shapeHexagon"><span class="shape-swatch shape-swatch-hexagon" aria-hidden="true"></span><span data-i18n="form.shapeHexagon">Hexagon</span><span class="note-select-check" aria-hidden="true">✓</span></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <fieldset class="form-group identity-choice-group">
+          <legend class="form-label" data-i18n="form.publishAs">Publish as</legend>
+          <div class="identity-choice-options">
+            <label class="identity-choice">
+              <input type="radio" id="form-identity-named" name="publish-identity" value="named" aria-describedby="form-display-name" />
+              <span class="identity-choice-card">
+                <span class="identity-choice-heading" data-i18n="form.showName">Show my name</span>
+                <small data-i18n="form.showNameHint">Use your account display name</small>
+                <strong id="form-display-name"></strong>
+              </span>
+            </label>
+            <label class="identity-choice">
+              <input type="radio" id="form-anonymous" name="publish-identity" value="anonymous" checked />
+              <span class="identity-choice-card">
+                <span class="identity-choice-heading" data-i18n="form.anonymous">Post anonymously</span>
+                <small data-i18n="form.anonymousHint">Your name will not be shown publicly</small>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+        <button type="submit" id="note-submit" class="btn btn-primary btn-full btn-lg" data-i18n="form.submit">📌 Pin to Wall</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="config/app-config.js"></script>
+  <script src="i18n/locales/en.js"></script>
+  <script src="i18n/locales/ms.js"></script>
+  <script src="i18n/locales/zh.js"></script>
+  <script src="i18n/index.js"></script>
+  <script src="services/theme-service.js"></script>
+  <script src="services/preferences-ui.js"></script>
+  <script src="data/campus-buildings.js"></script>
+  <script src="data/demo-display-counts.js"></script>
+  <script src="data/campus-building-hours.js"></script>
+  <script src="data/campus-map-config.js"></script>
+  <script src="data/campus-building-registry.js"></script>
+  <script src="data/kmk-knowledge-base.js"></script>
+  <script src="services/auth-service.js"></script>
+  <script src="services/admin-permission-service.js"></script>
+  <script src="services/translation-service.js"></script>
+  <script src="services/cloudinary-adapter.js"></script>
+  <script src="./data/demo-seed-bundle.v1.js"></script>
+  <script src="data/demo-seed-all-student-km.v1.js"></script>
+  <script src="app-data.js"></script>
+  <script src="data/community-config.js"></script>
+  <script src="services/community-service.js"></script>
+  <script src="services/permission-service.js"></script>
+  <script src="services/comment-service.js"></script>
+  <script src="services/map-note-service.js"></script>
+  <script src="services/moderation-service.js"></script>
+  <script src="services/admin-audit-service.js"></script>
+  <script src="services/moderation-assist-service.js"></script>
+  <script src="data/study-subjects.js"></script>
+  <script src="data/study-resource-manifest.js"></script>
+  <script src="services/study-resource-service.js"></script>
+  <script src="services/study-submission-service.js"></script>
+  <script src="app-admin.js"></script>
+  <script src="app-admin-dashboard.js"></script>
+  <script src="app-admin-management.js"></script>
+  <script src="app-place.js"></script>
+  <script src="assets/vendor/leaflet/leaflet.js"></script>
+  <script src="app-campus-map.js"></script>
+  <script src="app-campus-buildings.js"></script>
+  <script src="app-router.js"></script>
+  <script src="app-community.js"></script>
+  <script src="app-study.js"></script>
+  <script src="app-study-admin.js"></script>
+  <script src="app-wall.js"></script>
+  <script src="services/auth-ui.js"></script>
+  <script src="services/bisheng-adapter.js"></script>
+  <script src="services/free-ai-adapter.js"></script>
+  <script src="services/ai-assistant.js"></script>
+</body>
+</html>

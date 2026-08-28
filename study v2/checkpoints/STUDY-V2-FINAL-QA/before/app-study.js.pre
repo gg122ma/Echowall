@@ -1,0 +1,1253 @@
+/**
+ * Study Notes V2 — Browse UI.
+ * Spec: study note/02_EchoWall_Study_Notes_V2_详细架构规格书.pdf.
+ *
+ * Router entry points only, called from app-router.js render()/getRoute() —
+ * this file owns no route-dispatch logic itself (per the spec's own file
+ * structure guidance: "app-router.js 只做路由分发"). Reads
+ * window.StudyResourceService (services/study-resource-service.js).
+ *
+ * STUDY-V2-FOUNDATION-001 built the Jurusan picker (#/study). STUDY-V2-003
+ * split the combined Semester+Subject shell into the real 3-level Browse
+ * Hierarchy. STUDY-V2-004 made the Subject page show real resources instead
+ * of a placeholder. STUDY-V2-006 connected real file opening for resources
+ * in the curated Competition Demo File Set. STUDY-V2-005 (this revision)
+ * adds Global Search (#/study) and Year/Subtype/Source/Sort filters on top
+ * of the existing category tabs (#/study/:jurusan/sem/:semester/:code):
+ *
+ *   #/study                              -> renderStudyHome        (pick Jurusan +
+ *                                            Global Search — see the STUDY-V2-005
+ *                                            block above renderStudyNotFound)
+ *   #/study/:jurusan                     -> renderStudyJurusan     (pick Semester)
+ *   #/study/:jurusan/sem/:semester       -> renderStudySemester    (pick Subject)
+ *   #/study/:jurusan/sem/:semester/:code -> renderStudySubjectShell (real resource
+ *                                            list, tabbed by category + Year/Subtype/
+ *                                            Source/Sort filters, PSPM/Pre-Pra-PSPM
+ *                                            grouped by year, Question<->Scheme paired)
+ *   #/study/resource/:resourceId         -> renderStudyResourceDetail (real metadata;
+ *                                            real "Open PDF"/"Open file" for demo-set
+ *                                            resources, honest disabled state otherwise —
+ *                                            see that function's own comment)
+ *
+ * Upload (STUDY-V2-007) and Admin Moderation (STUDY-V2-008) are still
+ * future stages — Upload's route exists as a real, working "coming soon"
+ * shell (not a 404) but this stage does not touch it.
+ *
+ * INVARIANT: nothing in this file may group or navigate resources by
+ * College. The canonical browse hierarchy is Jurusan -> Semester ->
+ * Subject Code, period — see the invariant comment at the top of
+ * data/study-subjects.js and services/study-resource-service.js. Every
+ * render function below is keyed by jurusan/semester/subjectCode only.
+ *
+ * Must load after app-router.js (uses navigate()/escapeHtml()) and after
+ * services/study-resource-service.js.
+ */
+function studyCurrentLanguage() {
+  return typeof I18n !== "undefined" && I18n.getLanguage ? I18n.getLanguage() : "en";
+}
+
+function studySubjectDisplayName(subject) {
+  const lang = studyCurrentLanguage();
+  if (subject.name && subject.name[lang]) return subject.name[lang];
+  if (subject.name && subject.name.en) return subject.name.en;
+  return subject.code;
+}
+
+function studyJurusanDisplayName(jurusan) {
+  return jurusan.name[studyCurrentLanguage()] || jurusan.name.en;
+}
+
+// Formats a small, real (never fabricated) "PSPM · Notes · Practice"-style
+// tag line from whatever resourceType values a subject's publishable
+// resources actually have — see StudyResourceService.getResourceTypesForSubject().
+// Falls back to nothing (empty string) rather than guessing when a subject
+// has zero publishable resources yet.
+function studyResourceTypeBadges(subjectCode) {
+  const types = StudyResourceService.getResourceTypesForSubject(subjectCode);
+  if (!types.length) return "";
+  const labels = types.map(type => I18n.t(`study.type.${type}`)).join(" · ");
+  return `<small class="study-type-badges">${escapeHtml(labels)}</small>`;
+}
+
+// Lightweight, non-interactive breadcrumb text (the actual navigation
+// control is still the "back" button on every level, per the request's
+// "至少必须做到 Subject -> Semester -> Jurusan -> Study Notes" minimum —
+// this is the "Browse 层级必须清晰" clarity layer on top of that).
+function studyBreadcrumb(parts) {
+  return escapeHtml(parts.filter(Boolean).join(" · "));
+}
+
+// --- STUDY-V2-004: Resource List + Year Grouping -----------------------
+//
+// studySubjectViewState holds the CURRENTLY RENDERED subject page's data —
+// set once by renderStudySubjectShell(), then read/mutated by the tab
+// (setStudyResourceCategory) and pagination (studyLoadMoreResources)
+// handlers below, which only touch the #study-resource-list container
+// (same partial-re-render pattern app-wall.js's setCategoryFilter/
+// setSortOrder/setPostTypeFilter already use for its filter bar — reused
+// here for consistency, not reinvented). It is intentionally NOT
+// per-category state: "Load more" bumps one shared limit that applies to
+// whichever view is currently showing (see studyResourceListHtml()).
+let studySubjectViewState = null;
+const STUDY_RESOURCE_PAGE_SIZE = 15;
+
+// The two categories the spec asks to browse by exam year (section 8).
+// Everything else renders as a flat list. Order here is display order
+// within the "All" composition (studyAllCategoriesHtml).
+const STUDY_YEAR_GROUPED_ORDER = ["pspm", "pre_pra_pspm"];
+
+function studyResourceCategoryLabel(category) {
+  return category === "all" ? I18n.t("study.category.all") : I18n.t(`study.category.${category}`);
+}
+
+function studyVerificationBadgeHtml(verificationStatus) {
+  // All real data in this manifest is currently "unverified" (bulk import,
+  // no human review yet — see STUDY-V2-002) so these positive badges will
+  // not appear until STUDY-V2-008's moderation stage actually marks
+  // something verified. Never shown speculatively.
+  if (verificationStatus === "verified_source") return `<span class="study-badge study-badge-verified">${I18n.t("study.verifiedSource")}</span>`;
+  if (verificationStatus === "verified_file") return `<span class="study-badge study-badge-verified">${I18n.t("study.verifiedMaterial")}</span>`;
+  return "";
+}
+
+function studySourceLabel(resource) {
+  if (resource.sourceCollege) return `${I18n.t("study.sourceLabel")}: ${escapeHtml(resource.sourceCollege)}`;
+  if (resource.sourceType === "official") return I18n.t("study.sourceOfficial");
+  return I18n.t("study.sourceUnspecified");
+}
+
+function studyYearLabel(resource) {
+  if (resource.examSessionLabel) return resource.examSessionLabel;
+  if (resource.yearStart) return `${resource.yearStart}/${resource.yearEnd || resource.yearStart}`;
+  return I18n.t("study.yearUnspecified");
+}
+
+// A single resource row. `showPairedScheme` is only true inside a
+// year-grouped list (PSPM/Pre-Pra-PSPM) — it looks up the row's paired
+// Answer Scheme (via relatedResourceId, spec section 10) and renders an
+// explicit "Answer Scheme available" link so Question <-> Scheme reads as
+// one set, never two unrelated rows (spec section 11 — this is also why
+// the flat "Other Resources"/per-category lists never pass
+// showPairedScheme: a scheme already nested under its Question here must
+// not ALSO appear as a second, unrelated-looking row in the same view).
+// STUDY-V2-006: a real, lightweight file-type badge + quick "Open" link,
+// shown only when the resource is actually in the curated demo file set
+// (StudyResourceService.getResourceFileUrl/getResourceFileType — never
+// guessed/constructed here). Deliberately minimal per the spec's own "不要
+// 把列表变复杂" instruction — the row's title button still always routes to
+// Resource Detail; this is an additional, optional shortcut, not a
+// replacement for it.
+function studyResourceFileBadgeHtml(resource) {
+  const fileType = StudyResourceService.getResourceFileType(resource);
+  return fileType ? `<span class="study-badge study-badge-file">${escapeHtml(I18n.t(`study.fileType.${fileType}`))}</span>` : "";
+}
+
+// STUDY-V2-007: a user-uploaded (IndexedDB-backed) resource's fileUrl is
+// never a real static path — StudyUploadService.submissionToResource()
+// encodes it as "indexeddb://<submissionId>.<ext>" so
+// getResourceFileType()/isResourceFilePdf() (which only read the string's
+// extension) keep working unchanged. Every render site that turns a fileUrl
+// into an "Open" control must branch on this prefix instead of always
+// emitting an <a href>, since there's no real URL to navigate to — the blob
+// has to be fetched from IndexedDB first.
+function studyIsIndexedDbFileUrl(fileUrl) {
+  return typeof fileUrl === "string" && fileUrl.startsWith("indexeddb://");
+}
+
+function studyIndexedDbSubmissionId(fileUrl) {
+  const rest = fileUrl.slice("indexeddb://".length);
+  const dot = rest.lastIndexOf(".");
+  return dot >= 0 ? rest.slice(0, dot) : rest;
+}
+
+// Fetches the blob from IndexedDB (via StudyUploadService — this file never
+// touches indexedDB directly) and opens it the same way the browser's native
+// PDF viewer opens a built-in file: a new tab, via an object URL. Revoked
+// after a minute — long enough for the new tab to finish loading the PDF.
+async function studyOpenIndexedDbFile(resourceId) {
+  const resource = StudyResourceService.getResourceById(resourceId);
+  const fileUrl = resource ? StudyResourceService.getResourceFileUrl(resource) : null;
+  if (!fileUrl || !studyIsIndexedDbFileUrl(fileUrl)) return;
+  try {
+    const blob = await StudyUploadService.getFileBlobBySubmissionId(studyIndexedDbSubmissionId(fileUrl));
+    if (!blob) { if (typeof showToast === "function") showToast(I18n.t("study.upload.fileMissing")); return; }
+    const objectUrl = URL.createObjectURL(blob);
+    window.open(objectUrl, "_blank", "noopener");
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+  } catch (error) {
+    if (typeof showToast === "function") showToast(error instanceof Error ? error.message : "Could not open this file.");
+  }
+}
+
+function studyResourceQuickOpenHtml(resource) {
+  const fileUrl = StudyResourceService.getResourceFileUrl(resource);
+  if (!fileUrl) return "";
+  if (studyIsIndexedDbFileUrl(fileUrl)) {
+    return `<button type="button" class="study-row-open" onclick="studyOpenIndexedDbFile('${resource.id}')">${I18n.t("study.openShort")} →</button>`;
+  }
+  const isPdf = StudyResourceService.isResourceFilePdf(resource);
+  const linkAttrs = isPdf ? 'target="_blank" rel="noopener noreferrer"' : "download";
+  return `<a class="study-row-open" href="${escapeHtml(fileUrl)}" ${linkAttrs}>${I18n.t("study.openShort")} →</a>`;
+}
+
+function studyResourceRowHtml(resource, { showPairedScheme = false } = {}) {
+  const category = StudyResourceService.getResourceCategory(resource);
+  const badge = studyVerificationBadgeHtml(resource.verificationStatus);
+  const related = showPairedScheme && resource.relatedResourceId ? StudyResourceService.getRelatedResource(resource) : null;
+  const pairHtml = related && related.resourceType === "answer_scheme" && StudyResourceService.isResourcePublishable(related)
+    ? `<button class="study-pair-link" onclick="navigate('#/study/resource/${related.id}')">↳ ${I18n.t("study.answerSchemeAvailable")} →</button>`
+    : "";
+  return `
+    <div class="study-resource-row">
+      <span class="study-resource-icon" aria-hidden="true">📄</span>
+      <div class="study-resource-main">
+        <button class="study-resource-title" onclick="navigate('#/study/resource/${resource.id}')">${escapeHtml(resource.title)}</button>
+        <small>${escapeHtml(studyResourceCategoryLabel(category))} · ${escapeHtml(studyYearLabel(resource))}</small>
+        <small class="study-resource-source">${studySourceLabel(resource)}${badge}${studyResourceFileBadgeHtml(resource)}</small>
+        ${pairHtml}
+      </div>
+      ${studyResourceQuickOpenHtml(resource)}
+    </div>`;
+}
+
+function studyYearGroupedListHtml(items, state) {
+  const groups = new Map();
+  for (const resource of items) {
+    const key = resource.yearStart && resource.yearEnd ? `${resource.yearStart}-${resource.yearEnd}` : "unspecified";
+    if (!groups.has(key)) groups.set(key, { yearStart: resource.yearStart, items: [] });
+    groups.get(key).items.push(resource);
+  }
+  const sortedGroups = [...groups.values()].sort((a, b) => {
+    if (a.yearStart == null) return 1;
+    if (b.yearStart == null) return -1;
+    return b.yearStart - a.yearStart; // newest -> oldest, per spec section 9
+  });
+  // Budget by ROW count, not group count — a single exam year can have many
+  // rows (multiple sets/parts/source colleges), so capping "first N years"
+  // alone does not actually bound the rendered DOM size (a real subject in
+  // this manifest rendered 113 rows from a 15-year cap before this fix).
+  // Always show at least one full year group even if it alone exceeds the
+  // budget, so a subject with one huge year doesn't render nothing.
+  let rowBudget = state.visibleLimit;
+  const visibleGroups = [];
+  for (const group of sortedGroups) {
+    if (visibleGroups.length > 0 && rowBudget <= 0) break;
+    visibleGroups.push(group);
+    rowBudget -= group.items.length;
+  }
+  const groupsHtml = visibleGroups.map(group => {
+    const label = group.yearStart ? studyYearLabel(group.items[0]) : I18n.t("study.yearUnspecified");
+    const rows = group.items.map(resource => studyResourceRowHtml(resource, { showPairedScheme: true })).join("");
+    return `<div class="study-year-group"><h4>${escapeHtml(label)}</h4>${rows}</div>`;
+  }).join("");
+  const loadMore = visibleGroups.length < sortedGroups.length
+    ? `<button class="btn btn-outline study-load-more" onclick="studyLoadMoreResources()">${I18n.t("study.loadMore")}</button>` : "";
+  return groupsHtml + loadMore;
+}
+
+function studyFlatListHtml(items, state) {
+  const visibleItems = items.slice(0, state.visibleLimit);
+  const rows = visibleItems.map(resource => studyResourceRowHtml(resource, { showPairedScheme: false })).join("");
+  const loadMore = items.length > state.visibleLimit
+    ? `<button class="btn btn-outline study-load-more" onclick="studyLoadMoreResources()">${I18n.t("study.loadMore")}</button>` : "";
+  return rows + loadMore;
+}
+
+// The default "All" composition: year-grouped sections (PSPM, then
+// Pre/Pra-PSPM) followed by a flat "Other Resources" bucket for everything
+// else — matches the spec's own section-2 worked example almost exactly.
+// Answer Scheme items already nested under a Question above are excluded
+// from "Other Resources" (would otherwise be a real duplicate within this
+// same composed view); a scheme with no matching Question still appears
+// there normally (spec section 12).
+// STUDY-V2-005: `resources` is state.resources already narrowed by the
+// active subtype/year/source filters (see studyResourceListHtml) — every
+// internal grouping below reads from this parameter, never state.resources
+// directly, so the "All" composition honors those filters exactly like the
+// single-category views do.
+function studyAllCategoriesHtml(state, resources) {
+  const byCategory = {};
+  for (const resource of resources) {
+    const category = StudyResourceService.getResourceCategory(resource);
+    (byCategory[category] = byCategory[category] || []).push(resource);
+  }
+
+  const pairedSchemeIds = new Set();
+  for (const key of STUDY_YEAR_GROUPED_ORDER) {
+    for (const resource of byCategory[key] || []) {
+      if (resource.relatedResourceId) pairedSchemeIds.add(resource.relatedResourceId);
+    }
+  }
+
+  let html = "";
+  for (const key of STUDY_YEAR_GROUPED_ORDER) {
+    const items = byCategory[key];
+    if (!items || !items.length) continue;
+    html += `<div class="study-section"><h3>${escapeHtml(studyResourceCategoryLabel(key))}</h3>${studyYearGroupedListHtml(items, state)}</div>`;
+  }
+
+  const otherItems = resources.filter(resource => {
+    const category = StudyResourceService.getResourceCategory(resource);
+    if (STUDY_YEAR_GROUPED_ORDER.includes(category)) return false;
+    if (category === "answer_scheme" && pairedSchemeIds.has(resource.id)) return false;
+    return true;
+  });
+  if (otherItems.length) {
+    const sortedOther = StudyResourceService.sortResources(otherItems, state.sort);
+    html += `<div class="study-section"><h3>${escapeHtml(I18n.t("study.otherResourcesHeading"))}</h3>${studyFlatListHtml(sortedOther, state)}</div>`;
+  }
+
+  return html || studySubjectNoResultsHtml();
+}
+
+// STUDY-V2-005: Year/Subtype/Source are an ADDITIONAL narrowing layer on
+// top of the existing category tabs, applied here (once, before the "all"
+// vs single-category branch) rather than duplicating a second Type/Category
+// filter — the tabs remain the only Type axis. `state.filters` only ever
+// has subtype/year/sourceCollege keys; `category` is deliberately excluded
+// from this call (the tabs already handle it below).
+function studyResourceListHtml() {
+  const state = studySubjectViewState;
+  if (!state) return "";
+  const subFiltered = StudyResourceService.filterResources(state.resources, state.filters);
+  if (state.category === "all") return studyAllCategoriesHtml(state, subFiltered);
+
+  const filtered = subFiltered.filter(resource => StudyResourceService.getResourceCategory(resource) === state.category);
+  if (!filtered.length) return studySubjectNoResultsHtml();
+  if (StudyResourceService.isYearGroupedCategory(state.category)) return studyYearGroupedListHtml(filtered, state);
+  const sorted = StudyResourceService.sortResources(filtered, state.sort);
+  return studyFlatListHtml(sorted, state);
+}
+
+function studySubjectNoResultsHtml() {
+  return `<div class="empty-state">${I18n.t("study.noResourcesInCategory")}</div>`;
+}
+
+// Dynamic filter dropdown options are scoped to whatever the CURRENT
+// category tab actually shows (the whole subject for "all") — never a
+// fixed/hardcoded list — so a Year/Subtype/Source option never appears if
+// nothing in the current view could actually match it. Options are
+// deliberately computed from `state.resources` (category-filtered only,
+// NOT already narrowed by the other active filters) so picking one filter
+// never makes another filter's own options disappear from under it.
+function studySubjectFilterScope(state) {
+  if (state.category === "all") return state.resources;
+  return state.resources.filter(resource => StudyResourceService.getResourceCategory(resource) === state.category);
+}
+
+function studySubjectFilterBarHtml(state) {
+  const scope = studySubjectFilterScope(state);
+  const options = StudyResourceService.getFilterOptions(scope);
+  if (!options.years.length && !options.subtypes.length && !options.sourceColleges.length) return "";
+  const blank = label => `<option value="">${escapeHtml(label)}</option>`;
+  const selectHtml = (key, label, values, labelFor) => `
+    <label class="study-filter-field">${escapeHtml(label)}
+      <select onchange="studySetSubjectFilter('${key}', this.value)">
+        ${blank(I18n.t("study.filters.allOption"))}
+        ${values.map(value => `<option value="${escapeHtml(value)}" ${state.filters[key] === value ? "selected" : ""}>${escapeHtml(labelFor ? labelFor(value) : value)}</option>`).join("")}
+      </select>
+    </label>`;
+  const parts = [];
+  if (options.years.length) parts.push(selectHtml("year", I18n.t("study.filters.year"), options.years));
+  if (options.subtypes.length) parts.push(selectHtml("subtype", I18n.t("study.filters.subtype"), options.subtypes, value => I18n.t(`study.subtype.${value}`)));
+  if (options.sourceColleges.length) parts.push(selectHtml("sourceCollege", I18n.t("study.filters.source"), options.sourceColleges));
+  const sortSelect = `
+    <label class="study-filter-field">${I18n.t("study.filters.sort")}
+      <select onchange="studySetSubjectSort(this.value)">
+        ${["relevant", "newest", "oldest", "title"].map(mode => `<option value="${mode}" ${state.sort === mode ? "selected" : ""}>${I18n.t(`study.sort.${mode}`)}</option>`).join("")}
+      </select>
+    </label>`;
+  parts.push(sortSelect);
+  const hasActiveFilter = state.filters.year || state.filters.subtype || state.filters.sourceCollege || state.sort !== "relevant";
+  if (hasActiveFilter) parts.push(`<button class="study-clear-link" onclick="studyResetSubjectFilters()">${I18n.t("study.clearFilters")}</button>`);
+  return `<div class="study-search-filters">${parts.join("")}</div>`;
+}
+
+function studyRenderSubjectFiltersAndList() {
+  const state = studySubjectViewState;
+  if (!state) return;
+  const filterElement = document.getElementById("study-subject-filters");
+  if (filterElement) filterElement.innerHTML = studySubjectFilterBarHtml(state);
+  const listElement = document.getElementById("study-resource-list");
+  if (listElement) listElement.innerHTML = studyResourceListHtml();
+}
+
+function studySetSubjectFilter(key, value) {
+  if (!studySubjectViewState) return;
+  studySubjectViewState.filters[key] = value;
+  studySubjectViewState.visibleLimit = STUDY_RESOURCE_PAGE_SIZE;
+  studyRenderSubjectFiltersAndList();
+}
+
+function studySetSubjectSort(mode) {
+  if (!studySubjectViewState) return;
+  studySubjectViewState.sort = mode;
+  studyRenderSubjectFiltersAndList();
+}
+
+function studyResetSubjectFilters() {
+  if (!studySubjectViewState) return;
+  studySubjectViewState.filters = { subtype: "", year: "", sourceCollege: "" };
+  studySubjectViewState.sort = "relevant";
+  studySubjectViewState.visibleLimit = STUDY_RESOURCE_PAGE_SIZE;
+  studyRenderSubjectFiltersAndList();
+}
+
+function studyResourceTabsHtml(resources) {
+  const counts = {};
+  for (const resource of resources) {
+    const category = StudyResourceService.getResourceCategory(resource);
+    counts[category] = (counts[category] || 0) + 1;
+  }
+  const presentCategories = StudyResourceService.RESOURCE_CATEGORY_ORDER.filter(category => counts[category]);
+  if (presentCategories.length <= 1) return ""; // nothing meaningful to filter by — skip the tab bar entirely
+  const tabs = ["all", ...presentCategories].map(category => {
+    const count = category === "all" ? resources.length : counts[category];
+    return `<button class="study-tab ${category === "all" ? "active" : ""}" data-study-category="${category}" onclick="setStudyResourceCategory('${category}')">${escapeHtml(studyResourceCategoryLabel(category))} <span class="study-tab-count">${count}</span></button>`;
+  }).join("");
+  return `<div class="study-tabs">${tabs}</div>`;
+}
+
+// Same partial-re-render pattern as app-wall.js's setCategoryFilter().
+function setStudyResourceCategory(category) {
+  if (!studySubjectViewState) return;
+  studySubjectViewState.category = category;
+  studySubjectViewState.visibleLimit = STUDY_RESOURCE_PAGE_SIZE;
+  // STUDY-V2-005: reset the sub-filters on tab switch — a different
+  // category can have entirely different real Year/Subtype/Source options,
+  // so keeping a filter value that no longer applies would silently show
+  // stale/empty results rather than the tab's real content.
+  studySubjectViewState.filters = { subtype: "", year: "", sourceCollege: "" };
+  studySubjectViewState.sort = "relevant";
+  document.querySelectorAll("[data-study-category]").forEach(button => button.classList.toggle("active", button.dataset.studyCategory === category));
+  studyRenderSubjectFiltersAndList();
+}
+
+function studyLoadMoreResources() {
+  if (!studySubjectViewState) return;
+  studySubjectViewState.visibleLimit += STUDY_RESOURCE_PAGE_SIZE;
+  const listElement = document.getElementById("study-resource-list");
+  if (listElement) listElement.innerHTML = studyResourceListHtml();
+}
+// -------------------------------------------------------------------------
+
+// --- STUDY-V2-005: Global Search (#/study) ------------------------------
+//
+// studySearchViewState holds the CURRENTLY RENDERED search panel's state —
+// query text, the query's ranked result set (computed once per query
+// change via StudyResourceService.searchResources — always publishable-only,
+// same as every other view in this module), and the active
+// year/sourceCollege/sort refinements re-applied on top of that ranked set.
+// Reset to null every time renderStudyHome() runs (fresh state per
+// navigation to #/study, matching studySubjectViewState's own convention).
+// No URL query param is used here — `location.hash` query-string safety
+// against the current getRoute() (a plain `hash.split("/")`) was checked
+// first: appending "?q=..." directly after "study" changes parts[0] from
+// "study" to "study?q=...", which getRoute() would NOT recognize (falls
+// through to the Home page) — making that unsafe without also touching
+// app-router.js, which this stage must not do. Kept as pure component
+// state instead, per the request's own explicitly-allowed simpler option.
+let studySearchViewState = null;
+let studySearchDebounceTimer = null;
+const STUDY_SEARCH_DEBOUNCE_MS = 200;
+const STUDY_SEARCH_PAGE_SIZE = 20;
+
+function studyEmptySearchState() {
+  return { query: "", year: "", sourceCollege: "", sort: "relevant", visibleLimit: STUDY_SEARCH_PAGE_SIZE, rankedResults: [] };
+}
+
+// A search-result row needs its Subject Code/Semester spelled out (results
+// span many different subjects, unlike a Subject page's rows) — otherwise
+// identical to studyResourceRowHtml's main/source/badge/quick-open parts.
+// Never shows a "paired scheme" link (showPairedScheme is a Subject-page-
+// only affordance — Question/Scheme pairing is still fully intact and
+// visible once the user opens Resource Detail, see spec section 17).
+function studySearchResultRowHtml(resource) {
+  const subject = StudyResourceService.getSubjectByCode(resource.subjectCode);
+  const subjectName = subject ? studySubjectDisplayName(subject) : resource.subjectCode;
+  const category = StudyResourceService.getResourceCategory(resource);
+  const badge = studyVerificationBadgeHtml(resource.verificationStatus);
+  const subjectLine = subjectName !== resource.subjectCode ? `${escapeHtml(resource.subjectCode)} · ${escapeHtml(subjectName)}` : escapeHtml(resource.subjectCode);
+  return `
+    <div class="study-resource-row">
+      <span class="study-resource-icon" aria-hidden="true">📄</span>
+      <div class="study-resource-main">
+        <button class="study-resource-title" onclick="navigate('#/study/resource/${resource.id}')">${escapeHtml(resource.title)}</button>
+        <small>${subjectLine} · ${I18n.t("study.semesterLabel")} ${resource.semester} · ${escapeHtml(studyResourceCategoryLabel(category))} · ${escapeHtml(studyYearLabel(resource))}</small>
+        <small class="study-resource-source">${studySourceLabel(resource)}${badge}${studyResourceFileBadgeHtml(resource)}</small>
+      </div>
+      ${studyResourceQuickOpenHtml(resource)}
+    </div>`;
+}
+
+// Filter dropdown options here are scoped to the current QUERY's ranked
+// result set (not the whole 2468-item manifest) — same "only real, present
+// values" rule as the Subject page's filter bar.
+function studySearchFilterBarHtml(state) {
+  const options = StudyResourceService.getFilterOptions(state.rankedResults);
+  if (!options.years.length && !options.sourceColleges.length) return "";
+  const blank = label => `<option value="">${escapeHtml(label)}</option>`;
+  const selectHtml = (key, label, values) => `
+    <label class="study-filter-field">${escapeHtml(label)}
+      <select onchange="studySetSearchFilter('${key}', this.value)">
+        ${blank(I18n.t("study.filters.allOption"))}
+        ${values.map(value => `<option value="${escapeHtml(value)}" ${state[key] === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}
+      </select>
+    </label>`;
+  const parts = [];
+  if (options.years.length) parts.push(selectHtml("year", I18n.t("study.filters.year"), options.years));
+  if (options.sourceColleges.length) parts.push(selectHtml("sourceCollege", I18n.t("study.filters.source"), options.sourceColleges));
+  const sortSelect = `
+    <label class="study-filter-field">${I18n.t("study.filters.sort")}
+      <select onchange="studySetSearchSort(this.value)">
+        ${["relevant", "newest", "oldest", "title"].map(mode => `<option value="${mode}" ${state.sort === mode ? "selected" : ""}>${I18n.t(`study.sort.${mode}`)}</option>`).join("")}
+      </select>
+    </label>`;
+  parts.push(sortSelect);
+  const hasActiveFilter = state.year || state.sourceCollege || state.sort !== "relevant";
+  if (hasActiveFilter) parts.push(`<button class="study-clear-link" onclick="studyClearSearchFilters()">${I18n.t("study.clearFilters")}</button>`);
+  return `<div class="study-search-filters">${parts.join("")}</div>`;
+}
+
+// Search + Filter compose as an intersection (spec section 8): the ranked
+// text-match result set from searchResources() is narrowed by
+// filterResources() (year/sourceCollege only — Subject Code narrowing is
+// already what typing a code into the query itself does, so there is no
+// separate redundant Subject dropdown here), then reordered by
+// sortResources() ("relevant" preserves the ranked order untouched).
+function studySearchPanelHtml() {
+  const state = studySearchViewState;
+  if (!state || !state.query) return "";
+  if (!state.rankedResults.length) {
+    return `<div class="empty-state">${I18n.t("study.noSearchResults")}</div>`;
+  }
+  const filterBar = studySearchFilterBarHtml(state);
+  const filtered = StudyResourceService.filterResources(state.rankedResults, { year: state.year || null, sourceCollege: state.sourceCollege || null });
+  const sorted = StudyResourceService.sortResources(filtered, state.sort);
+  if (!sorted.length) {
+    return `${filterBar}<div class="empty-state">${I18n.t("study.noSearchResults")}</div>`;
+  }
+  const visible = sorted.slice(0, state.visibleLimit);
+  const rows = visible.map(studySearchResultRowHtml).join("");
+  const loadMore = sorted.length > state.visibleLimit
+    ? `<button class="btn btn-outline study-load-more" onclick="studyLoadMoreSearchResults()">${I18n.t("study.loadMore")}</button>` : "";
+  const countLine = `<p class="study-subject-count">${sorted.length} ${I18n.t("study.resourceCountLabel")}</p>`;
+  return `${filterBar}${countLine}${rows}${loadMore}`;
+}
+
+function studyRenderSearchPanel() {
+  const panelElement = document.getElementById("study-search-panel");
+  if (panelElement) panelElement.innerHTML = studySearchPanelHtml();
+  const clearElement = document.getElementById("study-search-clear");
+  if (clearElement) clearElement.innerHTML = studySearchViewState && studySearchViewState.query
+    ? `<button class="study-clear-link" onclick="studyClearSearchQuery()">${I18n.t("study.clearSearch")}</button>` : "";
+}
+
+// The real query-application logic, directly callable (and directly
+// testable) on its own — studyGlobalSearchInput() below is only a thin
+// debounce wrapper around this, so a real keystroke and a direct call both
+// end up running the exact same code path.
+function studyApplySearchQuery(rawValue) {
+  const query = String(rawValue || "").trim();
+  if (!studySearchViewState) studySearchViewState = studyEmptySearchState();
+  studySearchViewState.query = query;
+  studySearchViewState.rankedResults = query ? StudyResourceService.searchResources(query) : [];
+  studySearchViewState.visibleLimit = STUDY_SEARCH_PAGE_SIZE;
+  studyRenderSearchPanel();
+}
+
+// Debounced per spec section 12 (~150-250ms) — a 2468-item manifest does
+// not need Fuse.js or any search library, a plain setTimeout is enough.
+function studyGlobalSearchInput(value) {
+  clearTimeout(studySearchDebounceTimer);
+  studySearchDebounceTimer = setTimeout(() => studyApplySearchQuery(value), STUDY_SEARCH_DEBOUNCE_MS);
+}
+
+function studySetSearchFilter(key, value) {
+  if (!studySearchViewState) return;
+  studySearchViewState[key] = value;
+  studySearchViewState.visibleLimit = STUDY_SEARCH_PAGE_SIZE;
+  studyRenderSearchPanel();
+}
+
+function studySetSearchSort(mode) {
+  if (!studySearchViewState) return;
+  studySearchViewState.sort = mode;
+  studyRenderSearchPanel();
+}
+
+// "Clear filters" keeps the query text, only resets year/source/sort —
+// distinct from "Clear search" below, which resets the query itself too
+// (spec section 10 explicitly asks for both as separate actions).
+function studyClearSearchFilters() {
+  if (!studySearchViewState) return;
+  studySearchViewState.year = "";
+  studySearchViewState.sourceCollege = "";
+  studySearchViewState.sort = "relevant";
+  studySearchViewState.visibleLimit = STUDY_SEARCH_PAGE_SIZE;
+  studyRenderSearchPanel();
+}
+
+function studyClearSearchQuery() {
+  studySearchViewState = studyEmptySearchState();
+  const inputElement = document.getElementById("study-search-input");
+  if (inputElement) inputElement.value = "";
+  studyRenderSearchPanel();
+}
+
+function studyLoadMoreSearchResults() {
+  if (!studySearchViewState) return;
+  studySearchViewState.visibleLimit += STUDY_SEARCH_PAGE_SIZE;
+  studyRenderSearchPanel();
+}
+// -------------------------------------------------------------------------
+
+function renderStudyNotFound(container, backHash, backLabel) {
+  container.innerHTML = `
+    <section class="container error-page page-reveal">
+      <div class="error-illustration">📚</div>
+      <p class="eyebrow">Route mismatch</p>
+      <h1>Study Notes page not found</h1>
+      <p>This Study Notes link does not match a known programme.</p>
+      <button class="btn btn-primary" onclick="navigate('${backHash}')">${escapeHtml(backLabel)}</button>
+    </section>`;
+}
+
+// STUDY-V2-005: Global Search lives at the top of Study Home, above the
+// Jurusan picker — searching never navigates away from #/study, results
+// render inline (see studySearchPanelHtml). Reset to a fresh, empty search
+// state on every render (matches renderStudySubjectShell's own convention
+// of resetting its view state on every navigation, rather than showing a
+// stale query from a previous visit).
+function renderStudyHome(container) {
+  studySearchViewState = null;
+  const jurusanList = StudyResourceService.getJurusanList();
+  const cards = jurusanList.map((jurusan, index) => {
+    const count = StudyResourceService.getResourceCountForJurusan(jurusan.id);
+    const name = jurusan.name[studyCurrentLanguage()] || jurusan.name.en;
+    return `
+      <button class="selection-item study-jurusan-item" style="--item-delay:${index * 55}ms" onclick="navigate('#/study/${jurusan.id}')">
+        <span class="selection-icon">${jurusan.emoji}</span>
+        <span><strong>${escapeHtml(name)}</strong><small>${count} ${I18n.t("study.resourceCountLabel")}</small></span>
+        <span class="selection-check">→</span>
+      </button>`;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/')">← ${I18n.t("nav.home")}</button>
+      <header class="org-header">
+        <div class="org-header-icon">📚</div>
+        <div><p class="eyebrow">${I18n.t("study.hub.eyebrow")}</p><h1>${I18n.t("study.hub.title")}</h1><p class="study-hub-desc">${I18n.t("study.hub.desc")}</p></div>
+      </header>
+      <section class="selection-shell">
+        <div class="study-search-bar">
+          <input type="search" id="study-search-input" class="study-search-input" placeholder="${escapeHtml(I18n.t("study.search.placeholder"))}" oninput="studyGlobalSearchInput(this.value)">
+          <span id="study-search-clear"></span>
+        </div>
+        <div class="study-upload-cta"><button type="button" class="study-clear-link" onclick="navigate('#/study/upload')">⬆️ ${I18n.t("study.upload.homeCta")}</button></div>
+        <div id="study-search-panel"></div>
+        <div class="section-heading" style="margin-bottom:18px"><div><h2>${I18n.t("study.hub.chooseJurusan")}</h2><p>${I18n.t("study.hub.chooseJurusanDesc")}</p></div></div>
+        <div class="selection-list">${cards}</div>
+      </section>
+    </div>`;
+}
+
+// #/study/:jurusan — Semester picker. Deliberately does NOT list any
+// subjects itself (that was STUDY-V2-FOUNDATION-001's shortcut, fixed by
+// this stage) — it only shows Semester 1 / Semester 2 as the next level to
+// pick, each with real subject/resource counts.
+function renderStudyJurusan(container, jurusanId) {
+  const jurusan = StudyResourceService.getJurusanById(jurusanId);
+  if (!jurusan) {
+    renderStudyNotFound(container, "#/study", I18n.t("study.hub.title"));
+    return;
+  }
+  const name = studyJurusanDisplayName(jurusan);
+
+  const semesterCards = [1, 2].map((semester, index) => {
+    const subjectCount = StudyResourceService.getSubjectsByJurusanAndSemester(jurusanId, semester).length;
+    const resourceCount = StudyResourceService.getResourceCountForJurusanSemester(jurusanId, semester);
+    return `
+      <button class="study-semester-card reveal-card" data-reveal style="--reveal-delay:${index * 70}ms" onclick="navigate('#/study/${jurusanId}/sem/${semester}')">
+        <span class="study-semester-icon">📘</span>
+        <span class="study-semester-title">${I18n.t("study.semesterLabel")} ${semester}</span>
+        <small>${subjectCount} ${I18n.t("study.subjectCountLabel")} · ${resourceCount} ${I18n.t("study.resourceCountLabel")}</small>
+      </button>`;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/study')">← ${I18n.t("study.hub.title")}</button>
+      <header class="org-header">
+        <div class="org-header-icon">${jurusan.emoji}</div>
+        <div><p class="eyebrow">${studyBreadcrumb([I18n.t("study.hub.title")])}</p><h1>${escapeHtml(name)}</h1></div>
+      </header>
+      <section class="selection-shell">
+        <div class="section-heading" style="margin-bottom:18px"><div><h2>${I18n.t("study.jurusan.chooseSemester")}</h2><p>${I18n.t("study.jurusan.chooseSemesterDesc")}</p></div></div>
+        <div class="study-semester-grid">${semesterCards}</div>
+      </section>
+    </div>`;
+}
+
+// #/study/:jurusan/sem/:semester — Subject Code list for that
+// Jurusan+Semester. This is the real "browse hierarchy" leaf per this
+// stage's scope — subjects come entirely from data/study-subjects.js,
+// nothing hardcoded, nothing fabricated when the list is empty.
+function renderStudySemester(container, jurusanId, semester) {
+  const jurusan = StudyResourceService.getJurusanById(jurusanId);
+  const canonicalSemester = Number(semester);
+  const isValidSemester = canonicalSemester === 1 || canonicalSemester === 2;
+  if (!jurusan || !isValidSemester) {
+    renderStudyNotFound(container, jurusan ? `#/study/${jurusanId}` : "#/study", jurusan ? studyJurusanDisplayName(jurusan) : I18n.t("study.hub.title"));
+    return;
+  }
+  const name = studyJurusanDisplayName(jurusan);
+  const subjects = StudyResourceService.getSubjectsByJurusanAndSemester(jurusanId, canonicalSemester);
+
+  const items = subjects.map((subject, index) => {
+    const count = StudyResourceService.getResourceCountForSubject(subject.code);
+    const displayName = studySubjectDisplayName(subject);
+    const showName = displayName !== subject.code;
+    return `
+      <button class="selection-item" style="--item-delay:${index * 55}ms" onclick="navigate('#/study/${jurusanId}/sem/${canonicalSemester}/${subject.code}')">
+        <span class="selection-icon">📄</span>
+        <span>
+          <strong>${escapeHtml(subject.code)}</strong>
+          <small>${showName ? `${escapeHtml(displayName)} · ` : ""}${count} ${I18n.t("study.resourceCountLabel")}</small>
+          ${studyResourceTypeBadges(subject.code)}
+        </span>
+        <span class="selection-check">→</span>
+      </button>`;
+  }).join("") || `<div class="empty-state">${I18n.t("study.noSubjectsYet")}</div>`;
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/study/${jurusanId}')">← ${escapeHtml(name)}</button>
+      <header class="org-header">
+        <div class="org-header-icon">${jurusan.emoji}</div>
+        <div><p class="eyebrow">${studyBreadcrumb([I18n.t("study.hub.title"), name])}</p><h1>${I18n.t("study.semesterLabel")} ${canonicalSemester}</h1></div>
+      </header>
+      <section class="selection-shell">
+        <div class="section-heading" style="margin-bottom:18px"><div><h2>${I18n.t("study.semester.chooseSubject")}</h2></div></div>
+        <div class="selection-list">${items}</div>
+      </section>
+    </div>`;
+}
+
+// #/study/:jurusan/sem/:semester/:subjectCode — STUDY-V2-004: this now
+// shows the subject's real resources (queried in the ROUTE's own
+// jurusan+semester context, per the request's explicit "不能只用
+// subjectCode 然后忽略 route context" instruction — see
+// getResourcesForSubjectInContext() in the service), grouped/tabbed per
+// studyResourceListHtml() above. Only publishable resources ever reach
+// this function (getResourcesForSubjectInContext() already filters through
+// getPublishableResources()) — manual_review/rejected/duplicate items are
+// never rendered here.
+function renderStudySubjectShell(container, jurusanId, semester, subjectCode) {
+  const jurusan = StudyResourceService.getJurusanById(jurusanId);
+  const canonicalSemester = Number(semester);
+  const isValidSemester = canonicalSemester === 1 || canonicalSemester === 2;
+  const subject = StudyResourceService.getSubjectByCode(subjectCode);
+  if (!jurusan || !isValidSemester || !subject || subject.jurusan !== jurusanId || subject.semester !== canonicalSemester) {
+    renderStudyNotFound(container, jurusan ? `#/study/${jurusanId}` : "#/study", jurusan ? studyJurusanDisplayName(jurusan) : I18n.t("study.hub.title"));
+    return;
+  }
+  const name = studyJurusanDisplayName(jurusan);
+  const resources = StudyResourceService.getResourcesForSubjectInContext(jurusanId, canonicalSemester, subjectCode);
+  const backHash = `#/study/${jurusanId}/sem/${canonicalSemester}`;
+
+  const subjectDisplayName = studySubjectDisplayName(subject);
+  const showSubjectName = subjectDisplayName !== subject.code;
+
+  studySubjectViewState = {
+    jurusanId, semester: canonicalSemester, subjectCode, resources, category: "all",
+    visibleLimit: STUDY_RESOURCE_PAGE_SIZE,
+    filters: { subtype: "", year: "", sourceCollege: "" }, sort: "relevant",
+  };
+
+  const bodyHtml = resources.length
+    ? `${studyResourceTabsHtml(resources)}<div id="study-subject-filters">${studySubjectFilterBarHtml(studySubjectViewState)}</div><div id="study-resource-list">${studyResourceListHtml()}</div>`
+    : `<div class="empty-state">${I18n.t("study.subjectEmptyState")}</div>`;
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('${backHash}')">← ${I18n.t("study.semesterLabel")} ${canonicalSemester}</button>
+      <header class="org-header">
+        <div class="org-header-icon">📄</div>
+        <div>
+          <p class="eyebrow">${studyBreadcrumb([I18n.t("study.hub.title"), name, `${I18n.t("study.semesterLabel")} ${canonicalSemester}`])}</p>
+          <h1>${escapeHtml(subjectCode)}</h1>
+          ${showSubjectName ? `<div class="org-header-meta"><span>${escapeHtml(subjectDisplayName)}</span></div>` : ""}
+          <p class="study-subject-count">${resources.length} ${I18n.t("study.resourceCountLabel")}</p>
+        </div>
+      </header>
+      <section class="selection-shell">${bodyHtml}</section>
+    </div>`;
+}
+
+// #/study/resource/:resourceId — STUDY-V2-004: real metadata (subject,
+// semester, type, year, source, verification, paired Question/Scheme).
+// Gated by isResourcePublishable() so a guessed/stray resourceId can never
+// leak a manual_review/rejected/duplicate item through a direct link — the
+// same "hide from ordinary users" rule every list view already applies. No
+// sourceRelativePath/sourceBatch/fileId is ever rendered here — those are
+// internal provenance fields, not user-facing (and never a local absolute
+// path to begin with — see scripts/build-study-manifest.mjs).
+//
+// STUDY-V2-006: "Open file" is now real for any resource in the curated
+// Competition Demo File Set (StudyResourceService.getResourceFileUrl() —
+// this function never builds a path itself). PDF opens in a new tab via the
+// browser's own native viewer (spec section 10: no custom renderer needed
+// for v1); non-PDF (docx/pptx/doc) uses the `download` attribute rather
+// than pretending the browser can preview it (spec section 9). A resource
+// NOT in the demo set (fileUrl is null) still shows a disabled button, but
+// with an honest "not included in this demo" note — distinct from "not
+// connected yet," since file serving genuinely is connected now, this
+// particular file just wasn't part of the curated set (see
+// scripts/build-study-demo-files.mjs for why the full ~2.5GB set wasn't
+// copied wholesale).
+function renderStudyResourceDetail(container, resourceId) {
+  const resource = StudyResourceService.getResourceById(resourceId);
+  if (!resource || !StudyResourceService.isResourcePublishable(resource)) {
+    renderStudyNotFound(container, "#/study", I18n.t("study.hub.title"));
+    return;
+  }
+  const jurusan = StudyResourceService.getJurusanById(resource.jurusan);
+  const subject = StudyResourceService.getSubjectByCode(resource.subjectCode);
+  const jurusanName = jurusan ? studyJurusanDisplayName(jurusan) : resource.jurusan;
+  const backHash = `#/study/${resource.jurusan}/sem/${resource.semester}/${resource.subjectCode}`;
+  const category = StudyResourceService.getResourceCategory(resource);
+  const verificationBadge = studyVerificationBadgeHtml(resource.verificationStatus) || `<span class="study-badge">${I18n.t("study.unverified")}</span>`;
+
+  const related = StudyResourceService.getRelatedResource(resource);
+  const relatedHtml = related && StudyResourceService.isResourcePublishable(related)
+    ? `<div class="study-related-resource">
+         <p class="study-related-label">${resource.resourceType === "answer_scheme" ? I18n.t("study.relatedQuestion") : I18n.t("study.relatedScheme")}</p>
+         <button class="btn btn-outline" onclick="navigate('#/study/resource/${related.id}')">${escapeHtml(related.title)} →</button>
+       </div>`
+    : "";
+
+  const fileUrl = StudyResourceService.getResourceFileUrl(resource);
+  const fileType = StudyResourceService.getResourceFileType(resource);
+  const isPdf = StudyResourceService.isResourceFilePdf(resource);
+  const fileTypeBadge = fileType ? `<span class="study-badge study-badge-file">${escapeHtml(I18n.t(`study.fileType.${fileType}`))}</span>` : "";
+  const fileOpenLabel = isPdf ? I18n.t("study.openPdf") : I18n.t("study.openFile");
+  const fileOpenHtml = fileUrl
+    ? (studyIsIndexedDbFileUrl(fileUrl)
+        ? `<button type="button" class="btn btn-primary" onclick="studyOpenIndexedDbFile('${resource.id}')">${fileOpenLabel}</button> ${fileTypeBadge}`
+        : `<a class="btn btn-primary" href="${escapeHtml(fileUrl)}" ${isPdf ? 'target="_blank" rel="noopener noreferrer"' : "download"}>${fileOpenLabel}</a> ${fileTypeBadge}`)
+    : `<button class="btn btn-primary" disabled title="${escapeHtml(I18n.t("study.fileUnavailableInDemo"))}">${I18n.t("study.openFile")}</button>
+       <p class="study-file-note">${I18n.t("study.fileUnavailableInDemoNote")}</p>`;
+  // STUDY-V2-007: approved user uploads carry sourceBatch:"user_upload" (see
+  // StudyUploadService.submissionToResource) — a small provenance note only,
+  // never a way to bypass isResourcePublishable() above (an approved
+  // submission is exactly as publishable as any built-in auto_parsed item).
+  const contributedNote = resource.sourceBatch === "user_upload"
+    ? `<p class="study-contributed-note">${I18n.t("study.upload.communityContributed")}</p>` : "";
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('${backHash}')">← ${escapeHtml(resource.subjectCode)}</button>
+      <header class="org-header">
+        <div class="org-header-icon">📄</div>
+        <div>
+          <p class="eyebrow">${studyBreadcrumb([I18n.t("study.hub.title"), jurusanName, `${I18n.t("study.semesterLabel")} ${resource.semester}`, resource.subjectCode])}</p>
+          <h1>${escapeHtml(resource.title)}</h1>
+        </div>
+      </header>
+      <section class="selection-shell study-resource-detail">
+        <dl class="study-detail-grid">
+          <div><dt>${I18n.t("study.detail.subject")}</dt><dd>${escapeHtml(resource.subjectCode)}${subject ? ` · ${escapeHtml(studySubjectDisplayName(subject))}` : ""}</dd></div>
+          <div><dt>${I18n.t("study.detail.semester")}</dt><dd>${I18n.t("study.semesterLabel")} ${resource.semester}</dd></div>
+          <div><dt>${I18n.t("study.detail.type")}</dt><dd>${escapeHtml(studyResourceCategoryLabel(category))}</dd></div>
+          <div><dt>${I18n.t("study.detail.year")}</dt><dd>${escapeHtml(studyYearLabel(resource))}</dd></div>
+          <div><dt>${I18n.t("study.detail.source")}</dt><dd>${studySourceLabel(resource)}</dd></div>
+          <div><dt>${I18n.t("study.detail.verification")}</dt><dd>${verificationBadge}</dd></div>
+        </dl>
+        ${contributedNote}
+        ${resource.description ? `<p class="study-detail-description">${escapeHtml(resource.description)}</p>` : ""}
+        ${relatedHtml}
+        <div class="study-file-open">
+          ${fileOpenHtml}
+        </div>
+      </section>
+    </div>`;
+}
+
+// --- STUDY-V2-007: Upload Study Material (#/study/upload) --------------
+//
+// No JS state object tracks form field values — every field is read
+// directly off the DOM on submit (matching this codebase's existing
+// convention, e.g. adminSetSearch() reading e.target.value directly rather
+// than mirroring it into a parallel state object). The only thing tracked
+// implicitly IS the DOM: cascading selects (Jurusan -> Semester -> Subject,
+// Resource Type -> Subtype, Subject+Type -> Related Resource candidates)
+// are rebuilt in place by the on*Change handlers below, each reading its
+// own parent select's current value at call time.
+
+const STUDY_UPLOAD_RESOURCE_TYPES = ["notes", "paper", "answer_scheme", "practice", "lab", "summary", "other"];
+
+// Only resourceTypes that actually have a meaningful subtype in this
+// registry get one — an empty array here means the Subtype select simply
+// shows a single "none" option (spec section 12: subtypes must stay
+// consistent with the existing taxonomy, never invented per upload).
+const STUDY_UPLOAD_SUBTYPES_BY_TYPE = {
+  notes: ["lecturer_notes", "student_notes"],
+  paper: ["pspm", "pre_pspm", "pra_pspm"],
+  practice: ["by_topic", "revision", "reinforcement", "mock", "tutorial"],
+  lab: ["lab_manual"],
+  answer_scheme: [],
+  summary: [],
+  other: [],
+};
+
+const STUDY_UPLOAD_SOURCE_TYPES = ["lecturer", "student", "official", "college", "unknown"];
+
+function studyUploadSignInPromptHtml() {
+  return `
+    <div class="empty-state study-upload-signin">
+      <p>${I18n.t("study.upload.signInRequired")}</p>
+      <button class="btn btn-primary" onclick="AuthUI.open('login')">${I18n.t("study.upload.signInCta")}</button>
+    </div>`;
+}
+
+function studyUploadJurusanOptionsHtml(selected) {
+  const blank = `<option value="">${escapeHtml(I18n.t("study.upload.selectPlaceholder"))}</option>`;
+  const options = StudyResourceService.getJurusanList().map(jurusan =>
+    `<option value="${escapeHtml(jurusan.id)}" ${selected === jurusan.id ? "selected" : ""}>${escapeHtml(studyJurusanDisplayName(jurusan))}</option>`
+  ).join("");
+  return blank + options;
+}
+
+function studyUploadSemesterOptionsHtml(jurusanId, selected) {
+  const blank = `<option value="">${escapeHtml(I18n.t("study.upload.selectPlaceholder"))}</option>`;
+  if (!jurusanId) return blank;
+  const options = [1, 2].map(semester =>
+    `<option value="${semester}" ${String(selected) === String(semester) ? "selected" : ""}>${I18n.t("study.semesterLabel")} ${semester}</option>`
+  ).join("");
+  return blank + options;
+}
+
+function studyUploadSubjectOptionsHtml(jurusanId, semester, selected) {
+  const blank = `<option value="">${escapeHtml(I18n.t("study.upload.selectPlaceholder"))}</option>`;
+  if (!jurusanId || !semester) return blank;
+  const subjects = StudyResourceService.getSubjectsByJurusanAndSemester(jurusanId, Number(semester));
+  const options = subjects.map(subject => {
+    const displayName = studySubjectDisplayName(subject);
+    const suffix = displayName !== subject.code ? ` — ${escapeHtml(displayName)}` : "";
+    return `<option value="${escapeHtml(subject.code)}" ${selected === subject.code ? "selected" : ""}>${escapeHtml(subject.code)}${suffix}</option>`;
+  }).join("");
+  return blank + options;
+}
+
+function studyUploadTypeOptionsHtml(selected) {
+  const blank = `<option value="">${escapeHtml(I18n.t("study.upload.selectPlaceholder"))}</option>`;
+  const options = STUDY_UPLOAD_RESOURCE_TYPES.map(type =>
+    `<option value="${type}" ${selected === type ? "selected" : ""}>${escapeHtml(I18n.t(`study.type.${type}`))}</option>`
+  ).join("");
+  return blank + options;
+}
+
+function studyUploadSubtypeOptionsHtml(resourceType, selected) {
+  const subtypes = STUDY_UPLOAD_SUBTYPES_BY_TYPE[resourceType] || [];
+  if (!subtypes.length) return `<option value="">${escapeHtml(I18n.t("study.upload.noneOption"))}</option>`;
+  const blank = `<option value="">${escapeHtml(I18n.t("study.filters.allOption"))}</option>`;
+  const options = subtypes.map(subtype =>
+    `<option value="${subtype}" ${selected === subtype ? "selected" : ""}>${escapeHtml(I18n.t(`study.subtype.${subtype}`))}</option>`
+  ).join("");
+  return blank + options;
+}
+
+function studyUploadSourceTypeOptionsHtml(selected) {
+  return STUDY_UPLOAD_SOURCE_TYPES.map(type =>
+    `<option value="${type}" ${selected === type ? "selected" : ""}>${escapeHtml(I18n.t(`study.upload.sourceType.${type}`))}</option>`
+  ).join("");
+}
+
+// Question<->Scheme linking (spec section 23): a "paper" upload may link to
+// an existing answer_scheme, and vice versa — never the same type to itself.
+function studyUploadComplementaryType(resourceType) {
+  if (resourceType === "answer_scheme") return "paper";
+  if (resourceType === "paper") return "answer_scheme";
+  return null;
+}
+
+// Candidates include: (1) every publishable resource of the complementary
+// type in this subject (built-in OR already-approved uploads — both reach
+// this through the same StudyResourceService query, per the unified
+// pipeline), and (2) the signed-in user's OWN still-pending submissions of
+// the complementary type in this subject — this is what makes "upload a
+// Question, then upload its Scheme and link back" work before the Question
+// has been through moderation (see StudyUploadService.linkRelatedIfSubmission,
+// which back-links the Question's relatedResourceId once the Scheme names
+// it, without ever touching the frozen built-in manifest).
+function studyUploadRelatedCandidates(subjectCode, resourceType) {
+  const complementary = studyUploadComplementaryType(resourceType);
+  if (!complementary || !subjectCode) return [];
+  const publishable = StudyResourceService.getResourcesForSubject(subjectCode)
+    .filter(resource => resource.resourceType === complementary);
+  const user = window.AuthService?.getCurrentUser?.();
+  const ownPending = user && window.StudyUploadService
+    ? window.StudyUploadService.getCachedSubmissions().filter(item =>
+        item.contributorUserId === user.id
+        && item.subjectCode === subjectCode
+        && item.resourceType === complementary
+        && item.moderationStatus === "pending")
+    : [];
+  const merged = publishable.slice();
+  ownPending.forEach(item => {
+    if (!merged.some(existing => existing.id === item.id)) merged.push({ id: item.id, title: item.title, __pending: true });
+  });
+  return merged;
+}
+
+function studyUploadRelatedOptionsHtml(subjectCode, resourceType, selected) {
+  const candidates = studyUploadRelatedCandidates(subjectCode, resourceType);
+  const blank = `<option value="">${escapeHtml(I18n.t("study.upload.related.none"))}</option>`;
+  if (!candidates.length) return blank;
+  const options = candidates.map(candidate => {
+    const pendingSuffix = candidate.__pending ? ` (${I18n.t("study.upload.pendingSuffix")})` : "";
+    return `<option value="${escapeHtml(candidate.id)}" ${selected === candidate.id ? "selected" : ""}>${escapeHtml(candidate.title)}${pendingSuffix}</option>`;
+  }).join("");
+  return blank + options;
+}
+
+function studyUploadToggleRelatedVisibility() {
+  const resourceType = document.getElementById("su-type")?.value;
+  const wrapper = document.getElementById("su-related-wrapper");
+  if (wrapper) wrapper.hidden = !studyUploadComplementaryType(resourceType);
+}
+
+function studyUploadRefreshRelated() {
+  const subjectCode = document.getElementById("su-subject")?.value;
+  const resourceType = document.getElementById("su-type")?.value;
+  const relatedSelect = document.getElementById("su-related");
+  if (relatedSelect) relatedSelect.innerHTML = studyUploadRelatedOptionsHtml(subjectCode, resourceType, "");
+}
+
+function studyUploadOnJurusanChange() {
+  const jurusanId = document.getElementById("su-jurusan").value;
+  document.getElementById("su-semester").innerHTML = studyUploadSemesterOptionsHtml(jurusanId, "");
+  document.getElementById("su-subject").innerHTML = studyUploadSubjectOptionsHtml(jurusanId, "", "");
+  studyUploadRefreshRelated();
+}
+
+function studyUploadOnSemesterChange() {
+  const jurusanId = document.getElementById("su-jurusan").value;
+  const semester = document.getElementById("su-semester").value;
+  document.getElementById("su-subject").innerHTML = studyUploadSubjectOptionsHtml(jurusanId, semester, "");
+  studyUploadRefreshRelated();
+}
+
+function studyUploadOnSubjectChange() {
+  studyUploadRefreshRelated();
+}
+
+function studyUploadOnTypeChange() {
+  const resourceType = document.getElementById("su-type").value;
+  document.getElementById("su-subtype").innerHTML = studyUploadSubtypeOptionsHtml(resourceType, "");
+  studyUploadToggleRelatedVisibility();
+  studyUploadRefreshRelated();
+}
+
+function studyUploadFormShellHtml() {
+  return `
+    <div id="study-upload-result" aria-live="polite"></div>
+    <form id="study-upload-form" class="study-upload-form" onsubmit="studySubmitUpload(event); return false;">
+      <div class="form-group">
+        <label class="form-label" for="su-title">${I18n.t("study.upload.field.title")} *</label>
+        <input id="su-title" class="form-input" type="text" maxlength="200" required>
+      </div>
+      <div class="study-upload-grid">
+        <div class="form-group">
+          <label class="form-label" for="su-jurusan">${I18n.t("study.upload.field.jurusan")} *</label>
+          <select id="su-jurusan" class="form-select" onchange="studyUploadOnJurusanChange()" required>${studyUploadJurusanOptionsHtml("")}</select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="su-semester">${I18n.t("study.upload.field.semester")} *</label>
+          <select id="su-semester" class="form-select" onchange="studyUploadOnSemesterChange()" required>${studyUploadSemesterOptionsHtml("", "")}</select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="su-subject">${I18n.t("study.upload.field.subject")} *</label>
+          <select id="su-subject" class="form-select" onchange="studyUploadOnSubjectChange()" required>${studyUploadSubjectOptionsHtml("", "", "")}</select>
+        </div>
+      </div>
+      <div class="study-upload-grid">
+        <div class="form-group">
+          <label class="form-label" for="su-type">${I18n.t("study.upload.field.type")} *</label>
+          <select id="su-type" class="form-select" onchange="studyUploadOnTypeChange()" required>${studyUploadTypeOptionsHtml("")}</select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="su-subtype">${I18n.t("study.upload.field.subtype")}</label>
+          <select id="su-subtype" class="form-select">${studyUploadSubtypeOptionsHtml("", "")}</select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="su-topic">${I18n.t("study.upload.field.topic")}</label>
+          <input id="su-topic" class="form-input" type="text" maxlength="200">
+        </div>
+      </div>
+      <div class="study-upload-grid">
+        <div class="form-group">
+          <label class="form-label" for="su-year-start">${I18n.t("study.upload.field.yearStart")}</label>
+          <input id="su-year-start" class="form-input" type="number" min="1980" max="2100" placeholder="2024">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="su-year-end">${I18n.t("study.upload.field.yearEnd")}</label>
+          <input id="su-year-end" class="form-input" type="number" min="1980" max="2100" placeholder="2025">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="su-session-label">${I18n.t("study.upload.field.examSession")}</label>
+          <input id="su-session-label" class="form-input" type="text" maxlength="20" placeholder="2024/2025">
+        </div>
+      </div>
+      <div class="study-upload-grid">
+        <div class="form-group">
+          <label class="form-label" for="su-source-college">${I18n.t("study.upload.field.sourceCollege")}</label>
+          <input id="su-source-college" class="form-input" type="text" maxlength="60">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="su-source-type">${I18n.t("study.upload.field.sourceType")} *</label>
+          <select id="su-source-type" class="form-select" required>${studyUploadSourceTypeOptionsHtml("unknown")}</select>
+        </div>
+      </div>
+      <div class="form-group" id="su-related-wrapper" hidden>
+        <label class="form-label" for="su-related">${I18n.t("study.upload.field.related")}</label>
+        <select id="su-related" class="form-select">${studyUploadRelatedOptionsHtml("", "", "")}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="su-description">${I18n.t("study.upload.field.description")}</label>
+        <textarea id="su-description" class="form-textarea" maxlength="500"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="su-file">${I18n.t("study.upload.field.file")} *</label>
+        <input id="su-file" class="form-input study-upload-file-input" type="file" accept=".pdf,application/pdf" required>
+        <small class="study-upload-hint">${I18n.t("study.upload.fileHint", { max: "60MB" })}</small>
+      </div>
+      <label class="study-upload-permission">
+        <input id="su-permission" type="checkbox" required>
+        <span>${I18n.t("study.upload.permissionLabel")}</span>
+      </label>
+      <button id="su-submit" type="submit" class="btn btn-primary btn-lg">${I18n.t("study.upload.submit")}</button>
+    </form>`;
+}
+
+function studyRenderUploadResult(payload) {
+  const el = document.getElementById("study-upload-result");
+  if (!el) return;
+  if (payload.kind === "success") {
+    const duplicateNote = payload.duplicateWarning
+      ? `<p class="study-upload-duplicate-note">⚠ ${I18n.t("study.upload.possibleDuplicateOf")} <button type="button" class="study-clear-link" onclick="navigate('#/study/resource/${payload.duplicateWarning.id}')">${escapeHtml(payload.duplicateWarning.title)}</button></p>`
+      : "";
+    el.innerHTML = `
+      <div class="study-upload-banner study-upload-banner-success">
+        <p><strong>${I18n.t("study.upload.successTitle")}</strong></p>
+        <p>${escapeHtml(payload.record.title)} · ${escapeHtml(payload.record.subjectCode)} · ${escapeHtml(I18n.t(`study.type.${payload.record.resourceType}`))}</p>
+        <p class="study-upload-status-pending">${I18n.t("study.upload.statusPending")}</p>
+        ${duplicateNote}
+      </div>`;
+  } else if (payload.kind === "exactDuplicate") {
+    // The matching file can be a built-in/approved resource (has a real,
+    // navigable page) OR someone else's still-PENDING submission (matched
+    // via StudyUploadService.findDuplicate's pending+approved scan, but not
+    // yet in the public pipeline at all) — isResourcePublishable() alone
+    // can't tell these apart for a hand-built object like this (it only
+    // checks the object's own fields, not whether it's actually reachable
+    // via getResourceById), so check reachability directly instead. A bare
+    // navigate() to a pending id would otherwise 404 to "Study Notes page
+    // not found" — caught via real-browser testing, see REPORT_STUDY-V2-007.md.
+    const viewable = payload.resource && StudyResourceService.getResourceById(payload.resource.id);
+    const link = viewable
+      ? `<button type="button" class="study-clear-link" onclick="navigate('#/study/resource/${viewable.id}')">${escapeHtml(viewable.title)}</button>`
+      : payload.resource ? `<p class="study-upload-duplicate-note">${escapeHtml(payload.resource.title)}</p>` : "";
+    el.innerHTML = `<div class="study-upload-banner study-upload-banner-error"><p>${I18n.t("study.upload.error.exactDuplicate")}</p>${link}</div>`;
+  } else {
+    el.innerHTML = `<div class="study-upload-banner study-upload-banner-error"><ul>${payload.messages.map(message => `<li>${escapeHtml(message)}</li>`).join("")}</ul></div>`;
+  }
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// The real, direct-call-testable submission handler — reads every field off
+// the DOM, validates the required ones client-side first (fast, no
+// StudyUploadService round-trip for an obviously-incomplete form), then
+// hands everything else (file validation, hashing, duplicate detection,
+// persistence) to StudyUploadService.createSubmission, which is the single
+// source of truth for what "valid" means — this function never re-implements
+// any of those checks itself.
+async function studySubmitUpload(event) {
+  if (event?.preventDefault) event.preventDefault();
+  const submitButton = document.getElementById("su-submit");
+  const title = document.getElementById("su-title").value.trim();
+  const jurusan = document.getElementById("su-jurusan").value;
+  const semester = document.getElementById("su-semester").value;
+  const subjectCode = document.getElementById("su-subject").value;
+  const resourceType = document.getElementById("su-type").value;
+  const resourceSubtype = document.getElementById("su-subtype").value || null;
+  const topic = document.getElementById("su-topic").value.trim();
+  const yearStart = document.getElementById("su-year-start").value;
+  const yearEnd = document.getElementById("su-year-end").value;
+  const examSessionLabel = document.getElementById("su-session-label").value.trim();
+  const sourceCollege = document.getElementById("su-source-college").value.trim();
+  const sourceType = document.getElementById("su-source-type").value;
+  const description = document.getElementById("su-description").value.trim();
+  const relatedSelect = document.getElementById("su-related");
+  const relatedResourceId = relatedSelect && !document.getElementById("su-related-wrapper").hidden ? relatedSelect.value || null : null;
+  const file = document.getElementById("su-file").files?.[0] || null;
+  const permissionConfirmed = document.getElementById("su-permission").checked;
+
+  const errors = [];
+  if (!title) errors.push(I18n.t("study.upload.error.titleRequired"));
+  if (!jurusan) errors.push(I18n.t("study.upload.error.jurusanRequired"));
+  if (!semester) errors.push(I18n.t("study.upload.error.semesterRequired"));
+  if (!subjectCode) errors.push(I18n.t("study.upload.error.subjectRequired"));
+  if (!resourceType) errors.push(I18n.t("study.upload.error.typeRequired"));
+  if (!file) errors.push(I18n.t("study.upload.error.fileRequired"));
+  if (!permissionConfirmed) errors.push(I18n.t("study.upload.error.permissionRequired"));
+  if (errors.length) { studyRenderUploadResult({ kind: "error", messages: errors }); return; }
+
+  if (submitButton) { submitButton.disabled = true; submitButton.textContent = I18n.t("study.upload.submitting"); }
+  try {
+    const { record, duplicateWarning } = await StudyUploadService.createSubmission({
+      title, jurusan, semester, subjectCode, resourceType, resourceSubtype,
+      topic: topic || null, yearStart: yearStart || null, yearEnd: yearEnd || null,
+      examSessionLabel: examSessionLabel || null, sourceCollege: sourceCollege || null,
+      sourceType, description: description || null, relatedResourceId, permissionConfirmed,
+    }, file);
+    studyRenderUploadResult({ kind: "success", record, duplicateWarning });
+    document.getElementById("study-upload-form")?.reset();
+    studyUploadOnJurusanChange();
+    studyUploadToggleRelatedVisibility();
+  } catch (error) {
+    if (error && error.code === "EXACT_DUPLICATE") {
+      studyRenderUploadResult({ kind: "exactDuplicate", resource: error.duplicateResource });
+    } else if (error && Array.isArray(error.fieldErrors)) {
+      studyRenderUploadResult({ kind: "error", messages: error.fieldErrors.map(key => I18n.t(key)) });
+    } else {
+      const key = error instanceof Error ? error.message : "";
+      studyRenderUploadResult({ kind: "error", messages: [I18n.t(key) || "Upload failed."] });
+    }
+  } finally {
+    if (submitButton) { submitButton.disabled = false; submitButton.textContent = I18n.t("study.upload.submit"); }
+  }
+}
+
+// #/study/upload — Guest = read-only (spec section 24: reuse the existing
+// PermissionService.canUserPost "any signed-in user" rule rather than
+// inventing a new upload-specific permission check).
+function renderStudyUploadShell(container) {
+  const user = window.AuthService?.getCurrentUser?.() || null;
+  const canUpload = Boolean(window.PermissionService?.canUserPost?.(user));
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/study')">← ${I18n.t("study.hub.title")}</button>
+      <header class="org-header">
+        <div class="org-header-icon">⬆️</div>
+        <div><p class="eyebrow">${I18n.t("study.hub.title")}</p><h1>${I18n.t("study.upload.title")}</h1><p class="study-hub-desc">${I18n.t("study.upload.desc")}</p></div>
+      </header>
+      <section class="selection-shell study-upload-shell">
+        ${canUpload ? studyUploadFormShellHtml() : studyUploadSignInPromptHtml()}
+      </section>
+    </div>`;
+  if (canUpload) studyUploadToggleRelatedVisibility();
+}
+// -------------------------------------------------------------------------

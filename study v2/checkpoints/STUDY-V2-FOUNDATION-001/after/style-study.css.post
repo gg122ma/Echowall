@@ -1,0 +1,22 @@
+/**
+ * Study Notes V2 module styles (STUDY-V2-FOUNDATION-001).
+ * Deliberately reuses the existing .org-page/.selection-shell/.selection-list/
+ * .selection-item/.org-header shell (already used by Community's College
+ * Landing) for the Browse pages — no new list/card system was needed there.
+ * The Homepage promo reuses .map-promo's structural CSS (style-core.css)
+ * and only overrides color here, so Study Notes reads as EchoWall's
+ * existing design language, not a new one — but it is explicitly its own
+ * static, non-pointer-glow card (see the comment on .study-notes-promo
+ * below), giving it a visual identity distinct from both the Community
+ * Card (gold, pointer-follow) and the Echo Map promo (cyan-blue).
+ */
+
+/* Static on purpose — no pointer-follow glow, no JS. Study Notes is a
+   distinct feature area from Community; it intentionally does not reuse
+   .home-community-card's interactive glow system. */
+.study-notes-promo::before { background: rgba(124,131,253,.16); }
+.study-notes-promo .eyebrow { color: #b7bbff; }
+:root[data-theme="dark"] .study-notes-promo .eyebrow { color: #c7caff; }
+
+.study-hub-desc { color: var(--text-muted); font-size: .92rem; margin-top: 6px; max-width: 560px; }
+:root[data-theme="dark"] .study-hub-desc { color: var(--text-muted); }

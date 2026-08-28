@@ -1,0 +1,32 @@
+/**
+ * Comment / Reply UI (COM-V2-005). Lives inside the existing note Detail
+ * Modal (#modal-content) — there is no separate Post Detail route this
+ * stage, per the spec's "extend the existing modal" guidance.
+ */
+.modal-comments { margin-top:18px; padding-top:16px; border-top:1px solid var(--border); }
+.modal-comments-title { font-size:.92rem; font-weight:800; margin:0 0 10px; }
+.modal-comments-empty { color:var(--text-muted); font-size:.82rem; margin:0 0 14px; }
+.modal-comments-list { display:flex; flex-direction:column; gap:12px; margin-bottom:14px; max-height:260px; overflow-y:auto; padding-right:2px; }
+.modal-comment { padding:10px 12px; background:rgba(0,0,0,.035); border:1px solid var(--border); border-radius:12px; }
+.modal-comment-reply { margin-left:22px; margin-top:8px; background:rgba(0,0,0,.05); }
+.modal-comment-meta { display:flex; align-items:baseline; gap:8px; font-size:.72rem; color:var(--text-muted); margin-bottom:4px; }
+.modal-comment-meta b { color:var(--text); font-weight:800; }
+.modal-comment-text { margin:0; font-size:.87rem; line-height:1.5; overflow-wrap:anywhere; white-space:pre-wrap; }
+.modal-comment-reply-btn { appearance:none; border:0; background:none; padding:0; margin-top:6px; color:var(--primary); font-size:.72rem; font-weight:800; cursor:pointer; }
+.modal-comment-reply-btn:hover { text-decoration:underline; }
+.modal-comment-reply-box { margin-top:10px; display:flex; flex-direction:column; gap:8px; }
+.modal-comment-reply-box.hidden { display:none; }
+.modal-comment-composer { display:flex; flex-direction:column; gap:8px; }
+.modal-comment-composer textarea,
+.modal-comment-reply-box textarea { width:100%; min-height:60px; padding:9px 11px; font-family:var(--font); font-size:.85rem; line-height:1.4; color:var(--text); background:var(--card-bg); border:1px solid var(--border); border-radius:10px; resize:vertical; }
+.modal-comment-composer-row { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.comment-anon-toggle { display:inline-flex; align-items:center; gap:6px; font-size:.75rem; color:var(--text-muted); cursor:pointer; }
+.comment-anon-toggle input { margin:0; }
+
+:root[data-theme="dark"] .modal-comment { background:rgba(255,255,255,.05); border-color:var(--border-strong); }
+:root[data-theme="dark"] .modal-comment-reply { background:rgba(255,255,255,.07); }
+
+@media (max-width:620px) {
+  .modal-comment-reply { margin-left:14px; }
+  .modal-comments-list { max-height:220px; }
+}

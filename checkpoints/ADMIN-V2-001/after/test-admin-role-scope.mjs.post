@@ -1,0 +1,225 @@
+#!/usr/bin/env node
+/**
+ * ADMIN-V2-001 — direct-call test suite for the Role/Scope/Permission
+ * contract (services/admin-permission-service.js).
+ *
+ * Same approach as scripts/test-study-upload.mjs (this repo has no test
+ * runner — see CLAUDE.md): load the real service file into a Node `vm`
+ * sandbox with a minimal fake `localStorage`, then exercise it through
+ * direct calls. Run with `node scripts/test-admin-role-scope.mjs`.
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, '..');
+
+function createFakeLocalStorage() {
+  const store = new Map();
+  return {
+    getItem: key => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => { store.set(key, String(value)); },
+    removeItem: key => { store.delete(key); },
+    clear: () => store.clear(),
+  };
+}
+
+function loadServiceIntoContext(sandbox) {
+  const context = vm.createContext(sandbox);
+  const code = fs.readFileSync(path.join(ROOT, 'services/admin-permission-service.js'), 'utf8');
+  vm.runInContext(code, context, { filename: 'services/admin-permission-service.js' });
+  return context;
+}
+
+function buildSandbox() {
+  const sandbox = { console, localStorage: createFakeLocalStorage() };
+  sandbox.window = sandbox;
+  return sandbox;
+}
+
+// --- Assertion helpers ----------------------------------------------------
+
+let passCount = 0;
+let failCount = 0;
+const failures = [];
+
+function check(label, condition) {
+  if (condition) { passCount += 1; }
+  else { failCount += 1; failures.push(label); console.error(`FAIL: ${label}`); }
+}
+
+function run() {
+  const sandbox = buildSandbox();
+  const context = loadServiceIntoContext(sandbox);
+  const AdminPermissionService = context.AdminPermissionService;
+  const { PERMISSIONS, ROLES } = AdminPermissionService;
+
+  check('AdminPermissionService loaded', Boolean(AdminPermissionService));
+
+  const KMK = 1;
+  const KMPP = 3;
+
+  const superAdmin = { id: 'user_super_1', email: 'greencucumbertube@gmail.com', role: 'user' };
+  const superAdminMixedCase = { id: 'user_super_1', email: 'GreenCucumberTube@Gmail.com', role: 'user' };
+  const guest = null;
+  const student = { id: 'user_student_1', email: 'student@example.com', role: 'user' };
+  const legacyAdmin = { id: 'user_legacy_1', email: 'mzteoh88@gmail.com', role: 'admin' };
+  const globalModerator = { id: 'user_global_mod_1', email: 'globalmod@example.com', role: 'user' };
+  const kmkCollegeAdmin = { id: 'user_kmk_admin_1', email: 'kmkadmin@example.com', role: 'user' };
+  const kmppCollegeAdmin = { id: 'user_kmpp_admin_1', email: 'kmppadmin@example.com', role: 'user' };
+  const studyModerator = { id: 'user_study_mod_1', email: 'studymod@example.com', role: 'user' };
+  const disabledModerator = { id: 'user_disabled_1', email: 'disabled@example.com', role: 'user' };
+  const multiScopeAdmin = { id: 'user_multi_1', email: 'multi@example.com', role: 'user' };
+
+  // --- 1/2. Super Admin bootstrap (including case-insensitive email) -----
+
+  [['greencucumbertube@gmail.com (exact case)', superAdmin], ['GreenCucumberTube@Gmail.com (mixed case)', superAdminMixedCase]].forEach(([label, user]) => {
+    check(`${label} -> isSuperAdmin true`, AdminPermissionService.isSuperAdmin(user));
+    check(`${label} -> all permissions true`, Object.values(PERMISSIONS).every(permission => AdminPermissionService.hasPermission(user, permission)));
+    check(`${label} -> canModerateCollege(KMK) true`, AdminPermissionService.canModerateCollege(user, KMK));
+    check(`${label} -> canModerateCollege(KMPP) true`, AdminPermissionService.canModerateCollege(user, KMPP));
+    check(`${label} -> canModerateGlobalCommunity true`, AdminPermissionService.canModerateGlobalCommunity(user));
+    check(`${label} -> canModerateStudy true`, AdminPermissionService.canModerateStudy(user));
+    check(`${label} -> canAccessAdminPanel true`, AdminPermissionService.canAccessAdminPanel(user));
+  });
+
+  // --- ADMIN-V2-001A: Super Admin must NOT depend on the legacy
+  // AuthService `role === "admin"` field. The fixtures above already use
+  // role: 'user', but this block makes that property explicit and
+  // separately checked, proving the super-admin identity comes from
+  // isSuperAdmin()'s email check alone. -----------------------------------
+
+  const superAdminWithLegacyUserRole = { id: 'user_super_role_check', email: 'greencucumbertube@gmail.com', role: 'user' };
+  check('Super Admin (role: "user", NOT legacy admin) -> isSuperAdmin true', AdminPermissionService.isSuperAdmin(superAdminWithLegacyUserRole));
+  check('Super Admin (role: "user") -> isLegacyAdmin false (does not need the legacy tier)', AdminPermissionService.isLegacyAdmin(superAdminWithLegacyUserRole) === false);
+  check('Super Admin (role: "user") -> canAccessAdminPanel true', AdminPermissionService.canAccessAdminPanel(superAdminWithLegacyUserRole));
+  check('Super Admin (role: "user") -> canModerateStudy true', AdminPermissionService.canModerateStudy(superAdminWithLegacyUserRole));
+  check('Super Admin (role: "user") -> canModerateGlobalCommunity true', AdminPermissionService.canModerateGlobalCommunity(superAdminWithLegacyUserRole));
+  check('Super Admin (role: "user") -> ADMIN_MANAGE true', AdminPermissionService.hasPermission(superAdminWithLegacyUserRole, PERMISSIONS.ADMIN_MANAGE));
+  check('Super Admin (role: "user") -> AUDIT_READ_ALL true', AdminPermissionService.hasPermission(superAdminWithLegacyUserRole, PERMISSIONS.AUDIT_READ_ALL));
+
+  const superAdminWithNoRoleField = { id: 'user_super_no_role', email: 'greencucumbertube@gmail.com' };
+  check('Super Admin (no role field at all) -> isSuperAdmin still true', AdminPermissionService.isSuperAdmin(superAdminWithNoRoleField));
+  check('Super Admin (no role field at all) -> canAccessAdminPanel still true', AdminPermissionService.canAccessAdminPanel(superAdminWithNoRoleField));
+
+  // --- 3. Guest -------------------------------------------------------------
+
+  check('Guest -> canAccessAdminPanel false', AdminPermissionService.canAccessAdminPanel(guest) === false);
+  check('Guest -> canModerateGlobalCommunity false', AdminPermissionService.canModerateGlobalCommunity(guest) === false);
+  check('Guest -> canModerateCollege(KMK) false', AdminPermissionService.canModerateCollege(guest, KMK) === false);
+  check('Guest -> canModerateStudy false', AdminPermissionService.canModerateStudy(guest) === false);
+
+  // --- 4. Plain signed-in student, zero RoleAssignments ---------------------
+
+  check('Student -> canAccessAdminPanel false', AdminPermissionService.canAccessAdminPanel(student) === false);
+  check('Student -> canModerateGlobalCommunity false', AdminPermissionService.canModerateGlobalCommunity(student) === false);
+  check('Student -> canModerateCollege(KMK) false', AdminPermissionService.canModerateCollege(student, KMK) === false);
+  check('Student -> canModerateStudy false', AdminPermissionService.canModerateStudy(student) === false);
+
+  // --- 11. Legacy admin (mzteoh88@gmail.com) — NOT super admin -------------
+
+  check('mzteoh88@gmail.com -> NOT isSuperAdmin', AdminPermissionService.isSuperAdmin(legacyAdmin) === false);
+  check('mzteoh88@gmail.com -> isLegacyAdmin true', AdminPermissionService.isLegacyAdmin(legacyAdmin));
+  check('mzteoh88@gmail.com -> canAccessAdminPanel true (legacy compat)', AdminPermissionService.canAccessAdminPanel(legacyAdmin));
+  check('mzteoh88@gmail.com -> canModerateGlobalCommunity true (legacy compat)', AdminPermissionService.canModerateGlobalCommunity(legacyAdmin));
+  check('mzteoh88@gmail.com -> canModerateStudy true (legacy compat)', AdminPermissionService.canModerateStudy(legacyAdmin));
+  check('mzteoh88@gmail.com -> NOT ADMIN_MANAGE', AdminPermissionService.hasPermission(legacyAdmin, PERMISSIONS.ADMIN_MANAGE) === false);
+  check('mzteoh88@gmail.com -> NOT AUDIT_READ_ALL', AdminPermissionService.hasPermission(legacyAdmin, PERMISSIONS.AUDIT_READ_ALL) === false);
+  check('mzteoh88@gmail.com -> canModerateCollege(KMK) false (no real college scope)', AdminPermissionService.canModerateCollege(legacyAdmin, KMK) === false);
+
+  // --- Grant real role assignments for the remaining scenarios -------------
+
+  AdminPermissionService.grantRoleAssignment({ userId: globalModerator.id, role: ROLES.GLOBAL_MODERATOR, scopeType: 'global', grantedBy: superAdmin.id });
+  AdminPermissionService.grantRoleAssignment({ userId: kmkCollegeAdmin.id, role: ROLES.COLLEGE_ADMIN, scopeType: 'college', scopeId: KMK, grantedBy: superAdmin.id });
+  AdminPermissionService.grantRoleAssignment({ userId: kmppCollegeAdmin.id, role: ROLES.COLLEGE_ADMIN, scopeType: 'college', scopeId: KMPP, grantedBy: superAdmin.id });
+  AdminPermissionService.grantRoleAssignment({ userId: studyModerator.id, role: ROLES.STUDY_MODERATOR, scopeType: 'study', grantedBy: superAdmin.id });
+  const disabledAssignment = AdminPermissionService.grantRoleAssignment({ userId: disabledModerator.id, role: ROLES.STUDY_MODERATOR, scopeType: 'study', grantedBy: superAdmin.id });
+  AdminPermissionService.setAssignmentStatus(disabledAssignment.id, 'disabled');
+  AdminPermissionService.grantRoleAssignment({ userId: multiScopeAdmin.id, role: ROLES.COLLEGE_ADMIN, scopeType: 'college', scopeId: KMK, grantedBy: superAdmin.id });
+  AdminPermissionService.grantRoleAssignment({ userId: multiScopeAdmin.id, role: ROLES.COLLEGE_ADMIN, scopeType: 'college', scopeId: KMPP, grantedBy: superAdmin.id });
+
+  // --- 5. Global Moderator: global true, college false, study false --------
+
+  check('Global Moderator -> canModerateGlobalCommunity true', AdminPermissionService.canModerateGlobalCommunity(globalModerator));
+  check('Global Moderator -> canModerateCollege(KMK) false', AdminPermissionService.canModerateCollege(globalModerator, KMK) === false);
+  check('Global Moderator -> canModerateStudy false', AdminPermissionService.canModerateStudy(globalModerator) === false);
+  check('Global Moderator -> canAccessAdminPanel true', AdminPermissionService.canAccessAdminPanel(globalModerator));
+
+  // --- 6. KMK College Admin: KMK true, KMPP false ---------------------------
+
+  check('KMK College Admin -> canModerateCollege(KMK) true', AdminPermissionService.canModerateCollege(kmkCollegeAdmin, KMK));
+  check('KMK College Admin -> canModerateCollege(KMPP) false', AdminPermissionService.canModerateCollege(kmkCollegeAdmin, KMPP) === false);
+  check('KMK College Admin -> canModerateGlobalCommunity false', AdminPermissionService.canModerateGlobalCommunity(kmkCollegeAdmin) === false);
+  check('KMK College Admin -> canModerateStudy false', AdminPermissionService.canModerateStudy(kmkCollegeAdmin) === false);
+  check('KMK College Admin -> canModerateCollegeBuilding(KMK) true', AdminPermissionService.canModerateCollegeBuilding(kmkCollegeAdmin, KMK));
+  check('KMK College Admin -> canModerateCollegeEvent(KMK) true', AdminPermissionService.canModerateCollegeEvent(kmkCollegeAdmin, KMK));
+
+  // --- 7. KMPP College Admin: KMPP true, KMK false --------------------------
+
+  check('KMPP College Admin -> canModerateCollege(KMPP) true', AdminPermissionService.canModerateCollege(kmppCollegeAdmin, KMPP));
+  check('KMPP College Admin -> canModerateCollege(KMK) false', AdminPermissionService.canModerateCollege(kmppCollegeAdmin, KMK) === false);
+
+  // --- 8. Study Moderator: study true, global false, college false ---------
+
+  check('Study Moderator -> canModerateStudy true', AdminPermissionService.canModerateStudy(studyModerator));
+  check('Study Moderator -> canModerateGlobalCommunity false', AdminPermissionService.canModerateGlobalCommunity(studyModerator) === false);
+  check('Study Moderator -> canModerateCollege(KMK) false', AdminPermissionService.canModerateCollege(studyModerator, KMK) === false);
+  check('Study Moderator -> canAccessAdminPanel true', AdminPermissionService.canAccessAdminPanel(studyModerator));
+
+  // --- 9. Disabled assignment -> no permissions -----------------------------
+
+  check('Disabled STUDY_MODERATOR assignment -> canModerateStudy false', AdminPermissionService.canModerateStudy(disabledModerator) === false);
+  check('Disabled STUDY_MODERATOR assignment -> canAccessAdminPanel false', AdminPermissionService.canAccessAdminPanel(disabledModerator) === false);
+  check('Disabled STUDY_MODERATOR assignment -> hasRole false', AdminPermissionService.hasRole(disabledModerator, ROLES.STUDY_MODERATOR) === false);
+
+  // --- 10. Multiple assignments/scopes -> explicit scopes only -------------
+
+  check('Multi-scope College Admin -> canModerateCollege(KMK) true', AdminPermissionService.canModerateCollege(multiScopeAdmin, KMK));
+  check('Multi-scope College Admin -> canModerateCollege(KMPP) true', AdminPermissionService.canModerateCollege(multiScopeAdmin, KMPP));
+  const otherCollege = 2;
+  check('Multi-scope College Admin -> canModerateCollege(a THIRD, ungranted college) false', AdminPermissionService.canModerateCollege(multiScopeAdmin, otherCollege) === false);
+  check('Multi-scope College Admin -> canModerateGlobalCommunity false (scopes stay explicit, no implicit global grant)', AdminPermissionService.canModerateGlobalCommunity(multiScopeAdmin) === false);
+
+  // --- canAccessScope() direct checks ---------------------------------------
+
+  check('canAccessScope(superAdmin, "college", KMK) true regardless of scopeType', AdminPermissionService.canAccessScope(superAdmin, 'college', KMK));
+  check('canAccessScope(globalModerator, "global", null) true', AdminPermissionService.canAccessScope(globalModerator, 'global', null));
+  check('canAccessScope(kmkCollegeAdmin, "college", KMK) true', AdminPermissionService.canAccessScope(kmkCollegeAdmin, 'college', KMK));
+  check('canAccessScope(kmkCollegeAdmin, "college", KMPP) false', AdminPermissionService.canAccessScope(kmkCollegeAdmin, 'college', KMPP) === false);
+  check('canAccessScope(studyModerator, "study", null) true', AdminPermissionService.canAccessScope(studyModerator, 'study', null));
+
+  // --- CONTENT_REVIEWER: content review only, no role management -----------
+
+  const contentReviewer = { id: 'user_reviewer_1', email: 'reviewer@example.com', role: 'user' };
+  AdminPermissionService.grantRoleAssignment({ userId: contentReviewer.id, role: ROLES.CONTENT_REVIEWER, scopeType: 'global', grantedBy: superAdmin.id });
+  check('Content Reviewer -> hasPermission(CONTENT_REVIEW) true', AdminPermissionService.hasPermission(contentReviewer, PERMISSIONS.CONTENT_REVIEW));
+  check('Content Reviewer -> hasPermission(ADMIN_MANAGE) false', AdminPermissionService.hasPermission(contentReviewer, PERMISSIONS.ADMIN_MANAGE) === false);
+  check('Content Reviewer -> canModerateGlobalCommunity false', AdminPermissionService.canModerateGlobalCommunity(contentReviewer) === false);
+  check('Content Reviewer -> canModerateStudy false', AdminPermissionService.canModerateStudy(contentReviewer) === false);
+
+  // --- RoleAssignment shape sanity ------------------------------------------
+
+  const assignments = AdminPermissionService.getRoleAssignments(kmkCollegeAdmin);
+  const kmkAssignment = assignments.find(a => a.role === ROLES.COLLEGE_ADMIN);
+  check('RoleAssignment has id/userId/role/scopeType/scopeId/permissions/status/grantedBy/grantedAt/updatedAt', Boolean(
+    kmkAssignment && kmkAssignment.id && kmkAssignment.userId && kmkAssignment.role && kmkAssignment.scopeType
+    && 'scopeId' in kmkAssignment && Array.isArray(kmkAssignment.permissions) && kmkAssignment.status
+    && 'grantedBy' in kmkAssignment && kmkAssignment.grantedAt && kmkAssignment.updatedAt
+  ));
+  check('listAllRoleAssignments includes the disabled one too', AdminPermissionService.listAllRoleAssignments().some(a => a.id === disabledAssignment.id));
+
+  console.log(`\n${passCount} passed, ${failCount} failed.`);
+  if (failCount > 0) {
+    console.error('\nFailed checks:', failures);
+    process.exitCode = 1;
+  }
+}
+
+try {
+  run();
+} catch (error) {
+  console.error('Test run crashed:', error);
+  process.exitCode = 1;
+}

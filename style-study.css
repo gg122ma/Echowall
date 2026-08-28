@@ -1,0 +1,162 @@
+/**
+ * Study Notes V2 module styles (STUDY-V2-FOUNDATION-001).
+ * Deliberately reuses the existing .org-page/.selection-shell/.selection-list/
+ * .selection-item/.org-header shell (already used by Community's College
+ * Landing) for the Browse pages — no new list/card system was needed there.
+ * The Homepage promo reuses .map-promo's structural CSS (style-core.css)
+ * unmodified in Light Mode — it intentionally has no distinct light-theme
+ * accent color anymore (UI-FIX 2026-08-23: the earlier indigo tint read as
+ * an unrelated marketing-banner identity rather than an existing EchoWall
+ * entry point), so it now reads exactly like the Echo Map promo it sits next
+ * to. Dark Mode keeps its own pre-existing accent below, unchanged.
+ */
+
+/* Static on purpose — no pointer-follow glow, no JS. Study Notes is a
+   distinct feature area from Community; it intentionally does not reuse
+   .home-community-card's interactive glow system. */
+.study-notes-promo::before { background: transparent; }
+.study-notes-promo .eyebrow { color: var(--primary); }
+:root[data-theme="dark"] .study-notes-promo .eyebrow { color: #c7caff; }
+
+.study-hub-desc { color: var(--text-muted); font-size: .92rem; margin-top: 6px; max-width: 560px; }
+:root[data-theme="dark"] .study-hub-desc { color: var(--text-muted); }
+
+/* STUDY-V2-003: Semester picker (#/study/:jurusan). Only 2 items ever
+   (Semester 1/2), so a small responsive grid — not the compact
+   .selection-list used everywhere else in this module — gives it a bit
+   more visual weight without introducing a new design language. Mirrors
+   .org-card's existing light/dark background convention (hardcoded #fff,
+   dark-theme override to var(--card-bg)) for consistency with the rest of
+   the app rather than inventing a new theming approach. */
+.study-semester-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.study-semester-card { appearance: none; width: 100%; text-align: left; border: 1px solid var(--border); border-radius: 18px; padding: 22px 24px; background: #fff; cursor: pointer; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--shadow); transition: transform .22s var(--ease-out), box-shadow .22s ease, border-color .22s ease; }
+.study-semester-card:hover, .study-semester-card:focus-visible { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--primary-light); outline: none; }
+.study-semester-card:focus-visible { box-shadow: var(--shadow-lg), 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent); }
+.study-semester-icon { font-size: 1.6rem; }
+.study-semester-title { font-size: 1.15rem; font-weight: 800; letter-spacing: -.02em; }
+.study-semester-card small { color: var(--text-muted); font-size: .82rem; }
+:root[data-theme="dark"] .study-semester-card { background: var(--card-bg); }
+:root[data-theme="dark"] .study-semester-card:hover, :root[data-theme="dark"] .study-semester-card:focus-visible { border-color: var(--primary); }
+@media (max-width: 720px) { .study-semester-grid { grid-template-columns: 1fr; } }
+
+/* Real, computed resourceType tags on a Subject's selection-item — see
+   studyResourceTypeBadges() in app-study.js. Never present when a subject
+   has zero publishable resources (nothing to compute from). */
+.study-type-badges { display: block; color: var(--primary); font-weight: 700; margin-top: 2px; }
+:root[data-theme="dark"] .study-type-badges { color: var(--primary-light); }
+
+/* STUDY-V2-004: Resource List + Year Grouping (#/study/:jurusan/sem/:sem/:code
+   and #/study/resource/:id). Tabs mirror app-wall.js's .filter-group/.filter-btn
+   interaction pattern (own class names here to keep this module's CSS
+   independent of style-wall.css, per this project's module-boundary
+   convention) — pill-shaped active state, not the Community pointer-glow
+   card language. */
+.study-subject-count { color: var(--text-muted); font-size: .82rem; margin-top: 6px; }
+
+.study-tabs { display: flex; flex-wrap: wrap; gap: 3px; background: var(--secondary); padding: 4px; border-radius: 12px; margin-bottom: 20px; }
+.study-tab { appearance: none; border: 0; background: transparent; color: var(--text-muted); padding: 7px 12px; border-radius: 9px; font-size: .78rem; font-weight: 750; cursor: pointer; white-space: nowrap; transition: .18s ease; }
+.study-tab:hover { color: var(--text); background: rgba(255,255,255,.65); }
+.study-tab.active { color: var(--text); background: #fff; box-shadow: 0 3px 10px rgba(44,31,20,.08); }
+.study-tab-count { opacity: .65; font-weight: 700; }
+:root[data-theme="dark"] .study-tab:hover, :root[data-theme="dark"] .study-tab.active { background: var(--card-bg); color: var(--primary-light); }
+
+.study-section { margin-bottom: 28px; }
+.study-section:last-child { margin-bottom: 0; }
+.study-section > h3 { font-size: 1.05rem; margin-bottom: 12px; letter-spacing: -.01em; }
+
+.study-year-group { margin-bottom: 18px; }
+.study-year-group:last-child { margin-bottom: 0; }
+.study-year-group > h4 { font-size: .86rem; color: var(--primary); font-weight: 800; margin-bottom: 8px; letter-spacing: .01em; }
+:root[data-theme="dark"] .study-year-group > h4 { color: var(--primary-light); }
+
+.study-resource-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: #fff; margin-bottom: 8px; }
+:root[data-theme="dark"] .study-resource-row { background: var(--card-bg); }
+.study-resource-icon { font-size: 1.1rem; line-height: 1.4; flex: 0 0 auto; }
+.study-resource-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; }
+.study-resource-title { appearance: none; border: 0; background: transparent; padding: 0; text-align: left; color: var(--text); font-weight: 750; font-size: .9rem; cursor: pointer; line-height: 1.4; }
+.study-resource-title:hover, .study-resource-title:focus-visible { color: var(--primary); text-decoration: underline; outline: none; }
+:root[data-theme="dark"] .study-resource-title:hover, :root[data-theme="dark"] .study-resource-title:focus-visible { color: var(--primary-light); }
+.study-resource-main > small { color: var(--text-muted); font-size: .76rem; }
+.study-resource-source { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.study-pair-link { appearance: none; border: 0; background: transparent; padding: 0; margin-top: 2px; color: var(--primary); font-size: .78rem; font-weight: 700; cursor: pointer; text-align: left; }
+.study-pair-link:hover { text-decoration: underline; }
+:root[data-theme="dark"] .study-pair-link { color: var(--primary-light); }
+
+.study-badge { display: inline-flex; align-items: center; background: var(--secondary); color: var(--text-muted); border-radius: 999px; padding: 1px 8px; font-size: .68rem; font-weight: 750; text-transform: uppercase; letter-spacing: .02em; }
+.study-badge-verified { background: color-mix(in srgb, var(--success, #2f855a) 16%, var(--secondary)); color: var(--success, #2f855a); }
+.study-badge-file { background: color-mix(in srgb, var(--primary) 14%, var(--secondary)); color: var(--primary); }
+:root[data-theme="dark"] .study-badge-file { color: var(--primary-light); }
+
+/* STUDY-V2-006: lightweight per-row quick-open link, shown only for
+   resources actually in the demo file set — see studyResourceQuickOpenHtml()
+   in app-study.js. Kept visually secondary (small, right-aligned) so the
+   row's title button remains the primary way into Resource Detail. */
+.study-resource-row { position: relative; }
+.study-row-open { align-self: center; flex: 0 0 auto; color: var(--primary); font-size: .78rem; font-weight: 750; text-decoration: none; white-space: nowrap; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); }
+.study-row-open:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+:root[data-theme="dark"] .study-row-open { color: var(--primary-light); }
+
+.study-load-more { margin-top: 6px; }
+
+/* STUDY-V2-005: Global Search bar (#/study) + shared filter-row styling
+   (reused by both the Global Search panel and the Subject page's
+   Year/Subtype/Source/Sort filter bar — one set of rules, not two). Full
+   width on all breakpoints per the request's explicit "Search input 满宽";
+   filter fields wrap onto new lines on narrow screens rather than forcing
+   a horizontal-scrolling bar (spec section 18: "不要做超长横向 filter bar"). */
+.study-search-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.study-search-input { flex: 1 1 auto; width: 100%; appearance: none; border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; font-size: .92rem; background: #fff; color: var(--text); }
+.study-search-input:focus-visible { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
+:root[data-theme="dark"] .study-search-input { background: var(--card-bg); }
+
+.study-search-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin: 4px 0 16px; }
+.study-filter-field { display: flex; flex-direction: column; gap: 4px; font-size: .72rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.study-filter-field select { appearance: none; border: 1px solid var(--border); border-radius: 9px; padding: 7px 10px; font-size: .82rem; font-weight: 650; color: var(--text); background: #fff; text-transform: none; letter-spacing: normal; min-width: 140px; max-width: 100%; }
+:root[data-theme="dark"] .study-filter-field select { background: var(--card-bg); }
+.study-clear-link { appearance: none; border: 0; background: transparent; color: var(--primary); font-size: .78rem; font-weight: 750; cursor: pointer; align-self: center; padding: 6px 4px; }
+.study-clear-link:hover { text-decoration: underline; }
+:root[data-theme="dark"] .study-clear-link { color: var(--primary-light); }
+
+.study-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px 24px; margin-bottom: 20px; }
+.study-detail-grid dt { color: var(--text-muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 800; margin-bottom: 4px; }
+.study-detail-grid dd { font-size: .92rem; font-weight: 650; }
+.study-detail-description { color: var(--text-muted); line-height: 1.65; margin-bottom: 20px; }
+.study-related-resource { border-top: 1px solid var(--border); padding-top: 16px; margin-bottom: 20px; }
+.study-related-label { color: var(--text-muted); font-size: .78rem; font-weight: 700; margin-bottom: 8px; }
+.study-file-open { border-top: 1px solid var(--border); padding-top: 20px; }
+.study-file-open .btn:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+.study-file-note { color: var(--text-muted); font-size: .78rem; margin-top: 10px; max-width: 520px; }
+
+.study-contributed-note { color: var(--text-muted); font-size: .78rem; font-style: italic; margin-bottom: 10px; }
+
+/* STUDY-V2-007: Upload Study Material — reuses .form-group/.form-input/
+   .form-select/.form-textarea from style-core.css (the same classes the
+   Auth/Profile forms already use) rather than a second parallel design
+   system; only the layout/grid/banner pieces below are new. */
+.study-upload-cta { margin-bottom: 16px; }
+.study-upload-signin { text-align: center; }
+.study-upload-signin .btn { margin-top: 12px; }
+.study-upload-form { display: flex; flex-direction: column; gap: 16px; max-width: 720px; }
+.study-upload-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+.study-upload-hint { display: block; color: var(--text-muted); font-size: .74rem; margin-top: 6px; }
+.study-upload-file-input { padding: 8px 11px; }
+.study-upload-permission { display: flex; align-items: flex-start; gap: 10px; font-size: .84rem; color: var(--text); line-height: 1.5; cursor: pointer; }
+.study-upload-permission input { margin-top: 3px; flex: 0 0 auto; }
+.study-upload-banner { border-radius: 14px; padding: 16px 18px; margin-bottom: 18px; border: 1px solid var(--border); }
+.study-upload-banner p { margin: 0 0 6px; }
+.study-upload-banner p:last-child { margin-bottom: 0; }
+.study-upload-banner ul { margin: 0; padding-left: 18px; }
+.study-upload-banner-success { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); background: color-mix(in srgb, var(--success) 10%, transparent); }
+.study-upload-banner-error { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
+.study-upload-status-pending { color: var(--text-muted); font-size: .84rem; }
+.study-upload-duplicate-note { color: var(--text-muted); font-size: .82rem; }
+:root[data-theme="dark"] .study-upload-banner-success { background: color-mix(in srgb, var(--success) 18%, transparent); }
+:root[data-theme="dark"] .study-upload-banner-error { background: color-mix(in srgb, var(--danger) 18%, transparent); }
+
+@media (max-width: 720px) {
+  .study-resource-row { flex-direction: column; gap: 4px; }
+  .study-detail-grid { grid-template-columns: 1fr 1fr; }
+  .study-filter-field select { min-width: 0; flex: 1 1 auto; }
+  .study-filter-field { flex: 1 1 calc(50% - 6px); }
+  .study-upload-grid { grid-template-columns: 1fr; }
+}

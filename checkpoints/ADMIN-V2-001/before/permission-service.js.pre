@@ -1,0 +1,76 @@
+/**
+ * Community V2 (COM-V2-007) — unified permission hooks.
+ *
+ * Prototype-only: this is front-end gating, NOT a security boundary. Every
+ * check here can be bypassed by calling app functions directly from the
+ * browser console. Real enforcement requires backend authorization (e.g.
+ * Supabase RLS scoped to org_id) — see docs/PRODUCTION_IDENTITY_HOSTING_CONTRACT.md
+ * and the Community V2 spec's own "前端权限不是安全边界" note.
+ *
+ * The prototype's current AuthService (services/auth-service.js) only has
+ * one admin tier (PROTOTYPE_ADMIN_EMAILS) which already has unrestricted
+ * access across every community today — that tier is treated as
+ * Global/Super Admin here. There is no real per-college "College Admin"
+ * account in this prototype yet; canUserModerateCommunity()'s college-scoped
+ * branch is written for a future `user.moderatesOrgId` field so a later
+ * stage can add real per-college admin accounts without changing any
+ * caller of this service — it is currently reachable only via constructed
+ * user objects in tests, not a real signed-in account.
+ */
+(function () {
+  function canUserPost(user) {
+    return Boolean(user);
+  }
+
+  function canUserComment(user) {
+    return Boolean(user);
+  }
+
+  // Returns the scope a user may moderate, or null if they may moderate
+  // nothing. { scope: "global" } -> every community, including global:all.
+  // { scope: "college", orgId } -> only that college's General + Jurusan
+  // communities, never global:all.
+  function getUserModerationScope(user) {
+    if (!user) return null;
+    if (user.role === "admin") return { scope: "global" };
+    if (Number.isInteger(user.moderatesOrgId) && user.moderatesOrgId > 0) {
+      return { scope: "college", orgId: user.moderatesOrgId };
+    }
+    return null;
+  }
+
+  // community: a CommunityDescriptor-shaped object ({scope, orgId, ...}) —
+  // e.g. from CommunityService.getCommunityByKey(). All KM Students
+  // (global:all) can only ever be moderated by a global-scope moderator.
+  function canUserModerateCommunity(user, community) {
+    const moderation = getUserModerationScope(user);
+    if (!moderation || !community) return false;
+    if (moderation.scope === "global") return true;
+    if (moderation.scope === "college") {
+      return community.scope !== "global" && community.orgId === moderation.orgId;
+    }
+    return false;
+  }
+
+  // Mark Solved / Reopen: the post's own author, or anyone who can
+  // moderate the community that post belongs to (global moderator for any
+  // post; a college moderator only for posts scoped to their own college —
+  // never for global:all posts, which only a global moderator may touch).
+  function canUserMarkSolved(user, note) {
+    if (!user || !note || note.postType !== "question") return false;
+    if (note.authorUserId && String(note.authorUserId) === String(user.id)) return true;
+    const moderation = getUserModerationScope(user);
+    if (!moderation) return false;
+    if (moderation.scope === "global") return true;
+    if (moderation.scope === "college") return note.communityScope !== "global" && note.orgId === moderation.orgId;
+    return false;
+  }
+
+  window.PermissionService = Object.freeze({
+    canUserPost,
+    canUserComment,
+    canUserMarkSolved,
+    canUserModerateCommunity,
+    getUserModerationScope,
+  });
+})();

@@ -1,0 +1,647 @@
+(function () {
+  'use strict';
+
+  const ANCHOR_STORAGE_KEY = 'echowall_map_note_anchors_v1';
+  const DIRECT_PIN_STORAGE_KEY = 'echowall_map_notes';
+  const REQUIRED_METHODS = ['ready','list','create','setHidden','delete','exportData','subscribe'];
+  const listeners = new Set();
+  let provider = createLocalCombinedMapNoteProvider();
+  let providerUnsubscribe = null;
+  let readyPromise = null;
+
+  function clone(value) {
+    return value == null ? value : JSON.parse(JSON.stringify(value));
+  }
+
+  function asError(error, fallback) {
+    return error instanceof Error ? error : new Error(fallback);
+  }
+
+  function validateProvider(candidate) {
+    if (!candidate || typeof candidate !== 'object') throw new Error('Map Note provider must be an object.');
+    const missing = REQUIRED_METHODS.filter(method => typeof candidate[method] !== 'function');
+    if (missing.length) throw new Error('Map Note provider is missing: ' + missing.join(', ') + '.');
+    return candidate;
+  }
+
+  function notify(change) {
+    const snapshot = clone(change || { type:'change' });
+    listeners.forEach(listener => {
+      try { listener(clone(snapshot)); }
+      catch { console.warn('A Map Note listener failed.'); }
+    });
+  }
+
+  function bindProvider(nextProvider) {
+    providerUnsubscribe?.();
+    providerUnsubscribe = nextProvider.subscribe(notify);
+  }
+
+  async function ready() {
+    if (!readyPromise) {
+      readyPromise = Promise.resolve()
+        .then(() => validateProvider(provider).ready())
+        .then(() => { bindProvider(provider); return true; })
+        .catch(error => { readyPromise = null; throw asError(error, 'Map Note provider failed to initialize.'); });
+    }
+    return readyPromise;
+  }
+
+  async function callProvider(method, ...args) {
+    await ready();
+    try { return clone(await provider[method](...args)); }
+    catch (error) { throw asError(error, 'Map Note operation failed.'); }
+  }
+
+  async function useProvider(candidate) {
+    const nextProvider = validateProvider(candidate);
+    if (nextProvider === provider) return getProviderName();
+    try {
+      await nextProvider.ready();
+      const nextUnsubscribe = nextProvider.subscribe(notify);
+      const previousProvider = provider;
+      const previousUnsubscribe = providerUnsubscribe;
+      provider = nextProvider;
+      providerUnsubscribe = nextUnsubscribe;
+      readyPromise = Promise.resolve(true);
+      previousUnsubscribe?.();
+      previousProvider.destroy?.();
+      notify({ type:'provider', provider:getProviderName() });
+      return getProviderName();
+    } catch (error) {
+      nextProvider.destroy?.();
+      throw asError(error, 'Map Note provider could not be activated.');
+    }
+  }
+
+  function subscribe(listener) {
+    if (typeof listener !== 'function') throw new Error('Map Note subscriber must be a function.');
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  }
+
+  function getProviderName() {
+    return String(provider.name || provider.constructor?.name || 'MapNoteProvider');
+  }
+
+  function createAnchorStoreError() {
+    const error = new Error('Stored map note anchors are corrupted.');
+    error.code = 'ANCHOR_STORE_CORRUPTED';
+    return error;
+  }
+
+  function readAnchors() {
+    const raw = localStorage.getItem(ANCHOR_STORAGE_KEY);
+    if (raw === null) return {};
+    if (raw === '') throw createAnchorStoreError();
+    let parsed;
+    try { parsed = JSON.parse(raw); }
+    catch { throw createAnchorStoreError(); }
+    if (!parsed || Object.prototype.toString.call(parsed) !== '[object Object]') throw createAnchorStoreError();
+    return clone(parsed);
+  }
+
+  function writeAnchors(anchors) {
+    readAnchors();
+    localStorage.setItem(ANCHOR_STORAGE_KEY, JSON.stringify(anchors));
+  }
+
+  function validCoordinates(anchor) {
+    const lat = Number(anchor?.lat);
+    const lng = Number(anchor?.lng);
+    return Number.isFinite(lat) && lat >= -90 && lat <= 90 && Number.isFinite(lng) && lng >= -180 && lng <= 180;
+  }
+
+  function timestampFor(note) {
+    const created = Date.parse(note?.createdAt || '');
+    if (Number.isFinite(created)) return created;
+    const timestamp = Number(note?.timestamp);
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  }
+
+  function resolveNoteId(value) {
+    const candidate = value && typeof value === 'object' ? (value.noteId ?? value.id) : value;
+    if (typeof candidate === 'number' && Number.isSafeInteger(candidate)) return candidate;
+    if (typeof candidate === 'string' && /^\d+$/.test(candidate.trim())) {
+      const numeric = Number(candidate);
+      if (Number.isSafeInteger(numeric)) return numeric;
+    }
+    throw new Error('A stable numeric Note ID is required.');
+  }
+
+  function aggregateRecord(note, anchor) {
+    const noteCopy = clone(note);
+    const anchorCopy = clone(anchor);
+    const record = {
+      ...noteCopy,
+      id:noteCopy.id,
+      noteId:noteCopy.id,
+      sourceType:'map_message',
+      recordKey:'note:' + noteCopy.id,
+      content:String(noteCopy.content || ''),
+      text:String(noteCopy.content || ''),
+      author:noteCopy.isAnonymous ? 'Anonymous' : String(noteCopy.authorNickname || ''),
+      placeId:String(noteCopy.placeId),
+      lat:Number(anchorCopy.lat),
+      lng:Number(anchorCopy.lng),
+      note:noteCopy,
+      anchor:anchorCopy,
+    };
+    const timestamp = timestampFor(noteCopy);
+    if (timestamp) record.timestamp = timestamp;
+    return record;
+  }
+
+  function aggregate(notes, anchors) {
+    return notes.reduce((records, note) => {
+      if (!note || note.contextType !== 'building' || !Number.isFinite(Number(note.id))) return records;
+      const placeId = String(note.placeId || '').trim();
+      const anchor = anchors[String(note.id)];
+      const anchorPlaceId = String(anchor?.placeId || '').trim();
+      if (!placeId || !anchor || !anchorPlaceId || placeId !== anchorPlaceId || !validCoordinates(anchor)) return records;
+      records.push(aggregateRecord(note, anchor));
+      return records;
+    }, []);
+  }
+
+  function applyQuery(records, query = {}) {
+    const safe = query && typeof query === 'object' ? query : {};
+    const visibility = ['all','visible','hidden'].includes(safe.visibility) ? safe.visibility : 'all';
+    const sort = safe.sort === 'oldest' || safe.sort === 'old' ? 'oldest' : 'newest';
+    const search = String(safe.search || '').trim().toLocaleLowerCase();
+    const placeId = String(safe.placeId || '').trim();
+    const category = String(safe.category || '').trim();
+    const sourceType = ['all','map_message','direct_pin'].includes(safe.sourceType) ? safe.sourceType : 'all';
+    let result = records.slice();
+    if (sourceType !== 'all') result = result.filter(record => record.sourceType === sourceType);
+    if (search) result = result.filter(record => [record.content,record.text,record.authorNickname,record.author,record.placeId].some(value => String(value || '').toLocaleLowerCase().includes(search)));
+    if (placeId && placeId !== 'all') result = result.filter(record => record.placeId === placeId);
+    if (category && category !== 'all') result = result.filter(record => record.category === category);
+    if (visibility === 'visible') result = result.filter(record => record.isHidden !== true);
+    if (visibility === 'hidden') result = result.filter(record => record.isHidden === true);
+    result.sort((left,right) => sort === 'oldest' ? timestampFor(left) - timestampFor(right) : timestampFor(right) - timestampFor(left));
+    return clone(result);
+  }
+
+  function createLocalAnchoredBuildingNoteProvider() {
+    const providerListeners = new Set();
+    let initialized = false;
+    let noteUnsubscribe = null;
+    let emitQueued = false;
+    let queuedChange = null;
+
+    function emit(change) {
+      const snapshot = clone(change || { type:'change' });
+      providerListeners.forEach(listener => {
+        try { listener(clone(snapshot)); }
+        catch { console.warn('A Map Note provider listener failed.'); }
+      });
+    }
+
+    function schedule(change) {
+      queuedChange = queuedChange || clone(change || { type:'change' });
+      if (emitQueued) return;
+      emitQueued = true;
+      Promise.resolve().then(() => {
+        emitQueued = false;
+        const pending = queuedChange;
+        queuedChange = null;
+        emit(pending);
+      });
+    }
+
+    function requireStore() {
+      const store = window.EchoNoteStore;
+      const methods = ['listBuildingNotes','createPlaceNote','setPlaceNoteHidden','deletePlaceNote','restorePlaceNote','subscribe'];
+      if (!store || methods.some(method => typeof store[method] !== 'function')) throw new Error('EchoNoteStore is unavailable.');
+      return store;
+    }
+
+    function allRecords() {
+      return aggregate(requireStore().listBuildingNotes(), readAnchors());
+    }
+
+    function findRecord(noteId) {
+      const resolvedId = resolveNoteId(noteId);
+      const record = allRecords().find(item => Number(item.noteId) === resolvedId);
+      if (!record) throw new Error('Anchored Building Note was not found.');
+      return record;
+    }
+
+    function onStorage(event) {
+      if (event.key !== ANCHOR_STORAGE_KEY) return;
+      try { readAnchors(); schedule({ type:'storage' }); }
+      catch (error) { schedule({ type:'error', code:error.code || 'ANCHOR_STORE_CORRUPTED' }); }
+    }
+
+    return {
+      name:'local-anchored-building-notes',
+      async ready() {
+        const store = requireStore();
+        readAnchors();
+        store.listBuildingNotes();
+        if (!initialized) {
+          noteUnsubscribe = store.subscribe(change => schedule({ type:'notes', change }));
+          window.addEventListener?.('storage', onStorage);
+          initialized = true;
+        }
+        return true;
+      },
+      async list(query = {}) {
+        return applyQuery(allRecords(), query);
+      },
+      async create(input = {}) {
+        const placeId = String(input.placeId || '').trim();
+        const lat = Number(input.lat);
+        const lng = Number(input.lng);
+        if (!placeId) throw new Error('Building placeId is required.');
+        if (!validCoordinates({ lat,lng })) throw new Error('Map Note coordinates are invalid.');
+        const store = requireStore();
+        const savedNote = store.createPlaceNote({
+          ...input,
+          placeId,
+          lat:undefined,
+          lng:undefined,
+        }, {
+          afterSave(note) {
+            const anchors = readAnchors();
+            anchors[String(note.id)] = {
+              placeId,
+              lat,
+              lng,
+              authorUserId:note.authorUserId,
+              createdAt:note.createdAt,
+            };
+            writeAnchors(anchors);
+            schedule({ type:'create', noteId:note.id });
+          },
+        });
+        return findRecord(savedNote.id);
+      },
+      async setHidden(noteId, hidden) {
+        const resolvedId = resolveNoteId(noteId);
+        findRecord(resolvedId);
+        requireStore().setPlaceNoteHidden(resolvedId, Boolean(hidden));
+        return findRecord(resolvedId);
+      },
+      async delete(noteId) {
+        const resolvedId = resolveNoteId(noteId);
+        const deletedRecord = findRecord(resolvedId);
+        const store = requireStore();
+        const snapshot = store.deletePlaceNote(resolvedId);
+        try {
+          const anchors = readAnchors();
+          const current = anchors[String(resolvedId)];
+          if (!current || String(current.placeId || '') !== deletedRecord.placeId) throw new Error('Map Note anchor changed during deletion.');
+          delete anchors[String(resolvedId)];
+          writeAnchors(anchors);
+          schedule({ type:'delete', noteId:resolvedId });
+          return deletedRecord;
+        } catch (anchorError) {
+          try { store.restorePlaceNote(snapshot); }
+          catch (restoreError) {
+            const combined = new Error('Map Note deletion failed and the Building Note rollback did not complete.');
+            combined.cause = anchorError;
+            combined.rollbackError = restoreError;
+            throw combined;
+          }
+          throw anchorError;
+        }
+      },
+      async exportData() {
+        return clone(allRecords());
+      },
+      subscribe(listener) {
+        if (typeof listener !== 'function') throw new Error('Map Note provider subscriber must be a function.');
+        providerListeners.add(listener);
+        return () => providerListeners.delete(listener);
+      },
+      destroy() {
+        noteUnsubscribe?.();
+        noteUnsubscribe = null;
+        window.removeEventListener?.('storage', onStorage);
+        initialized = false;
+        emitQueued = false;
+        queuedChange = null;
+      },
+    };
+  }
+
+  function createDirectPinStoreError(code = 'DIRECT_PIN_STORE_CORRUPTED') {
+    const error = new Error(code === 'DIRECT_PIN_ID_CONFLICT'
+      ? 'Stored direct map pins do not have unique timestamps.'
+      : 'Stored direct map pins are corrupted.');
+    error.code = code;
+    return error;
+  }
+
+  function directPinId(pin) {
+    const timestamp = Number(pin?.timestamp);
+    if (!Number.isSafeInteger(timestamp) || timestamp < 0) throw createDirectPinStoreError();
+    return timestamp;
+  }
+
+  function readDirectPins() {
+    const raw = localStorage.getItem(DIRECT_PIN_STORAGE_KEY);
+    if (raw === null) return [];
+    if (raw === '') throw createDirectPinStoreError();
+    let parsed;
+    try { parsed = JSON.parse(raw); }
+    catch { throw createDirectPinStoreError(); }
+    if (!Array.isArray(parsed)) throw createDirectPinStoreError();
+    const seen = new Set();
+    parsed.forEach(pin => {
+      if (!pin || Object.prototype.toString.call(pin) !== '[object Object]') throw createDirectPinStoreError();
+      const key = String(directPinId(pin));
+      if (seen.has(key)) throw createDirectPinStoreError('DIRECT_PIN_ID_CONFLICT');
+      seen.add(key);
+    });
+    return clone(parsed);
+  }
+
+  function writeDirectPins(pins) {
+    readDirectPins();
+    localStorage.setItem(DIRECT_PIN_STORAGE_KEY, JSON.stringify(pins));
+  }
+
+  function directPinRecord(pin) {
+    const pinCopy = clone(pin);
+    const pinId = directPinId(pinCopy);
+    return {
+      ...pinCopy,
+      sourceType:'direct_pin',
+      recordKey:'pin:' + pinId,
+      pinId,
+      content:String(pinCopy.text || ''),
+      author:String(pinCopy.author || ''),
+      lat:pinCopy.lat,
+      lng:pinCopy.lng,
+      placeId:String(pinCopy.placeId || ''),
+      color:pinCopy.color,
+      isHidden:pinCopy.isHidden === true,
+      createdAt:pinCopy.createdAt ?? pinCopy.timestamp,
+      pin:pinCopy,
+    };
+  }
+
+  function createLocalDirectPinProvider() {
+    const providerListeners = new Set();
+    let initialized = false;
+    let emitQueued = false;
+    let queuedChange = null;
+
+    function emit(change) {
+      const snapshot = clone(change || { type:'change' });
+      providerListeners.forEach(listener => {
+        try { listener(clone(snapshot)); }
+        catch { console.warn('A Direct Pin provider listener failed.'); }
+      });
+    }
+
+    function schedule(change) {
+      queuedChange = queuedChange || clone(change || { type:'change' });
+      if (emitQueued) return;
+      emitQueued = true;
+      Promise.resolve().then(() => {
+        emitQueued = false;
+        const pending = queuedChange;
+        queuedChange = null;
+        emit(pending);
+      });
+    }
+
+    function allRecords() {
+      return readDirectPins().map(directPinRecord);
+    }
+
+    function findIndex(pins, pinId) {
+      const target = Number(pinId);
+      if (!Number.isSafeInteger(target) || target < 0) throw new Error('A stable Direct Pin ID is required.');
+      const index = pins.findIndex(pin => directPinId(pin) === target);
+      if (index < 0) throw new Error('Direct Pin was not found.');
+      return index;
+    }
+
+    function onStorage(event) {
+      if (event.key !== DIRECT_PIN_STORAGE_KEY) return;
+      try { readDirectPins(); schedule({ type:'storage', sourceType:'direct_pin' }); }
+      catch (error) { schedule({ type:'error', sourceType:'direct_pin', code:error.code || 'DIRECT_PIN_STORE_CORRUPTED' }); }
+    }
+
+    return {
+      name:'local-direct-pins',
+      async ready() {
+        readDirectPins();
+        if (!initialized) {
+          window.addEventListener?.('storage', onStorage);
+          initialized = true;
+        }
+        return true;
+      },
+      async list(query = {}) {
+        return applyQuery(allRecords(), query);
+      },
+      async create() {
+        throw new Error('Direct Pin creation is not supported by this provider.');
+      },
+      async setHidden(pinId, hidden) {
+        const pins = readDirectPins();
+        const index = findIndex(pins, pinId);
+        pins[index] = { ...pins[index], isHidden:Boolean(hidden) };
+        writeDirectPins(pins);
+        schedule({ type:'visibility', sourceType:'direct_pin', pinId:directPinId(pins[index]) });
+        return directPinRecord(pins[index]);
+      },
+      async delete(pinId) {
+        const pins = readDirectPins();
+        const index = findIndex(pins, pinId);
+        const removed = pins[index];
+        pins.splice(index, 1);
+        writeDirectPins(pins);
+        schedule({ type:'delete', sourceType:'direct_pin', pinId:directPinId(removed) });
+        return directPinRecord(removed);
+      },
+      async exportData() {
+        return clone(allRecords());
+      },
+      subscribe(listener) {
+        if (typeof listener !== 'function') throw new Error('Direct Pin provider subscriber must be a function.');
+        providerListeners.add(listener);
+        return () => providerListeners.delete(listener);
+      },
+      destroy() {
+        window.removeEventListener?.('storage', onStorage);
+        initialized = false;
+        emitQueued = false;
+        queuedChange = null;
+      },
+    };
+  }
+
+  function resolveCombinedTarget(target) {
+    if (typeof target === 'string' && target.startsWith('note:')) {
+      return { sourceType:'map_message', id:resolveNoteId(target.slice(5)) };
+    }
+    if (typeof target === 'string' && target.startsWith('pin:')) {
+      const id = Number(target.slice(4));
+      if (!Number.isSafeInteger(id) || id < 0) throw new Error('A stable Direct Pin recordKey is required.');
+      return { sourceType:'direct_pin', id };
+    }
+    if (target && typeof target === 'object') {
+      const sourceType = target.sourceType
+        || (target.noteId != null ? 'map_message' : target.pinId != null ? 'direct_pin' : '');
+      if (sourceType === 'map_message') {
+        return { sourceType, id:resolveNoteId(target.noteId ?? target.id) };
+      }
+      if (sourceType === 'direct_pin') {
+        const id = Number(target.pinId);
+        if (!Number.isSafeInteger(id) || id < 0) throw new Error('A stable Direct Pin ID is required.');
+        return { sourceType, id };
+      }
+    }
+    throw new Error('An explicit Map Note recordKey or sourceType target is required.');
+  }
+
+  function createLocalCombinedMapNoteProvider() {
+    const anchored = createLocalAnchoredBuildingNoteProvider();
+    const directPins = createLocalDirectPinProvider();
+    const providerListeners = new Set();
+    let initialized = false;
+    let anchoredUnsubscribe = null;
+    let directPinUnsubscribe = null;
+    let emitQueued = false;
+    let queuedChange = null;
+
+    function emit(change) {
+      const snapshot = clone(change || { type:'change' });
+      providerListeners.forEach(listener => {
+        try { listener(clone(snapshot)); }
+        catch { console.warn('A Combined Map Note provider listener failed.'); }
+      });
+    }
+
+    function schedule(change) {
+      queuedChange = queuedChange || clone(change || { type:'change' });
+      if (emitQueued) return;
+      emitQueued = true;
+      Promise.resolve().then(() => {
+        emitQueued = false;
+        const pending = queuedChange;
+        queuedChange = null;
+        emit(pending);
+      });
+    }
+
+    async function combinedRecords() {
+      const [messages,pins] = await Promise.all([
+        anchored.list({ visibility:'all' }),
+        directPins.list({ visibility:'all' }),
+      ]);
+      return messages.concat(pins);
+    }
+
+    return {
+      name:'local-combined-map-notes',
+      async ready() {
+        await anchored.ready();
+        await directPins.ready();
+        if (!initialized) {
+          anchoredUnsubscribe = anchored.subscribe(change => schedule({ sourceType:'map_message', change }));
+          directPinUnsubscribe = directPins.subscribe(change => schedule({ sourceType:'direct_pin', change }));
+          initialized = true;
+        }
+        return true;
+      },
+      async list(query = {}) {
+        return applyQuery(await combinedRecords(), query);
+      },
+      async create(input = {}) {
+        return anchored.create(input);
+      },
+      async setHidden(target, hidden) {
+        const resolved = resolveCombinedTarget(target);
+        return resolved.sourceType === 'map_message'
+          ? anchored.setHidden(resolved.id, hidden)
+          : directPins.setHidden(resolved.id, hidden);
+      },
+      async delete(target) {
+        const resolved = resolveCombinedTarget(target);
+        return resolved.sourceType === 'map_message'
+          ? anchored.delete(resolved.id)
+          : directPins.delete(resolved.id);
+      },
+      async exportData() {
+        return clone(await combinedRecords());
+      },
+      subscribe(listener) {
+        if (typeof listener !== 'function') throw new Error('Combined Map Note provider subscriber must be a function.');
+        providerListeners.add(listener);
+        return () => providerListeners.delete(listener);
+      },
+      destroy() {
+        anchoredUnsubscribe?.();
+        directPinUnsubscribe?.();
+        anchoredUnsubscribe = null;
+        directPinUnsubscribe = null;
+        anchored.destroy();
+        directPins.destroy();
+        initialized = false;
+        emitQueued = false;
+        queuedChange = null;
+      },
+    };
+  }
+
+  // ADMIN-V2-002A: canonical recordKey for a map note, regardless of which
+  // shape the caller addressed it by (recordKey string, {noteId}/{pinId}
+  // object, or a bare numeric id) -- reuses resolveCombinedTarget() above
+  // so ModerationService always sees the SAME contentId for the same note,
+  // matching the recordKey format app-admin.js's own rows already use.
+  function canonicalRecordKey(target) {
+    const resolved = resolveCombinedTarget(target);
+    return (resolved.sourceType === 'map_message' ? 'note:' : 'pin:') + resolved.id;
+  }
+
+  // Best-effort mirror into the unified moderation queue: only content that
+  // was already reported/flagged has an active ModerationItem at all (map
+  // note creation itself never creates one -- see the file header of
+  // services/moderation-service.js and REPORT_ADMIN-V2-002.md section 3).
+  // Hiding/deleting content with no existing case is a normal no-op here,
+  // not an error; this must never block the real Hide/Delete action, which
+  // has already completed against MapNoteService's own storage by the time
+  // this runs.
+  function syncMapNoteModerationStatus(target, status) {
+    try {
+      const moderation = window.ModerationService;
+      const user = window.AuthService?.getCurrentUser?.();
+      if (!moderation || !user) return;
+      const recordKey = canonicalRecordKey(target);
+      const items = moderation.listModerationItems({ contentType:'map_note' }, user);
+      const item = items.find(entry => entry.contentId === recordKey);
+      if (item) moderation.updateModerationStatus(item.id, status, user);
+    } catch { /* best-effort mirror only */ }
+  }
+
+  window.LocalAnchoredBuildingNoteProvider = { create:createLocalAnchoredBuildingNoteProvider };
+  window.LocalDirectPinProvider = { create:createLocalDirectPinProvider };
+  window.LocalCombinedMapNoteProvider = { create:createLocalCombinedMapNoteProvider };
+  window.MapNoteService = Object.freeze({
+    ready,
+    list:(query = {}) => callProvider('list', query),
+    create:input => callProvider('create', input),
+    async setHidden(id, hidden) {
+      const result = await callProvider('setHidden', id, hidden);
+      syncMapNoteModerationStatus(id, hidden ? 'hidden' : 'pending');
+      return result;
+    },
+    async delete(id) {
+      const result = await callProvider('delete', id);
+      syncMapNoteModerationStatus(id, 'rejected');
+      return result;
+    },
+    exportData:() => callProvider('exportData'),
+    subscribe,
+    getProviderName,
+    useProvider,
+  });
+})();

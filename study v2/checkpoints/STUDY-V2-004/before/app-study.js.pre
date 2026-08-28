@@ -1,0 +1,247 @@
+/**
+ * Study Notes V2 — Browse UI.
+ * Spec: study note/02_EchoWall_Study_Notes_V2_详细架构规格书.pdf.
+ *
+ * Router entry points only, called from app-router.js render()/getRoute() —
+ * this file owns no route-dispatch logic itself (per the spec's own file
+ * structure guidance: "app-router.js 只做路由分发"). Reads
+ * window.StudyResourceService (services/study-resource-service.js).
+ *
+ * STUDY-V2-FOUNDATION-001 built the Jurusan picker (#/study) and a
+ * combined Semester+Subject shell. STUDY-V2-003 (this revision) splits
+ * that shell into the real 3-level Browse Hierarchy the spec asks for:
+ *
+ *   #/study                              -> renderStudyHome     (pick Jurusan)
+ *   #/study/:jurusan                     -> renderStudyJurusan  (pick Semester)
+ *   #/study/:jurusan/sem/:semester       -> renderStudySemester (pick Subject)
+ *   #/study/:jurusan/sem/:semester/:code -> renderStudySubjectShell (subject shell)
+ *
+ * Subject Detail (full resource list + year grouping), Resource Detail/PDF
+ * Viewer, Upload, and Admin Moderation are explicitly future stages
+ * (STUDY-V2-004 through 008) — those routes still exist as real, working
+ * "coming soon" shells (not 404s) but intentionally render no PDF
+ * list/viewer/upload form yet, and this stage does not touch them.
+ *
+ * INVARIANT: nothing in this file may group or navigate resources by
+ * College. The canonical browse hierarchy is Jurusan -> Semester ->
+ * Subject Code, period — see the invariant comment at the top of
+ * data/study-subjects.js and services/study-resource-service.js. Every
+ * render function below is keyed by jurusan/semester/subjectCode only.
+ *
+ * Must load after app-router.js (uses navigate()/escapeHtml()) and after
+ * services/study-resource-service.js.
+ */
+function studyCurrentLanguage() {
+  return typeof I18n !== "undefined" && I18n.getLanguage ? I18n.getLanguage() : "en";
+}
+
+function studySubjectDisplayName(subject) {
+  const lang = studyCurrentLanguage();
+  if (subject.name && subject.name[lang]) return subject.name[lang];
+  if (subject.name && subject.name.en) return subject.name.en;
+  return subject.code;
+}
+
+function studyJurusanDisplayName(jurusan) {
+  return jurusan.name[studyCurrentLanguage()] || jurusan.name.en;
+}
+
+// Formats a small, real (never fabricated) "PSPM · Notes · Practice"-style
+// tag line from whatever resourceType values a subject's publishable
+// resources actually have — see StudyResourceService.getResourceTypesForSubject().
+// Falls back to nothing (empty string) rather than guessing when a subject
+// has zero publishable resources yet.
+function studyResourceTypeBadges(subjectCode) {
+  const types = StudyResourceService.getResourceTypesForSubject(subjectCode);
+  if (!types.length) return "";
+  const labels = types.map(type => I18n.t(`study.type.${type}`)).join(" · ");
+  return `<small class="study-type-badges">${escapeHtml(labels)}</small>`;
+}
+
+// Lightweight, non-interactive breadcrumb text (the actual navigation
+// control is still the "back" button on every level, per the request's
+// "至少必须做到 Subject -> Semester -> Jurusan -> Study Notes" minimum —
+// this is the "Browse 层级必须清晰" clarity layer on top of that).
+function studyBreadcrumb(parts) {
+  return escapeHtml(parts.filter(Boolean).join(" · "));
+}
+
+function renderStudyNotFound(container, backHash, backLabel) {
+  container.innerHTML = `
+    <section class="container error-page page-reveal">
+      <div class="error-illustration">📚</div>
+      <p class="eyebrow">Route mismatch</p>
+      <h1>Study Notes page not found</h1>
+      <p>This Study Notes link does not match a known programme.</p>
+      <button class="btn btn-primary" onclick="navigate('${backHash}')">${escapeHtml(backLabel)}</button>
+    </section>`;
+}
+
+function renderStudyHome(container) {
+  const jurusanList = StudyResourceService.getJurusanList();
+  const cards = jurusanList.map((jurusan, index) => {
+    const count = StudyResourceService.getResourceCountForJurusan(jurusan.id);
+    const name = jurusan.name[studyCurrentLanguage()] || jurusan.name.en;
+    return `
+      <button class="selection-item study-jurusan-item" style="--item-delay:${index * 55}ms" onclick="navigate('#/study/${jurusan.id}')">
+        <span class="selection-icon">${jurusan.emoji}</span>
+        <span><strong>${escapeHtml(name)}</strong><small>${count} ${I18n.t("study.resourceCountLabel")}</small></span>
+        <span class="selection-check">→</span>
+      </button>`;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/')">← ${I18n.t("nav.home")}</button>
+      <header class="org-header">
+        <div class="org-header-icon">📚</div>
+        <div><p class="eyebrow">${I18n.t("study.hub.eyebrow")}</p><h1>${I18n.t("study.hub.title")}</h1><p class="study-hub-desc">${I18n.t("study.hub.desc")}</p></div>
+      </header>
+      <section class="selection-shell">
+        <div class="section-heading" style="margin-bottom:18px"><div><h2>${I18n.t("study.hub.chooseJurusan")}</h2><p>${I18n.t("study.hub.chooseJurusanDesc")}</p></div></div>
+        <div class="selection-list">${cards}</div>
+      </section>
+    </div>`;
+}
+
+// #/study/:jurusan — Semester picker. Deliberately does NOT list any
+// subjects itself (that was STUDY-V2-FOUNDATION-001's shortcut, fixed by
+// this stage) — it only shows Semester 1 / Semester 2 as the next level to
+// pick, each with real subject/resource counts.
+function renderStudyJurusan(container, jurusanId) {
+  const jurusan = StudyResourceService.getJurusanById(jurusanId);
+  if (!jurusan) {
+    renderStudyNotFound(container, "#/study", I18n.t("study.hub.title"));
+    return;
+  }
+  const name = studyJurusanDisplayName(jurusan);
+
+  const semesterCards = [1, 2].map((semester, index) => {
+    const subjectCount = StudyResourceService.getSubjectsByJurusanAndSemester(jurusanId, semester).length;
+    const resourceCount = StudyResourceService.getResourceCountForJurusanSemester(jurusanId, semester);
+    return `
+      <button class="study-semester-card reveal-card" data-reveal style="--reveal-delay:${index * 70}ms" onclick="navigate('#/study/${jurusanId}/sem/${semester}')">
+        <span class="study-semester-icon">📘</span>
+        <span class="study-semester-title">${I18n.t("study.semesterLabel")} ${semester}</span>
+        <small>${subjectCount} ${I18n.t("study.subjectCountLabel")} · ${resourceCount} ${I18n.t("study.resourceCountLabel")}</small>
+      </button>`;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/study')">← ${I18n.t("study.hub.title")}</button>
+      <header class="org-header">
+        <div class="org-header-icon">${jurusan.emoji}</div>
+        <div><p class="eyebrow">${studyBreadcrumb([I18n.t("study.hub.title")])}</p><h1>${escapeHtml(name)}</h1></div>
+      </header>
+      <section class="selection-shell">
+        <div class="section-heading" style="margin-bottom:18px"><div><h2>${I18n.t("study.jurusan.chooseSemester")}</h2><p>${I18n.t("study.jurusan.chooseSemesterDesc")}</p></div></div>
+        <div class="study-semester-grid">${semesterCards}</div>
+      </section>
+    </div>`;
+}
+
+// #/study/:jurusan/sem/:semester — Subject Code list for that
+// Jurusan+Semester. This is the real "browse hierarchy" leaf per this
+// stage's scope — subjects come entirely from data/study-subjects.js,
+// nothing hardcoded, nothing fabricated when the list is empty.
+function renderStudySemester(container, jurusanId, semester) {
+  const jurusan = StudyResourceService.getJurusanById(jurusanId);
+  const canonicalSemester = Number(semester);
+  const isValidSemester = canonicalSemester === 1 || canonicalSemester === 2;
+  if (!jurusan || !isValidSemester) {
+    renderStudyNotFound(container, jurusan ? `#/study/${jurusanId}` : "#/study", jurusan ? studyJurusanDisplayName(jurusan) : I18n.t("study.hub.title"));
+    return;
+  }
+  const name = studyJurusanDisplayName(jurusan);
+  const subjects = StudyResourceService.getSubjectsByJurusanAndSemester(jurusanId, canonicalSemester);
+
+  const items = subjects.map((subject, index) => {
+    const count = StudyResourceService.getResourceCountForSubject(subject.code);
+    const displayName = studySubjectDisplayName(subject);
+    const showName = displayName !== subject.code;
+    return `
+      <button class="selection-item" style="--item-delay:${index * 55}ms" onclick="navigate('#/study/${jurusanId}/sem/${canonicalSemester}/${subject.code}')">
+        <span class="selection-icon">📄</span>
+        <span>
+          <strong>${escapeHtml(subject.code)}</strong>
+          <small>${showName ? `${escapeHtml(displayName)} · ` : ""}${count} ${I18n.t("study.resourceCountLabel")}</small>
+          ${studyResourceTypeBadges(subject.code)}
+        </span>
+        <span class="selection-check">→</span>
+      </button>`;
+  }).join("") || `<div class="empty-state">${I18n.t("study.noSubjectsYet")}</div>`;
+
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/study/${jurusanId}')">← ${escapeHtml(name)}</button>
+      <header class="org-header">
+        <div class="org-header-icon">${jurusan.emoji}</div>
+        <div><p class="eyebrow">${studyBreadcrumb([I18n.t("study.hub.title"), name])}</p><h1>${I18n.t("study.semesterLabel")} ${canonicalSemester}</h1></div>
+      </header>
+      <section class="selection-shell">
+        <div class="section-heading" style="margin-bottom:18px"><div><h2>${I18n.t("study.semester.chooseSubject")}</h2></div></div>
+        <div class="selection-list">${items}</div>
+      </section>
+    </div>`;
+}
+
+function renderStudySubjectShell(container, jurusanId, semester, subjectCode) {
+  const jurusan = StudyResourceService.getJurusanById(jurusanId);
+  const canonicalSemester = Number(semester);
+  const isValidSemester = canonicalSemester === 1 || canonicalSemester === 2;
+  const subject = StudyResourceService.getSubjectByCode(subjectCode);
+  if (!jurusan || !isValidSemester || !subject || subject.jurusan !== jurusanId || subject.semester !== canonicalSemester) {
+    renderStudyNotFound(container, jurusan ? `#/study/${jurusanId}` : "#/study", jurusan ? studyJurusanDisplayName(jurusan) : I18n.t("study.hub.title"));
+    return;
+  }
+  const name = studyJurusanDisplayName(jurusan);
+  const count = StudyResourceService.getResourceCountForSubject(subjectCode);
+  const backHash = `#/study/${jurusanId}/sem/${canonicalSemester}`;
+
+  const subjectDisplayName = studySubjectDisplayName(subject);
+  const showSubjectName = subjectDisplayName !== subject.code;
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('${backHash}')">← ${I18n.t("study.semesterLabel")} ${canonicalSemester}</button>
+      <header class="org-header">
+        <div class="org-header-icon">📄</div>
+        <div><p class="eyebrow">${studyBreadcrumb([I18n.t("study.hub.title"), name, `${I18n.t("study.semesterLabel")} ${canonicalSemester}`])}</p><h1>${escapeHtml(subjectCode)}</h1>${showSubjectName ? `<div class="org-header-meta"><span>${escapeHtml(subjectDisplayName)}</span></div>` : ""}</div>
+      </header>
+      <section class="selection-shell">
+        <div class="empty-state">
+          <p><strong>${count}</strong> ${I18n.t("study.resourceCountLabel")}</p>
+          <p>${I18n.t("study.subjectComingSoon")}</p>
+        </div>
+      </section>
+    </div>`;
+}
+
+function renderStudyResourceShell(container, resourceId) {
+  const resource = StudyResourceService.getResourceById(resourceId);
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/study')">← ${I18n.t("study.hub.title")}</button>
+      <header class="org-header">
+        <div class="org-header-icon">📄</div>
+        <div><p class="eyebrow">${I18n.t("study.hub.title")}</p><h1>${resource ? escapeHtml(resource.title) : I18n.t("study.resourceNotFound")}</h1></div>
+      </header>
+      <section class="selection-shell">
+        <div class="empty-state">${I18n.t("study.viewerComingSoon")}</div>
+      </section>
+    </div>`;
+}
+
+function renderStudyUploadShell(container) {
+  container.innerHTML = `
+    <div class="container org-page page-reveal">
+      <button class="page-back" onclick="navigate('#/study')">← ${I18n.t("study.hub.title")}</button>
+      <header class="org-header">
+        <div class="org-header-icon">⬆️</div>
+        <div><p class="eyebrow">${I18n.t("study.hub.title")}</p><h1>${I18n.t("study.upload.title")}</h1></div>
+      </header>
+      <section class="selection-shell">
+        <div class="empty-state">${I18n.t("study.upload.comingSoon")}</div>
+      </section>
+    </div>`;
+}

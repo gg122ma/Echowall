@@ -1,0 +1,461 @@
+/**
+ * ADMIN-V2-003 — Unified Admin Dashboard (Overview / Queue / Reports / History).
+ *
+ * This file adds a Dashboard layer ON TOP of the existing Community/Map/Study
+ * moderation panels (app-admin.js / app-study-admin.js) — it does not
+ * replace them, and it never re-derives moderation data of its own. Every
+ * count, list, and filter below reads through
+ * services/moderation-service.js (ModerationService) and
+ * services/admin-permission-service.js (AdminPermissionService); this file
+ * contains zero permission logic and zero moderation-item storage of its
+ * own. Scope-filtering happens once, inside ModerationService's own
+ * list/get functions (see ADMIN-V2-002) — every function here that "shows
+ * scope-appropriate data" is really just formatting whatever
+ * ModerationService already decided this user may see.
+ *
+ * Two kinds of function live in this file, and it matters which is which:
+ *   - PURE HELPERS (no DOM access): adminDashboardVisibleScopes,
+ *     adminDashboardModuleForContentType, adminDashboardFilterItems,
+ *     adminDashboardSortQueue, adminDashboardGroupReports,
+ *     adminDashboardOverviewCounts, adminDashboardContentPreview. These are
+ *     loaded and called directly by scripts/test-admin-dashboard.mjs in a
+ *     Node vm sandbox with no `document` at all — do not add DOM/`window`-UI
+ *     calls inside them.
+ *   - RENDER FUNCTIONS (DOM-only, browser-only): everything else
+ *     (renderAdminOverview, renderAdminQueueView, renderAdminReportsView,
+ *     renderAdminHistoryView, and their event handlers).
+ *
+ * Load order: after app-admin.js (reuses its `adminState`,
+ * `renderAdminNoteRow`-style conventions, `escapeHtml`, `formatDate`) and
+ * after services/moderation-service.js / services/admin-permission-service.js.
+ */
+
+// --- Pure helpers ----------------------------------------------------------
+
+const ADMIN_DASHBOARD_RESOLVED_STATUSES = Object.freeze(["approved", "rejected", "hidden"]);
+const ADMIN_DASHBOARD_ACTIVE_STATUSES = Object.freeze(["pending", "escalated"]);
+
+// contentType -> which existing module workspace (Community/Map/Study tab)
+// owns it. Returns null for content types with no live module yet
+// (comment/event/review) -- callers must handle null, never guess a module.
+function adminDashboardModuleForContentType(contentType) {
+  if (contentType === "post") return "community";
+  if (contentType === "map_note") return "map";
+  if (contentType === "study_resource") return "study";
+  return null;
+}
+
+// The scope options THIS user is actually allowed to select, derived from
+// their real active RoleAssignments (never a hardcoded college list --
+// college names/ids come from the canonical `organizations` config, same
+// source services/moderation-service.js's resolveKmkOrgId() trusts).
+// "all" only appears when it would mean something (Super Admin, or a user
+// holding more than one distinct scope) -- a single-scope user is never
+// shown a redundant "All" option next to their one real choice.
+function adminDashboardVisibleScopes(user) {
+  const aps = window.AdminPermissionService;
+  if (!aps || !user) return [];
+  const isSuper = aps.isSuperAdmin(user);
+  const orgList = typeof organizations !== "undefined" && Array.isArray(organizations) ? organizations : [];
+  const options = [];
+  const seenKeys = new Set();
+  function addScope(scopeType, scopeId, label) {
+    const key = scopeType + ":" + (scopeId == null ? "" : scopeId);
+    if (seenKeys.has(key)) return;
+    seenKeys.add(key);
+    options.push({ value: key, scopeType, scopeId: scopeId == null ? null : scopeId, label });
+  }
+  // Checked via the top-level permission functions, not by matching each
+  // RoleAssignment's own scopeType 1:1 -- a single assignment (e.g. the
+  // virtual LEGACY_ADMIN grant, scopeType "global") can carry permissions
+  // that cross scope-type boundaries (it grants both
+  // GLOBAL_COMMUNITY_MODERATE and STUDY_RESOURCE_MODERATE), so deriving
+  // "which scopes can this user see" from permission checks is correct;
+  // deriving it from assignment.scopeType alone would have hidden Study
+  // from a legacy admin who can plainly moderate Study.
+  if (isSuper || aps.canModerateGlobalCommunity(user)) addScope("global", null, "Global");
+  if (isSuper || aps.canModerateStudy(user)) addScope("study", null, "Study");
+  if (isSuper) {
+    orgList.forEach(org => addScope("college", org.id, org.name));
+  } else {
+    aps.getRoleAssignments(user)
+      .filter(assignment => assignment.scopeType === "college")
+      .forEach(assignment => {
+        if (!aps.canModerateCollege(user, assignment.scopeId)) return;
+        const org = orgList.find(item => item.id === assignment.scopeId);
+        addScope("college", assignment.scopeId, org ? org.name : `College ${assignment.scopeId}`);
+      });
+  }
+  if (isSuper || options.length > 1) {
+    options.unshift({ value: "all", scopeType: null, scopeId: null, label: "All permitted scopes" });
+  }
+  return options;
+}
+
+// Scope-safe by construction: `items`/`reports` must already come from
+// ModerationService.listModerationItems()/listReports() (which filter by
+// the caller's real permission) -- this function only narrows the VIEW
+// (e.g. a multi-college admin picking just "KMK"), it never widens access.
+function adminDashboardFilterItems(items, filters = {}) {
+  let result = items;
+  if (filters.status && filters.status !== "all") {
+    result = filters.status === "active"
+      ? result.filter(item => ADMIN_DASHBOARD_ACTIVE_STATUSES.includes(item.status))
+      : result.filter(item => item.status === filters.status);
+  }
+  if (filters.module && filters.module !== "all") {
+    result = result.filter(item => adminDashboardModuleForContentType(item.contentType) === filters.module);
+  }
+  if (filters.source && filters.source !== "all") {
+    result = result.filter(item => item.source === filters.source);
+  }
+  if (filters.scope && filters.scope !== "all") {
+    const [scopeType, scopeIdRaw] = String(filters.scope).split(":");
+    result = result.filter(item => item.scopeType === scopeType && (scopeIdRaw ? String(item.scopeId) === scopeIdRaw : true));
+  }
+  return result;
+}
+
+// Default queue presentation order: escalated before pending before
+// anything else, then higher risk first, then newest first. Presentation
+// only -- never mutates or re-persists the underlying ModerationItem list.
+function adminDashboardSortQueue(items) {
+  const statusRank = { escalated: 0, pending: 1 };
+  return items.slice().sort((a, b) => {
+    const rankA = statusRank[a.status] ?? 2;
+    const rankB = statusRank[b.status] ?? 2;
+    if (rankA !== rankB) return rankA - rankB;
+    const riskDiff = Number(b.riskScore || 0) - Number(a.riskScore || 0);
+    if (riskDiff !== 0) return riskDiff;
+    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+  });
+}
+
+// Groups Reports by the content they point at -- "3 reports, 1 queue case"
+// (spec section 7): the Reports view shows report-level detail, but must
+// never render one row per report as if each were its own queue case.
+function adminDashboardGroupReports(reports) {
+  const groups = new Map();
+  reports.forEach(report => {
+    const key = `${report.contentType}:${report.contentId}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(report);
+  });
+  return Array.from(groups.values()).map(group => {
+    const sorted = group.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    return {
+      contentType: sorted[0].contentType,
+      contentId: sorted[0].contentId,
+      scopeType: sorted[0].scopeType,
+      scopeId: sorted[0].scopeId,
+      reportCount: sorted.length,
+      latestCreatedAt: sorted[0].createdAt,
+      openCount: sorted.filter(report => report.status === "open").length,
+      reports: sorted,
+    };
+  }).sort((a, b) => new Date(b.latestCreatedAt || 0) - new Date(a.latestCreatedAt || 0));
+}
+
+// Overview counts. Scope-safe by construction: `items`/`reports` are
+// exactly what ModerationService already decided this user may see --
+// this function does no additional permission filtering itself, it only
+// tallies. A Student/Guest/CONTENT_REVIEWER (denied everywhere) correctly
+// gets all-zero counts because ModerationService already handed back [].
+function adminDashboardOverviewCounts(items, reports) {
+  const byModule = { community: 0, map: 0, study: 0 };
+  items.forEach(item => {
+    const module = adminDashboardModuleForContentType(item.contentType);
+    if (module && Object.prototype.hasOwnProperty.call(byModule, module)) byModule[module] += 1;
+  });
+  return {
+    pending: items.filter(item => item.status === "pending").length,
+    escalated: items.filter(item => item.status === "escalated").length,
+    resolved: items.filter(item => ADMIN_DASHBOARD_RESOLVED_STATUSES.includes(item.status)).length,
+    flagged: items.filter(item => item.source === "auto_flag").length,
+    reported: reports.length,
+    total: items.length,
+    byModule,
+  };
+}
+
+function adminDashboardHistoryItems(items) {
+  return items.filter(item => ADMIN_DASHBOARD_RESOLVED_STATUSES.includes(item.status));
+}
+
+// Safe, canonical-content-derived preview -- never dumps internal storage
+// paths/blob keys/fileIds, and never treats the ModerationItem itself as a
+// content duplicate (it only ever points at contentId).
+function adminDashboardContentPreview(item) {
+  if (!item) return { title: "(unknown)", detail: "" };
+  if (item.contentType === "post") {
+    const list = typeof getRuntimeNotes === "function" ? getRuntimeNotes() : (typeof notes !== "undefined" && Array.isArray(notes) ? notes : []);
+    const note = list.find(entry => String(entry?.id) === String(item.contentId));
+    if (!note) return { title: "Community post", detail: "(content no longer exists)" };
+    const kind = note.contextType === "building" ? "Building note" : "Community post";
+    return { title: kind, detail: String(note.content || "").slice(0, 160) };
+  }
+  if (item.contentType === "study_resource") {
+    const resource = window.StudyResourceService?.getResourceById?.(item.contentId)
+      || window.StudyUploadService?.getSubmissionById?.(item.contentId);
+    if (!resource) return { title: "Study resource", detail: "(content no longer exists)" };
+    return {
+      title: resource.title || "(untitled)",
+      detail: [resource.subjectCode, resource.resourceType, resource.sourceType].filter(Boolean).join(" · "),
+    };
+  }
+  if (item.contentType === "map_note") {
+    return { title: "Map note", detail: `Record ${item.contentId}` };
+  }
+  return { title: item.contentType, detail: `Record ${item.contentId}` };
+}
+
+// --- Render functions (browser-only) ---------------------------------------
+
+function adminDashboardScopeOptionsHtml(user, currentValue) {
+  const options = adminDashboardVisibleScopes(user);
+  if (!options.length) return "";
+  const selected = options.some(option => option.value === currentValue) ? currentValue : options[0].value;
+  if (adminState.dashboardScope !== selected) adminState.dashboardScope = selected;
+  return `
+    <label class="admin-filter-select admin-dashboard-scope">
+      <span class="admin-filter-label">Scope</span>
+      <select class="form-select" onchange="adminDashboardSetScope(this.value)">
+        ${options.map(option => `<option value="${escapeHtml(option.value)}" ${option.value === selected ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
+      </select>
+    </label>`;
+}
+
+function adminDashboardSetScope(value) {
+  if (!requireAdminAccess()) return;
+  adminState.dashboardScope = value;
+  render();
+}
+
+function adminDashboardHeaderHtml(title, description, user) {
+  return `
+    <header class="admin-header">
+      <div><p class="eyebrow">Admin Dashboard</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(description)}</p></div>
+      <div class="admin-header-actions"><span class="admin-system-status"><i></i> Prototype online</span><button class="btn btn-outline btn-sm" onclick="navigate('#/')">View website ↗</button></div>
+    </header>`;
+}
+
+function renderAdminDashboardShell(container, bodyHtml, user, title, description) {
+  container.innerHTML = `
+    <div class="admin-shell page-reveal">
+      <aside class="admin-sidebar">
+        <nav class="admin-nav" aria-label="Admin sections">
+          ${adminSidebarNavHtml(user)}
+        </nav>
+        <button class="admin-logout" onclick="adminLogout()"><span>↪</span> Sign out</button>
+      </aside>
+      <main class="admin-main">
+        ${adminDashboardHeaderHtml(title, description, user)}
+        ${bodyHtml}
+      </main>
+    </div>`;
+}
+
+function renderAdminOverview(container) {
+  const user = window.AuthService.getCurrentUser();
+  const ms = window.ModerationService;
+  const filters = { scope: adminState.dashboardScope };
+  const items = ms ? adminDashboardFilterItems(ms.listModerationItems({}, user), { scope: filters.scope }) : [];
+  const reports = ms ? ms.listReports({}, user).filter(report => {
+    if (!filters.scope || filters.scope === "all") return true;
+    const [scopeType, scopeIdRaw] = filters.scope.split(":");
+    return report.scopeType === scopeType && (scopeIdRaw ? String(report.scopeId) === scopeIdRaw : true);
+  }) : [];
+  const counts = adminDashboardOverviewCounts(items, reports);
+  const scopeSelector = adminDashboardScopeOptionsHtml(user, adminState.dashboardScope);
+  const statCards = [
+    ["⏳", "Pending", counts.pending, "Awaiting a first review"],
+    ["🚩", "Reported", counts.reported, "Report records (may share one case)"],
+    ["🤖", "Flagged", counts.flagged, "Auto-flagged (no auto_flag data yet)"],
+    ["⚠️", "Escalated", counts.escalated, "Needs priority attention"],
+    ["✅", "Resolved", counts.resolved, "Approved / rejected / hidden"],
+  ];
+  const moduleCards = [
+    ["📝", "Community", counts.byModule.community],
+    ["🗺️", "Map", counts.byModule.map],
+    ["📚", "Study", counts.byModule.study],
+  ];
+  const body = `
+    <section class="admin-panel-header"><div>${scopeSelector}</div></section>
+    <section class="admin-stats">
+      ${statCards.map((stat, index) => `<article class="admin-stat" style="--admin-delay:${index * 70}ms"><span class="admin-stat-icon">${stat[0]}</span><div><span>${stat[1]}</span><strong>${stat[2]}</strong><small>${stat[3]}</small></div></article>`).join("")}
+    </section>
+    <section class="admin-panel">
+      <div class="admin-panel-header"><div><p class="eyebrow">Module summary</p><h2>Where the queue currently is</h2></div></div>
+      <div class="admin-dashboard-module-grid">
+        ${moduleCards.map(([icon, label, count]) => `<article class="admin-dashboard-module-card"><span class="admin-stat-icon">${icon}</span><div><strong>${count}</strong><small>${escapeHtml(label)}</small></div></article>`).join("")}
+      </div>
+      ${counts.total === 0 ? `<div class="admin-empty"><span>🗂️</span><h3>Nothing to review</h3><p>No moderation items are visible for this scope right now.</p></div>` : ""}
+    </section>`;
+  renderAdminDashboardShell(container, body, user, "Overview", "Scope-filtered summary across every module you can moderate.");
+}
+
+function adminDashboardFilterBarHtml(user) {
+  const scope = adminDashboardScopeOptionsHtml(user, adminState.dashboardScope);
+  const statusOptions = [["active", "All active"], ["pending", "Pending"], ["escalated", "Escalated"], ["hidden", "Hidden"], ["approved", "Approved"], ["rejected", "Rejected"]];
+  const moduleOptions = [["all", "All modules"], ["community", "Community"], ["map", "Map"], ["study", "Study"]];
+  const sourceOptions = [["all", "All sources"], ["submission", "Submission"], ["report", "Report"], ["auto_flag", "Auto flag"], ["admin", "Admin"]];
+  const select = (label, key, options, current) => `
+    <label class="admin-filter-select">
+      <span class="admin-filter-label">${escapeHtml(label)}</span>
+      <select class="form-select" onchange="adminDashboardSetFilter('${key}', this.value)">
+        ${options.map(([value, text]) => `<option value="${value}" ${value === current ? "selected" : ""}>${escapeHtml(text)}</option>`).join("")}
+      </select>
+    </label>`;
+  return `<div class="admin-filters admin-dashboard-filters">
+    ${scope}
+    ${select("Status", "dashboardStatus", statusOptions, adminState.dashboardStatus)}
+    ${select("Module", "dashboardModule", moduleOptions, adminState.dashboardModule)}
+    ${select("Source", "dashboardSource", sourceOptions, adminState.dashboardSource)}
+  </div>`;
+}
+
+function adminDashboardSetFilter(key, value) {
+  if (!requireAdminAccess()) return;
+  if (!["dashboardStatus", "dashboardModule", "dashboardSource"].includes(key)) return;
+  adminState[key] = value;
+  render();
+}
+
+function adminDashboardQueueRowHtml(item) {
+  const preview = adminDashboardContentPreview(item);
+  const module = adminDashboardModuleForContentType(item.contentType) || "other";
+  const reportCount = window.ModerationService ? window.ModerationService.listReports({ contentType: item.contentType, contentId: item.contentId }, window.AuthService.getCurrentUser()).length : 0;
+  const statusClass = { pending: "admin-status-pending", escalated: "admin-status-hidden", approved: "admin-status-visible", rejected: "admin-status-hidden", hidden: "admin-status-hidden" }[item.status] || "admin-status-pending";
+  const scopeLabel = item.scopeType === "college"
+    ? (typeof organizations !== "undefined" ? organizations.find(org => org.id === item.scopeId)?.name : null) || `College ${item.scopeId}`
+    : item.scopeType === "global" ? "Global" : item.scopeType === "study" ? "Study" : "System";
+  return `
+    <article class="admin-note-row admin-queue-row">
+      <div class="admin-note-thumb"><span>${{ community: "📝", map: "🗺️", study: "📚" }[module] || "🗂️"}</span></div>
+      <div class="admin-note-main">
+        <div class="admin-note-meta">
+          <span class="admin-status ${statusClass}">${escapeHtml(item.status)}</span>
+          <span class="admin-meta-badge">${escapeHtml(module)}</span>
+          <span class="admin-meta-badge">${escapeHtml(scopeLabel)}</span>
+          <span>${escapeHtml(item.source)}</span>
+          ${Number(item.riskScore) > 0 ? `<span>Risk ${Number(item.riskScore)}</span>` : ""}
+          ${reportCount ? `<span>${reportCount} report${reportCount === 1 ? "" : "s"}</span>` : ""}
+        </div>
+        <p class="admin-note-content"><strong>${escapeHtml(preview.title)}</strong>${preview.detail ? ` — ${escapeHtml(preview.detail)}` : ""}</p>
+        <div class="admin-note-foot"><span>${formatDate(item.createdAt, true)}</span>${item.assignedTo ? `<span>Assigned</span>` : ""}</div>
+      </div>
+      <div class="admin-note-actions">${module !== "other" ? `<button class="btn btn-outline btn-sm" onclick="adminDashboardReview('${module}')">Review</button>` : ""}</div>
+    </article>`;
+}
+
+function adminDashboardReview(module) {
+  if (!requireAdminAccess()) return;
+  if (module === "community" || module === "map") adminSetSource(module);
+  else if (module === "study") adminSetSource("study");
+}
+
+function renderAdminQueueView(container) {
+  const user = window.AuthService.getCurrentUser();
+  const ms = window.ModerationService;
+  const rawItems = ms ? ms.listModerationItems({}, user) : [];
+  const filtered = adminDashboardFilterItems(rawItems, {
+    status: adminState.dashboardStatus,
+    module: adminState.dashboardModule,
+    source: adminState.dashboardSource,
+    scope: adminState.dashboardScope,
+  });
+  const sorted = adminDashboardSortQueue(filtered);
+  const body = `
+    <section class="admin-panel">
+      <div class="admin-panel-header"><div><p class="eyebrow">Unified queue</p><h2>Moderation Queue</h2><p><span class="match-count">${sorted.length}</span> matching cases</p></div></div>
+      ${adminDashboardFilterBarHtml(user)}
+      <div class="admin-note-list">
+        ${sorted.length ? sorted.map(adminDashboardQueueRowHtml).join("") : `<div class="admin-empty"><span>🗂️</span><h3>No matching cases</h3><p>Try a different status, module, source, or scope.</p></div>`}
+      </div>
+    </section>`;
+  renderAdminDashboardShell(container, body, user, "Moderation Queue", "One ModerationItem per case, sourced entirely from ModerationService.");
+}
+
+function adminDashboardReportGroupRowHtml(group) {
+  const module = adminDashboardModuleForContentType(group.contentType) || "other";
+  const scopeLabel = group.scopeType === "college"
+    ? (typeof organizations !== "undefined" ? organizations.find(org => org.id === group.scopeId)?.name : null) || `College ${group.scopeId}`
+    : group.scopeType === "global" ? "Global" : group.scopeType === "study" ? "Study" : "System";
+  const categoryList = group.reports.map(report => report.category).filter((value, index, all) => all.indexOf(value) === index).join(", ");
+  return `
+    <article class="admin-note-row admin-queue-row">
+      <div class="admin-note-thumb"><span>🚩</span></div>
+      <div class="admin-note-main">
+        <div class="admin-note-meta">
+          <span class="admin-meta-badge">${escapeHtml(module)}</span>
+          <span class="admin-meta-badge">${escapeHtml(scopeLabel)}</span>
+          <span><strong>${group.reportCount}</strong> report${group.reportCount === 1 ? "" : "s"}</span>
+          ${group.openCount ? `<span>${group.openCount} open</span>` : ""}
+        </div>
+        <p class="admin-note-content"><strong>${escapeHtml(categoryList)}</strong> — content ${escapeHtml(String(group.contentId))}</p>
+        <div class="admin-note-foot"><span>Latest ${formatDate(group.latestCreatedAt, true)}</span></div>
+      </div>
+      <div class="admin-note-actions">${module !== "other" ? `<button class="btn btn-outline btn-sm" onclick="adminDashboardReview('${module}')">Review</button>` : ""}</div>
+    </article>`;
+}
+
+function renderAdminReportsView(container) {
+  const user = window.AuthService.getCurrentUser();
+  const ms = window.ModerationService;
+  const rawReports = ms ? ms.listReports({}, user) : [];
+  const scopeFiltered = adminState.dashboardScope && adminState.dashboardScope !== "all"
+    ? rawReports.filter(report => {
+        const [scopeType, scopeIdRaw] = adminState.dashboardScope.split(":");
+        return report.scopeType === scopeType && (scopeIdRaw ? String(report.scopeId) === scopeIdRaw : true);
+      })
+    : rawReports;
+  const groups = adminDashboardGroupReports(scopeFiltered);
+  const body = `
+    <section class="admin-panel">
+      <div class="admin-panel-header"><div><p class="eyebrow">Reported content</p><h2>Reports</h2><p><span class="match-count">${scopeFiltered.length}</span> reports across <span class="match-count">${groups.length}</span> cases</p></div></div>
+      <div class="admin-filters admin-dashboard-filters">${adminDashboardScopeOptionsHtml(user, adminState.dashboardScope)}</div>
+      <div class="admin-note-list">
+        ${groups.length ? groups.map(adminDashboardReportGroupRowHtml).join("") : `<div class="admin-empty"><span>🚩</span><h3>No reports</h3><p>No content has been reported for this scope yet.</p></div>`}
+      </div>
+    </section>`;
+  renderAdminDashboardShell(container, body, user, "Reports", "Every report is listed individually; duplicate reports on the same content share one queue case.");
+}
+
+function adminDashboardHistoryRowHtml(item) {
+  const preview = adminDashboardContentPreview(item);
+  const module = adminDashboardModuleForContentType(item.contentType) || "other";
+  const scopeLabel = item.scopeType === "college"
+    ? (typeof organizations !== "undefined" ? organizations.find(org => org.id === item.scopeId)?.name : null) || `College ${item.scopeId}`
+    : item.scopeType === "global" ? "Global" : item.scopeType === "study" ? "Study" : "System";
+  const statusClass = item.status === "approved" ? "admin-status-visible" : "admin-status-hidden";
+  return `
+    <article class="admin-note-row admin-queue-row">
+      <div class="admin-note-thumb"><span>${{ community: "📝", map: "🗺️", study: "📚" }[module] || "🗂️"}</span></div>
+      <div class="admin-note-main">
+        <div class="admin-note-meta">
+          <span class="admin-status ${statusClass}">${escapeHtml(item.status)}</span>
+          <span class="admin-meta-badge">${escapeHtml(module)}</span>
+          <span class="admin-meta-badge">${escapeHtml(scopeLabel)}</span>
+        </div>
+        <p class="admin-note-content"><strong>${escapeHtml(preview.title)}</strong>${preview.detail ? ` — ${escapeHtml(preview.detail)}` : ""}</p>
+        <div class="admin-note-foot"><span>Resolved ${item.resolvedAt ? formatDate(item.resolvedAt, true) : "—"}</span></div>
+      </div>
+    </article>`;
+}
+
+function renderAdminHistoryView(container) {
+  const user = window.AuthService.getCurrentUser();
+  const ms = window.ModerationService;
+  const rawItems = ms ? ms.listModerationItems({}, user) : [];
+  const scoped = adminDashboardFilterItems(rawItems, { scope: adminState.dashboardScope });
+  const resolved = adminDashboardHistoryItems(scoped).sort((a, b) => new Date(b.resolvedAt || 0) - new Date(a.resolvedAt || 0));
+  const body = `
+    <section class="admin-panel">
+      <div class="admin-panel-header"><div><p class="eyebrow">Resolved cases</p><h2>History</h2><p><span class="match-count">${resolved.length}</span> resolved cases</p></div></div>
+      <div class="admin-filters admin-dashboard-filters">${adminDashboardScopeOptionsHtml(user, adminState.dashboardScope)}</div>
+      <div class="admin-note-list">
+        ${resolved.length ? resolved.map(adminDashboardHistoryRowHtml).join("") : `<div class="admin-empty"><span>📜</span><h3>No history yet</h3><p>Approved, rejected, and hidden cases will appear here.</p></div>`}
+      </div>
+    </section>`;
+  renderAdminDashboardShell(container, body, user, "History", "Resolved moderation outcomes only — not an audit trail (see ADMIN-V2-004).");
+}
