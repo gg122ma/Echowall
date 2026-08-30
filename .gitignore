@@ -9,4 +9,6 @@
 
 *.log
 
+/dist/
+
 /video/8月1日(1).mp4

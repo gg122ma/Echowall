@@ -1,0 +1,64 @@
+name: Deploy GitHub Pages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Syntax-check first-party JavaScript
+        shell: bash
+        run: |
+          find . -maxdepth 1 -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+          find config data i18n services features scripts -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
+
+      - name: Run current regression tests
+        shell: bash
+        run: |
+          for test_file in scripts/test-*.mjs; do
+            node "$test_file"
+          done
+
+      - name: Build deterministic Pages artifact
+        run: node scripts/build-pages.mjs
+
+      - name: Validate Pages artifact
+        run: node scripts/validate-pages-artifact.mjs
+
+      - name: Verify immutable production URL
+        run: node scripts/test-production-url-lock.mjs
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist/pages
+          include-hidden-files: true
+
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
