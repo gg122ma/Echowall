@@ -1,5 +1,6 @@
 (function () {
   let mode = "login";
+  let authMode = "local";
   let lastFocusedElement = null;
   let profileLastFocusedElement = null;
   let profileOnboarding = false;
@@ -11,6 +12,19 @@
   let accountBodyOverflow = null;
   let activeProfileSelect = null;
   let activeProfileOptionIndex = -1;
+
+  function isSupabaseCommunityRoute() {
+    if (window.CommunityDataProvider?.isRemoteRequested() !== true || typeof window.getRoute !== "function") return false;
+    return ["community-hub", "community-college", "community-global", "community-college-general", "wall"].includes(getRoute().page);
+  }
+
+  function selectedAuthProvider() {
+    return authMode === "supabase" ? window.SupabaseAuthProvider : window.AuthService;
+  }
+
+  function navbarAuthProvider() {
+    return isSupabaseCommunityRoute() ? window.SupabaseAuthProvider : window.AuthService;
+  }
 
   function ensureDialog() {
     let overlay = document.getElementById("auth-overlay");
@@ -429,7 +443,7 @@
     overlay.querySelector(".account-auth-mode-label").textContent = I18n.t("auth.title");
     overlay.querySelector("#auth-title").textContent = I18n.t(isRegister ? "auth.registerTitle" : "auth.loginTitle");
     overlay.querySelector("#auth-description").textContent = I18n.t(isRegister ? "auth.registerDescription" : "auth.loginDescription");
-    overlay.querySelector(".account-auth-local-notice").textContent = I18n.t("auth.localNotice");
+    overlay.querySelector(".account-auth-local-notice").textContent = authMode === "supabase" ? "" : I18n.t("auth.localNotice");
     overlay.querySelector(".account-auth-close").setAttribute("aria-label", I18n.t("common.close"));
     overlay.querySelector("label[for='auth-display-name']").textContent = I18n.t("auth.displayName");
     overlay.querySelector("label[for='auth-email']").textContent = I18n.t("auth.email");
@@ -451,17 +465,20 @@
     error.textContent = "";
     let authenticatedUser = null;
     try {
+      const provider = selectedAuthProvider();
       if (mode === "register") {
         const confirmPassword = form.querySelector("#auth-confirm").value;
         if (password !== confirmPassword) throw new Error("Passwords do not match.");
-        authenticatedUser = await AuthService.register({ email, password, displayName: form.querySelector("#auth-display-name").value });
+        const input = { email, password, displayName: form.querySelector("#auth-display-name").value };
+        authenticatedUser = authMode === "supabase" ? await provider.signUp(input) : await provider.register(input);
         showToast?.(I18n.t("auth.successRegister"));
       } else {
-        authenticatedUser = await AuthService.signIn({ email, password });
+        const input = { email, password };
+        authenticatedUser = authMode === "supabase" ? await provider.signInWithPassword(input) : await provider.signIn(input);
         showToast?.(I18n.t("auth.successLogin"));
       }
       close();
-      if (authenticatedUser?.educationStatus === "unset") requestAnimationFrame(() => openProfileEditor({ onboarding:true }));
+      if (authMode === "local" && authenticatedUser?.educationStatus === "unset") requestAnimationFrame(() => openProfileEditor({ onboarding:true }));
     } catch (authError) {
       error.textContent = authError instanceof Error ? authError.message : I18n.t("common.error");
     } finally {
@@ -469,8 +486,9 @@
     }
   }
 
-  function open(nextMode = "login") {
+  function open(nextMode = "login", options = {}) {
     const overlay = ensureDialog();
+    authMode = options?.provider === "supabase" || (!options?.provider && isSupabaseCommunityRoute()) ? "supabase" : "local";
     lastFocusedElement = document.activeElement;
     setMode(nextMode);
     overlay.classList.remove("hidden");
@@ -495,6 +513,10 @@
   }
 
   function renderAccountSummary(user) {
+    if (user?.provider === "supabase") {
+      const label = user.displayName || user.email || "Community user";
+      return `<div class="account-summary"><div class="account-avatar account-avatar-large" aria-hidden="true">${escapeHtml(getUserInitials(label))}</div><div class="account-summary-copy"><strong>${escapeHtml(label)}</strong><span class="account-status">${escapeHtml(user.email || "")}</span></div></div>`;
+    }
     const statusKey = {
       current_student: "profile.currentStudent",
       alumni: "profile.alumni",
@@ -520,11 +542,12 @@
     const language = I18n.getLanguage();
     const theme = ThemeService.getPreference();
     const profileAction = user.educationStatus === "unset" ? I18n.t("profile.completeTitle") : I18n.t("profile.editTitle");
+    const isRemote = user?.provider === "supabase";
     const option = (value, current, label, attribute) => `<button type="button" class="account-option${value === current ? " is-selected" : ""}" ${attribute}="${value}" aria-pressed="${value === current}">${label}</button>`;
     return `<div id="account-overlay" class="account-overlay" hidden><div class="account-popover-backdrop" data-account-dismiss></div><section id="account-popover" class="account-popover" role="dialog" aria-modal="false" aria-labelledby="account-popover-title">
       <header class="account-popover-header"><p id="account-popover-title" class="eyebrow">${I18n.t("nav.account")}</p><button class="account-popover-close" type="button" data-account-dismiss aria-label="${I18n.t("common.close")}">✕</button></header>
       <div class="account-popover-scroll">${renderAccountSummary(user)}
-        <button class="account-action account-edit" type="button" data-account-edit><span>✎</span>${profileAction}</button>
+        ${isRemote ? "" : `<button class="account-action account-edit" type="button" data-account-edit><span>✎</span>${profileAction}</button>`}
         <div class="account-settings-group"><span class="account-setting-label">${I18n.t("account.language")}</span><div class="account-options" role="group" aria-label="${I18n.t("account.language")}">${option("en", language, "EN", "data-account-language")}${option("ms", language, "BM", "data-account-language")}${option("zh", language, "中文", "data-account-language")}</div></div>
         <div class="account-settings-group"><span class="account-setting-label">${I18n.t("nav.theme")}</span><div class="account-options" role="group" aria-label="${I18n.t("nav.theme")}">${option("light", theme, I18n.t("theme.light"), "data-account-theme")}${option("dark", theme, I18n.t("theme.dark"), "data-account-theme")}${option("system", theme, I18n.t("theme.system"), "data-account-theme")}</div></div>
         ${isAdmin ? `<a class="account-action" href="#/admin" data-account-admin><span>◆</span>${I18n.t("nav.adminDashboard")}</a>` : ""}
@@ -631,12 +654,12 @@
     overlay.querySelectorAll("[data-account-language]").forEach(button => button.addEventListener("click", () => I18n.setLanguage(button.dataset.accountLanguage)));
     overlay.querySelectorAll("[data-account-theme]").forEach(button => button.addEventListener("click", () => ThemeService.setTheme(button.dataset.accountTheme)));
     overlay.querySelector("[data-account-admin]")?.addEventListener("click", () => closeAccountPopover(false));
-    overlay.querySelector("[data-account-sign-out]")?.addEventListener("click", event => {
+    overlay.querySelector("[data-account-sign-out]")?.addEventListener("click", async event => {
       if (accountSigningOut) return;
       accountSigningOut = true;
       event.currentTarget.disabled = true;
       closeAccountPopover(false);
-      signOut();
+      await signOut();
       accountSigningOut = false;
     });
   }
@@ -655,32 +678,40 @@
     if (!target) return;
     closeAccountPopover(false);
     document.getElementById("account-overlay")?.remove();
-    const user = AuthService.getCurrentUser();
+    const provider = navbarAuthProvider();
+    const user = provider?.getCurrentUser?.() || null;
+    const userLabel = user?.displayName || user?.email || "Community user";
     target.innerHTML = user
-      ? `<button id="account-trigger" class="account-trigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="account-popover" aria-label="${I18n.t("nav.account")}: ${escapeHtml(user.displayName)}"><span class="account-avatar" aria-hidden="true">${escapeHtml(getUserInitials(user.displayName))}</span><span class="account-trigger-name">${escapeHtml(user.displayName)}</span></button>`
+      ? `<button id="account-trigger" class="account-trigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="account-popover" aria-label="${I18n.t("nav.account")}: ${escapeHtml(userLabel)}"><span class="account-avatar" aria-hidden="true">${escapeHtml(getUserInitials(userLabel))}</span><span class="account-trigger-name">${escapeHtml(userLabel)}</span></button>`
       : `<button class="btn btn-ghost btn-sm" type="button" onclick="AuthUI.open('login')">${I18n.t("nav.signIn")}</button><button class="btn btn-primary btn-sm" type="button" onclick="AuthUI.open('register')">${I18n.t("nav.register")}</button>`;
     if (user) {
       // ADMIN-V2-001: show the Admin Dashboard link for anyone who holds
       // any active RoleAssignment (Super Admin, legacy prototype admin, or
       // a real Global Moderator/College Admin/Study Moderator/Content
       // Reviewer grant) — not just the legacy binary admin whitelist.
-      const canSeeAdminLink = Boolean(window.AdminPermissionService?.canAccessAdminPanel?.(user)) || AuthService.isCurrentUserAdmin();
+      const canSeeAdminLink = user.provider === "supabase" ? false : Boolean(window.AdminPermissionService?.canAccessAdminPanel?.(user)) || AuthService.isCurrentUserAdmin();
       ensureAccountPopover(user, canSeeAdminLink);
       bindAccountPopover(target);
     }
   }
 
-  function signOut() {
+  async function signOut() {
     closeProfileEditor(true);
-    AuthService.signOut();
-    showToast?.(I18n.t("nav.signOut"));
+    const provider = navbarAuthProvider();
+    try {
+      await provider.signOut();
+      showToast?.(I18n.t("nav.signOut"));
+    } catch (error) {
+      showToast?.(error instanceof Error ? error.message : I18n.t("common.error"));
+    }
   }
 
   window.AuthUI = { open, close, openProfileEditor, closeProfileEditor, signOut, renderNavbar };
   window.addEventListener("echo:authchange", () => { renderNavbar(); if (!AuthService.getCurrentUser()) closeProfileEditor(true); });
+  window.addEventListener("echo:communityauthchange", renderNavbar);
   window.addEventListener("echo:languagechange", () => { renderNavbar(); setMode(mode); translateProfileDialog(); });
   window.addEventListener("echo:themechange", updateAccountThemeSelection);
-  window.addEventListener("hashchange", () => closeAccountPopover(false));
+  window.addEventListener("hashchange", () => { closeAccountPopover(false); renderNavbar(); });
   window.addEventListener("resize", syncAccountPopoverLayout);
   document.addEventListener("pointerdown", event => {
     if (activeProfileSelect) {

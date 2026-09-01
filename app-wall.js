@@ -182,6 +182,29 @@ let selectedPhotoCropScale = 1;
 let selectedImageFit = "cover";
 const noteTranslationState = new Map();
 
+function isRemoteCommunityContext() {
+  return wallState.contextType === "community" && window.CommunityDataProvider?.isRemoteRequested() === true;
+}
+
+function getWallCurrentUser() {
+  return isRemoteCommunityContext() ? CommunityDataProvider.getCurrentUser() : AuthService.getCurrentUser();
+}
+
+function findWallNote(noteId) {
+  if (isRemoteCommunityContext()) return CommunityDataProvider.findPost(noteId);
+  return getRuntimeNotes().find(item => Number(item.id) === Number(noteId));
+}
+
+function requireWallAuthentication() {
+  showToast(I18n.t("wall.authRequired"));
+  AuthUI.open("login", { provider: isRemoteCommunityContext() ? "supabase" : "local" });
+}
+
+async function ensureNamedRemoteProfile(isAnonymous, displayName) {
+  if (!isRemoteCommunityContext() || isAnonymous) return;
+  await SupabaseAuthProvider.upsertProfile(displayName);
+}
+
 function renderWall(container, orgId, majorId) {
   const org = organizations.find(item => item.id === orgId);
   const major = majors.find(item => item.id === majorId);
@@ -326,6 +349,14 @@ function renderContextWall(container, context) {
       <div class="wall-canvas-wrap"><div class="wall-canvas-grid" aria-hidden="true"></div><div class="wall-canvas" id="wall-canvas" aria-live="polite"></div></div>
     </div>`;
   renderWallNotes();
+  if (context.contextType === "community" && window.CommunityDataProvider?.isRemoteRequested()) {
+    CommunityDataProvider.ready()
+      .then(() => CommunityDataProvider.refreshPosts(context.communityKey))
+      .then(() => {
+        if (wallState.contextType === "community" && wallState.communityKey === context.communityKey) renderWallNotes();
+      })
+      .catch(error => showToast(error instanceof Error ? error.message : "Community is temporarily unavailable."));
+  }
 }
 
 // UI-only display-count override for the Building Wall header, sourced from
@@ -350,6 +381,7 @@ function getContextNotes() {
   // comparison — this is what lets Global/College General/Jurusan share one
   // filter without any orgId=0/majorId=0 special-casing.
   const communityKey = wallState.communityKey;
+  if (isRemoteCommunityContext()) return CommunityDataProvider.cachedPosts(communityKey);
   return getRuntimeNotes().filter(note => {
     if (note.isHidden || note.contextType !== "community") return false;
     if (communityKey) return CommunityService.getCommunityKeyForNote(note) === communityKey;
@@ -448,10 +480,21 @@ function getSafeNoteColor(note, category) {
 // Community V2 (COM-V2-004): Question badge. Discussion posts show no
 // badge at all — only Question posts get QUESTION + OPEN/SOLVED. Building
 // Building and Map-authored building notes now use the same postType field.
-function setQuestionStatus(noteId, status) {
-  const currentUser = AuthService.getCurrentUser();
-  const note = getRuntimeNotes().find(item => Number(item.id) === Number(noteId));
+async function setQuestionStatus(noteId, status) {
+  const currentUser = getWallCurrentUser();
+  const note = findWallNote(noteId);
   if (!note || (note.isDemoSeed === true && note.isDemoSeedRuntime === true)) return;
+  if (isRemoteCommunityContext()) {
+    if (!currentUser) { requireWallAuthentication(); return; }
+    try {
+      await CommunityDataProvider.setQuestionStatus(note, status);
+      renderWallNotes();
+      openModal(noteId);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : I18n.t("common.error"));
+    }
+    return;
+  }
   // Community V2 (COM-V2-007): unified permission hook — see
   // services/permission-service.js for the full moderation-scope rules.
   if (!PermissionService.canUserMarkSolved(currentUser, note)) { showToast(I18n.t("question.notAllowed")); return; }
@@ -467,6 +510,12 @@ function getQuestionBadgeHTML(note) {
   const isSolved = note.questionStatus === "solved";
   const statusLabel = isSolved ? I18n.t("wall.solvedBadge") : I18n.t("wall.openBadge");
   return `<span class="question-badge ${isSolved ? "is-solved" : "is-open"}">❓ ${escapeHtml(I18n.t("wall.questionBadge"))} · ${escapeHtml(statusLabel)}</span>`;
+}
+
+function canShowQuestionManagement(note, currentUser) {
+  if (!note || note.postType !== "question") return false;
+  if (note.isRemote) return note.canManageQuestion === true;
+  return PermissionService.canUserMarkSolved(currentUser, note);
 }
 
 function buildNoteDOM(note, index) {
@@ -512,8 +561,11 @@ function buildNoteDOM(note, index) {
   // CommentService (the real source of truth), not the note's own cached
   // commentCount field — clicking the card still opens the Detail Modal,
   // comments never expand inline on the wall.
+  const commentCount = note.isRemote
+    ? CommunityDataProvider.commentCount(note)
+    : (window.CommentService?.getCommentCount(note.id) ?? note.commentCount ?? 0);
   const commentCountHTML = note.contextType === "community"
-    ? `<span class="note-comment-count" aria-label="Comments">💬 ${Number(window.CommentService?.getCommentCount(note.id) ?? note.commentCount ?? 0)}</span>`
+    ? `<span class="note-comment-count" aria-label="Comments">💬 ${Number(commentCount)}</span>`
     : "";
   element.innerHTML = `<div class="note-pin" aria-hidden="true"></div><div class="note-category-label">${categoryIcon} ${category.replace("campus_life", "campus life")}</div>${getQuestionBadgeHTML(note)}${imageSource ? `<div class="note-photo"><img src="${imageSource}" alt="${escapeHtml(note.imageName || "Photo attached to note")}" loading="lazy" /></div>` : ""}<div class="note-content">${escapeHtml(note.content)}</div><div class="note-footer" onclick="event.stopPropagation()"><span class="note-author">👤 ${escapeHtml(name)}</span>${commentCountHTML}${noteAction}</div>`;
   return element;
@@ -561,7 +613,7 @@ async function toggleNoteTranslation(id) {
     openModal(id);
     return;
   }
-  const note = getRuntimeNotes().find(item => Number(item.id) === Number(id));
+  const note = findWallNote(id);
   if (!note) return;
   const button = document.getElementById("modal-translate-button");
   if (button) { button.disabled = true; button.textContent = I18n.t("common.loading"); }
@@ -601,8 +653,9 @@ function buildCommentHTML(comment, isReply) {
 
 function renderCommentsSectionHTML(postId) {
   if (typeof window.CommentService === "undefined") return "";
-  const thread = CommentService.getCommentThreadForPost(postId);
-  const count = CommentService.getCommentCount(postId);
+  const remotePost = isRemoteCommunityContext() ? findWallNote(postId) : null;
+  const thread = remotePost ? CommunityDataProvider.commentThread(remotePost) : CommentService.getCommentThreadForPost(postId);
+  const count = remotePost ? CommunityDataProvider.commentCount(remotePost) : CommentService.getCommentCount(postId);
   const commentsListHTML = thread.length
     ? thread.map(comment => buildCommentHTML(comment, false) + comment.replies.map(reply => buildCommentHTML(reply, true)).join("")).join("")
     : `<p class="modal-comments-empty">${escapeHtml(I18n.t("comments.empty"))}</p>`;
@@ -623,11 +676,11 @@ function toggleCommentReplyBox(commentId) {
   document.getElementById(`reply-box-${Number(commentId)}`)?.classList.toggle("hidden");
 }
 
-function submitComment(postId, parentCommentId) {
-  const currentUser = AuthService.getCurrentUser();
+async function submitComment(postId, parentCommentId) {
+  const currentUser = getWallCurrentUser();
   // Community V2 (COM-V2-007): unified permission hook (visitors cannot
   // comment) — see services/permission-service.js.
-  if (!PermissionService.canUserComment(currentUser)) { showToast(I18n.t("wall.authRequired")); AuthUI.open("login"); return; }
+  if (!PermissionService.canUserComment(currentUser)) { requireWallAuthentication(); return; }
   const hasParent = parentCommentId !== null && parentCommentId !== undefined;
   const inputId = hasParent ? `reply-input-${Number(parentCommentId)}` : "comment-input";
   const showNameId = hasParent ? `reply-show-name-${Number(parentCommentId)}` : "comment-show-name";
@@ -637,24 +690,32 @@ function submitComment(postId, parentCommentId) {
   const showName = document.getElementById(showNameId)?.checked === true;
   const nickname = String(currentUser.displayName || "").trim();
   if (showName && !nickname) { showToast("Your account needs a display name before publishing."); return; }
+  const sendButton = input?.closest?.(".modal-comment-composer, .modal-comment-reply-box")?.querySelector?.("button");
+  if (sendButton) sendButton.disabled = true;
   try {
-    CommentService.createComment({
+    await ensureNamedRemoteProfile(!showName, nickname);
+    const payload = {
       postId: Number(postId),
       parentCommentId: hasParent ? Number(parentCommentId) : null,
       authorUserId: currentUser.id,
       isAnonymous: !showName,
       authorNickname: showName ? nickname : null,
       content,
-    });
+    };
+    const remotePost = isRemoteCommunityContext() ? findWallNote(postId) : null;
+    if (remotePost) await CommunityDataProvider.createComment(remotePost, payload);
+    else CommentService.createComment(payload);
     renderWallNotes();
     openModal(postId);
   } catch (error) {
     showToast(error instanceof Error ? error.message : I18n.t("common.error"));
+  } finally {
+    if (sendButton) sendButton.disabled = false;
   }
 }
 
 function openModal(id) {
-  const note = getRuntimeNotes().find(item => Number(item.id) === Number(id));
+  const note = findWallNote(id);
   if (!note) return;
   const overlay = document.getElementById("modal-overlay");
   const modalCard = document.getElementById("modal-card");
@@ -697,8 +758,9 @@ function openModal(id) {
   // moderator only, Question posts only. canUserMarkSolved() itself already
   // denies this for seed posts (their authorUserId never matches a real
   // signed-in user), so no separate isDemoSeed check is needed here either.
-  const currentUserForActions = AuthService.getCurrentUser();
-  const questionActionsHTML = note.postType === "question" && PermissionService.canUserMarkSolved(currentUserForActions, note)
+  const currentUserForActions = getWallCurrentUser();
+  const canShowQuestionActions = canShowQuestionManagement(note, currentUserForActions);
+  const questionActionsHTML = note.postType === "question" && canShowQuestionActions
     ? `<div class="modal-question-actions">${note.questionStatus === "solved"
         ? `<button class="btn btn-outline btn-sm" onclick="setQuestionStatus(${Number(note.id)}, 'open')">🔓 ${escapeHtml(I18n.t("question.reopen"))}</button>`
         : `<button class="btn btn-primary btn-sm" onclick="setQuestionStatus(${Number(note.id)}, 'solved')">✅ ${escapeHtml(I18n.t("question.markSolved"))}</button>`
@@ -708,6 +770,14 @@ function openModal(id) {
   overlay.classList.remove("hidden");
   document.body.classList.add("overlay-open");
   requestAnimationFrame(() => overlay.querySelector(".modal-close")?.focus());
+  if (note.isRemote && !CommunityDataProvider.commentsLoaded(note)) {
+    CommunityDataProvider.refreshComments(note)
+      .then(() => {
+        if (!document.getElementById("modal-overlay")?.classList.contains("hidden")) openModal(id);
+        renderWallNotes();
+      })
+      .catch(error => showToast(error instanceof Error ? error.message : I18n.t("common.error")));
+  }
 }
 function closeModal(event) {
   const overlay = document.getElementById("modal-overlay");
@@ -716,9 +786,21 @@ function closeModal(event) {
     overlay.classList.add("hidden"); document.body.classList.remove("overlay-open");
   }
 }
-function voteNote(id, type) {
-  const note = getRuntimeNotes().find(item => Number(item.id) === Number(id));
+async function voteNote(id, type) {
+  const note = findWallNote(id);
   if (!note || (note.isDemoSeed === true && note.isDemoSeedRuntime === true) || !["up", "down"].includes(type)) return;
+  if (note.isRemote) {
+    if (!getWallCurrentUser()) { requireWallAuthentication(); return; }
+    const value = note.userVote === type ? 0 : (type === "up" ? 1 : -1);
+    try {
+      await CommunityDataProvider.castVote(note, value);
+      renderWallNotes();
+      openModal(id);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : I18n.t("common.error"));
+    }
+    return;
+  }
   note.upvotes = Number(note.upvotes || 0); note.downvotes = Number(note.downvotes || 0);
   if (note.userVote === type) {
     if (type === "up") note.upvotes = Math.max(0, note.upvotes - 1); else note.downvotes = Math.max(0, note.downvotes - 1);
@@ -984,12 +1066,11 @@ function getComposerPostType(form) {
 }
 
 function openDrawer() {
-  const currentUser = AuthService.getCurrentUser();
+  const currentUser = getWallCurrentUser();
   // Community V2 (COM-V2-007): unified permission hook (visitors cannot
   // post) — see services/permission-service.js.
   if (!PermissionService.canUserPost(currentUser)) {
-    showToast(I18n.t("wall.authRequired"));
-    AuthUI.open("login");
+    requireWallAuthentication();
     return;
   }
   const overlay = document.getElementById("drawer-overlay");
@@ -1017,8 +1098,8 @@ function openDrawer() {
 function closeDrawer() { closeNoteSelect(); document.getElementById("drawer-overlay")?.classList.add("hidden"); document.body.classList.remove("overlay-open"); }
 async function handleFormSubmit(event) {
   event.preventDefault();
-  const currentUser = AuthService.getCurrentUser();
-  if (!PermissionService.canUserPost(currentUser)) { closeDrawer(); AuthUI.open("login"); return; }
+  const currentUser = getWallCurrentUser();
+  if (!PermissionService.canUserPost(currentUser)) { requireWallAuthentication(); return; }
   if (imageProcessing) { showToast("Please wait for the photo to finish processing."); return; }
   const currentForm = event.target;
   const content = String(currentForm.querySelector("#form-content")?.value || "").trim();
@@ -1035,6 +1116,34 @@ async function handleFormSubmit(event) {
   const submitButton = document.getElementById("note-submit");
   if (submitButton) { submitButton.disabled = true; submitButton.textContent = I18n.t("common.loading"); }
   try {
+    if (isRemoteCommunityContext()) {
+      if (pendingImageDataUrl) throw new Error("Photo posting is not available in Community staging yet. Remove the photo to continue.");
+      await ensureNamedRemoteProfile(anonymous, nickname);
+      const remoteScope = wallState.communityScope || "jurusan";
+      const remoteOrgId = remoteScope === "global" ? null : wallState.orgId;
+      const remoteMajorId = remoteScope === "jurusan" ? wallState.majorId : null;
+      const remoteCommunityKey = CommunityService.isValidCommunityKey(wallState.communityKey)
+        ? wallState.communityKey
+        : CommunityService.getCommunityKey(remoteScope, remoteOrgId, remoteMajorId);
+      await CommunityDataProvider.createPost({
+        communityKey: remoteCommunityKey,
+        postType: getComposerPostType(currentForm),
+        content,
+        category: safeCategory,
+        shape: SHAPES.includes(shape) ? shape : "rounded",
+        color,
+        rotation: Math.floor(Math.random() * 5) - 2,
+        positionX: 10,
+        positionY: 15,
+        isAnonymous: anonymous,
+        imageDataUrl: "",
+        imageUrl: "",
+      });
+      closeDrawer();
+      renderWallNotes();
+      showToast("Note pinned to the Community wall!");
+      return;
+    }
     const upload = pendingImageDataUrl ? await CloudinaryAdapter.uploadCompressedDataUrl(pendingImageDataUrl, { contextType: wallState.contextType, placeId: wallState.placeId || "" }) : null;
     const id = nextId++;
     // Community V2 (COM-V2-003, pulled forward from COM-V2-004's flagged
@@ -1107,3 +1216,9 @@ function showToast(message) {
 window.addEventListener("keydown", event => { if (event.key === "Escape") { closeModal(); closeDrawer(); } });
 let wallResizeTimer;
 window.addEventListener("resize", () => { clearTimeout(wallResizeTimer); wallResizeTimer = setTimeout(() => { if (document.getElementById("wall-canvas")) renderWallNotes(); }, 160); });
+window.addEventListener("echo:communityauthchange", () => {
+  if (!isRemoteCommunityContext() || !wallState.communityKey) return;
+  CommunityDataProvider.refreshPosts(wallState.communityKey)
+    .then(renderWallNotes)
+    .catch(error => showToast(error instanceof Error ? error.message : I18n.t("common.error")));
+});
