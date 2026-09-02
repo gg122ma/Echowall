@@ -56,6 +56,7 @@ const RUNTIME_FILES = [
   "services/cloudinary-adapter.js",
   "services/comment-service.js",
   "services/community-data-provider.js",
+  "services/community-realtime-service.js",
   "services/community-row-adapter.js",
   "services/community-service.js",
   "services/community-supabase-client.js",

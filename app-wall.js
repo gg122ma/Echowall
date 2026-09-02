@@ -17,6 +17,10 @@ const NOTE_COLOR_PRESETS = Object.freeze([
 let pendingImageDataUrl = "";
 let pendingImageName = "";
 let imageProcessing = false;
+// BACKEND V2.2: id of the note currently shown in the detail modal, so the
+// realtime signal listener knows which open post thread (if any) to
+// refetch comments for. Set in openModal(), cleared in closeModal().
+let openModalNoteId = null;
 
 function dataUrlByteSize(dataUrl) {
   const base64 = String(dataUrl || "").split(",")[1] || "";
@@ -258,10 +262,12 @@ function renderCommunityCollegeGeneralWall(container, orgId) {
 }
 
 function leaveContextWall(backPath) {
+  window.CommunityRealtimeService?.unsubscribeAll();
   navigate(backPath);
 }
 
 function leaveBuildingWall(placeId) {
+  window.CommunityRealtimeService?.unsubscribeAll();
   const building = getCampusBuilding(placeId);
   const fallbackPath = building ? `#/place/${encodeURIComponent(building.id)}` : "#/places";
   if (history.length > 1) {
@@ -298,6 +304,10 @@ function renderContextWall(container, context) {
   // note's own orgId/majorId for Global/College General (see handleFormSubmit).
   wallState.communityScope = context.communityScope || null;
   wallState.communityKey = context.communityKey || "";
+  // BACKEND V2.2: any previously subscribed scope stops mattering as soon as
+  // we render a different wall — drop it before (re)subscribing below so a
+  // stale scope never triggers a refetch on a page the user has left.
+  window.CommunityRealtimeService?.unsubscribeScope();
   const contextNotes = getContextNotes();
   const visibleCount = wallDisplayNoteCount(contextNotes.length);
   const backAction = context.contextType === "building"
@@ -356,6 +366,11 @@ function renderContextWall(container, context) {
         if (wallState.contextType === "community" && wallState.communityKey === context.communityKey) renderWallNotes();
       })
       .catch(error => showToast(error instanceof Error ? error.message : "Community is temporarily unavailable."));
+    // BACKEND V2.2: listen for safe change signals scoped to this wall.
+    // Purely additive — if the realtime signal table/publication isn't
+    // live yet, this subscribe attempt degrades to a no-op and existing
+    // mutate-then-refetch behavior is unaffected.
+    window.CommunityRealtimeService?.subscribeToScope(context.communityKey);
   }
 }
 
@@ -717,6 +732,8 @@ async function submitComment(postId, parentCommentId) {
 function openModal(id) {
   const note = findWallNote(id);
   if (!note) return;
+  openModalNoteId = Number(id);
+  if (note.isRemote) window.CommunityRealtimeService?.subscribeToPost(note.remoteId);
   const overlay = document.getElementById("modal-overlay");
   const modalCard = document.getElementById("modal-card");
   const content = document.getElementById("modal-content");
@@ -784,6 +801,8 @@ function closeModal(event) {
   if (!overlay) return;
   if (!event || event.target === overlay || event.target.classList.contains("modal-close")) {
     overlay.classList.add("hidden"); document.body.classList.remove("overlay-open");
+    openModalNoteId = null;
+    window.CommunityRealtimeService?.unsubscribePost();
   }
 }
 async function voteNote(id, type) {
@@ -1221,4 +1240,55 @@ window.addEventListener("echo:communityauthchange", () => {
   CommunityDataProvider.refreshPosts(wallState.communityKey)
     .then(renderWallNotes)
     .catch(error => showToast(error instanceof Error ? error.message : I18n.t("common.error")));
+});
+
+// BACKEND V2.2 — Community realtime wiring.
+//
+// This is the ONLY place app-wall.js reacts to CommunityRealtimeService.
+// The handlers below never read a raw Community row: they only receive the
+// sanitized {eventType, scopeType, ...} signal shape from
+// CommunityRealtimeService and, in response, call the exact same
+// CommunityDataProvider.refreshPosts()/refreshComments() functions the
+// existing mutate-then-refetch flows already use — no second cache, no new
+// CRUD path.
+function refetchOpenModalCommentsIfAny() {
+  if (openModalNoteId == null) return;
+  const post = findWallNote(openModalNoteId);
+  if (!post || !post.isRemote) return;
+  CommunityDataProvider.refreshComments(post)
+    .then(() => {
+      const overlay = document.getElementById("modal-overlay");
+      if (overlay && !overlay.classList.contains("hidden") && openModalNoteId != null) openModal(openModalNoteId);
+    })
+    .catch(() => {});
+}
+
+window.addEventListener(window.CommunityRealtimeService?.SIGNAL_EVENT || "echo:community-realtime-signal", event => {
+  if (!isRemoteCommunityContext()) return;
+  const { reason } = event.detail || {};
+  if (reason === "scope" && wallState.communityKey) {
+    CommunityDataProvider.refreshPosts(wallState.communityKey)
+      .then(renderWallNotes)
+      .catch(() => {});
+  }
+  if (reason === "post") {
+    refetchOpenModalCommentsIfAny();
+    // A vote/solve/reopen on the open post also changes its score/status
+    // card on the wall itself, not just inside the modal.
+    if (wallState.communityKey) {
+      CommunityDataProvider.refreshPosts(wallState.communityKey)
+        .then(renderWallNotes)
+        .catch(() => {});
+    }
+  }
+});
+
+window.addEventListener(window.CommunityRealtimeService?.RECONNECT_EVENT || "echo:community-realtime-reconnect", () => {
+  // Never assume a dropped connection didn't miss anything — one
+  // authoritative refetch on reconnect, same as any other refresh trigger.
+  if (!isRemoteCommunityContext() || !wallState.communityKey) return;
+  CommunityDataProvider.refreshPosts(wallState.communityKey)
+    .then(renderWallNotes)
+    .catch(() => {});
+  refetchOpenModalCommentsIfAny();
 });
