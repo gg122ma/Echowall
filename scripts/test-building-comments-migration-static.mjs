@@ -120,8 +120,8 @@ assert(
 );
 
 // --- 5. Privacy: comments_public view exposes no new sensitive column -----
-const viewMatch = activeCode.match(/create view api\.comments_public[\s\S]*?from app\.comments as c/);
-assert(Boolean(viewMatch), "api.comments_public view definition must be present");
+const viewMatch = activeCode.match(/create or replace view api\.comments_public[\s\S]*?from app\.comments as c/);
+assert(Boolean(viewMatch), "api.comments_public view definition must be present as CREATE OR REPLACE VIEW");
 if (viewMatch) {
   const projection = viewMatch[0];
   for (const forbidden of ["owner_user_id", "email", "auth.uid", "user_id"]) {
@@ -138,6 +138,65 @@ if (viewMatch) {
   ]) {
     assert(projection.includes(expected), `api.comments_public projection must keep column ${expected}`);
   }
+}
+
+// --- 5b. ENGINE-SAFE VIEW REPLACEMENT (this round's fix) -------------------
+// A trusted production Postgres engine review rejected the original
+// `drop view if exists api.comments_public; create view ...` draft with
+// 2BP01 (dependent objects: api.create_comment/api.create_reply both
+// `returns setof api.comments_public`). These checks fail loudly if that
+// unsafe pattern, or any CASCADE, ever reappears in the active migration
+// body, and require the engine-verified owner-preserving replacement.
+assert(
+  !/drop\s+view\s+(if\s+exists\s+)?api\.comments_public/i.test(activeCode),
+  "active migration code must NEVER drop api.comments_public (dependent functions api.create_comment/api.create_reply would break or, under CASCADE, be silently dropped)"
+);
+assert(!/cascade/i.test(activeCode), "active migration code must never use CASCADE anywhere");
+assert(
+  activeCode.includes("create or replace view api.comments_public"),
+  "api.comments_public must be replaced via CREATE OR REPLACE VIEW, never dropped and recreated"
+);
+assert(
+  activeCode.includes("grant create on schema api to echowall_api_viewer;"),
+  "must temporarily grant CREATE on schema api to echowall_api_viewer so it can replace its own view"
+);
+assert(
+  activeCode.includes("grant echowall_api_viewer to current_user with set true;"),
+  "must temporarily grant echowall_api_viewer membership (WITH SET TRUE) to the executing role"
+);
+assert(
+  activeCode.includes("set local role echowall_api_viewer;"),
+  "must SET LOCAL ROLE to the view's owner before replacing it (SET LOCAL, not a bare SET, so it cannot leak past this transaction)"
+);
+assert(activeCode.includes("reset role;"), "must RESET ROLE after the view replacement");
+assert(
+  activeCode.includes("revoke set option for echowall_api_viewer from current_user;"),
+  "must revoke the temporary SET-option membership so the privilege state round-trips to its pre-migration value"
+);
+assert(
+  activeCode.includes("revoke create on schema api from echowall_api_viewer;"),
+  "must revoke the temporary CREATE-on-schema-api grant so the privilege state round-trips to its pre-migration value"
+);
+// Ordering: the elevation must come before the CREATE OR REPLACE VIEW, and
+// the revocation must come after it — otherwise the statement would run
+// under insufficient privilege or the elevation would be left dangling.
+{
+  const grantIdx = activeCode.indexOf("grant create on schema api to echowall_api_viewer;");
+  const setRoleIdx = activeCode.indexOf("set local role echowall_api_viewer;");
+  const viewIdx = activeCode.indexOf("create or replace view api.comments_public");
+  const resetIdx = activeCode.indexOf("reset role;");
+  const revokeCreateIdx = activeCode.lastIndexOf("revoke create on schema api from echowall_api_viewer;");
+  assert(
+    grantIdx !== -1 && grantIdx < setRoleIdx && setRoleIdx < viewIdx && viewIdx < resetIdx && resetIdx < revokeCreateIdx,
+    "privilege elevation must strictly bracket the view replacement in this order: grant create -> set local role -> create or replace view -> reset role -> revoke create"
+  );
+}
+// No dependent API function may ever be dropped by this migration.
+for (const fn of ["api.create_comment", "api.create_reply"]) {
+  assert(
+    !new RegExp(`drop\\s+function\\s+(if\\s+exists\\s+)?${fn.replace(".", "\\.")}`, "i").test(activeCode),
+    `active migration code must never drop ${fn} (it depends on api.comments_public's row type)`
+  );
 }
 
 // --- 6. Grants match the project's existing explicit revoke+grant style ---

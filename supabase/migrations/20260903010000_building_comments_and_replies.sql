@@ -5,6 +5,27 @@
 -- Do NOT run this against production Supabase without explicit authorization
 -- from the project owner.
 --
+-- REVISION NOTE (this round) — a trusted production Postgres engine review
+-- of the FIRST draft of this file found it could not be applied as written:
+-- that draft used `drop view if exists api.comments_public; create view
+-- ...`, which fails with 2BP01 ("cannot drop view api.comments_public
+-- because other objects depend on it") — api.create_comment and
+-- api.create_reply both `returns setof api.comments_public`, making them
+-- dependents of the view's row type; `drop ... cascade` would have silently
+-- dropped both functions. The engine review also found that a plain
+-- `create or replace view api.comments_public` (no drop) fails separately
+-- with 42501 ("must be owner of view comments_public"), because the view is
+-- owned by echowall_api_viewer, not the migration's executing role
+-- (postgres), and echowall_api_viewer has no CREATE privilege on schema api.
+-- Section 3 below now uses the engine-verified owner-preserving fix: a
+-- temporary, fully self-revoking privilege elevation (grant create on
+-- schema api + grant echowall_api_viewer to current_user with set true +
+-- set local role) scoped to the single `create or replace view` statement,
+-- reproducing the exact pattern 20260830000700_api_views.sql itself already
+-- used to create every api.* view originally. No other object in this
+-- migration (items 1, 2, 4, 5 below) was affected by this finding or
+-- changed in this revision.
+--
 -- PURPOSE
 -- Remove the Building-specific exclusion from the EXISTING canonical comment
 -- model (app.comments / api.create_comment / api.create_reply /
@@ -260,11 +281,46 @@ revoke execute on function api.create_reply(uuid, text, app.display_author_mode)
 grant execute on function api.create_reply(uuid, text, app.display_author_mode) to authenticated, service_role;
 
 -- 3. api.comments_public view -------------------------------------------------
--- Verbatim reproduction of the live-current definition from
--- 20260830000700_api_views.sql, minus the `and p.scope_type <> 'building'`
--- predicate only. Every projected column is unchanged.
-drop view if exists api.comments_public;
-create view api.comments_public
+-- ENGINE-VERIFIED FIX (this round): the original draft used
+-- `drop view if exists api.comments_public; create view ...`. A trusted
+-- production Postgres engine review rejected this with 2BP01 ("cannot drop
+-- view api.comments_public because other objects depend on it") —
+-- api.create_comment(uuid, text, app.display_author_mode) and
+-- api.create_reply(uuid, text, app.display_author_mode) both declare
+-- `returns setof api.comments_public`, making them dependents of the view's
+-- composite row type. `drop ... cascade` would have silently dropped both
+-- functions, which is unacceptable and is never used anywhere in this
+-- migration.
+--
+-- `create or replace view` avoids the dependency break entirely (the row
+-- type is preserved across a REPLACE as long as the column list/order/types
+-- are unchanged, which they are here — this migration adds no column,
+-- removes no column, and reorders nothing). But a plain
+-- `create or replace view api.comments_public`, run as this migration's
+-- executing role (postgres), still fails with 42501 ("must be owner of view
+-- comments_public"): the view's live-current owner is echowall_api_viewer,
+-- not postgres (20260830000700_api_views.sql's own header comment: "The
+-- views deliberately use a dedicated non-login view owner rather than
+-- security_invoker"), and echowall_api_viewer's live-current CREATE
+-- privilege on schema api is false (only USAGE is granted).
+--
+-- Fix: temporarily reproduce the exact privilege-elevation pattern
+-- 20260830000700_api_views.sql itself already uses to CREATE every api.*
+-- view in the first place (grant create on schema api to
+-- echowall_api_viewer; grant echowall_api_viewer to current_user; run the
+-- DDL; revoke both) — engine-verified inside a trusted BEGIN/ROLLBACK
+-- transaction against production Postgres 17.6 this round, confirmed to
+-- leave echowall_api_viewer's CREATE-on-schema-api privilege and
+-- postgres's SET-option membership in echowall_api_viewer both back at
+-- their pre-migration `false` state after the elevation is revoked. `set
+-- local role` (not a bare `set role`) is used so the role change is scoped
+-- to this transaction and cannot leak into any later statement even if the
+-- explicit `reset role` below were somehow skipped.
+grant create on schema api to echowall_api_viewer;
+grant echowall_api_viewer to current_user with set true;
+set local role echowall_api_viewer;
+
+create or replace view api.comments_public
 with (security_barrier = true)
 as
 select
@@ -283,8 +339,20 @@ where c.moderation_status = 'published'
   and p.moderation_status = 'published';
 
 comment on view api.comments_public is 'Sanitized comment projection (Community and Building Wall); never exposes owner_user_id.';
+-- Run while still SET LOCAL ROLE echowall_api_viewer (the view's owner), so
+-- this GRANT never depends on postgres's own privileges on the view.
+-- CREATE OR REPLACE VIEW already preserves existing ACLs when the column
+-- list is unchanged (it is, here), so this is redundant-but-explicit,
+-- matching this project's own belt-and-suspenders grant style rather than
+-- silently relying on that preservation behavior.
 grant select on api.comments_public to anon, authenticated;
-alter view api.comments_public owner to echowall_api_viewer;
+-- No `alter view ... owner to echowall_api_viewer` is needed here (unlike
+-- the original draft): the view is being replaced BY its own existing
+-- owner via the role switch above, so ownership never changes hands.
+
+reset role;
+revoke set option for echowall_api_viewer from current_user;
+revoke create on schema api from echowall_api_viewer;
 
 -- 4. comments_api_public_read RLS policy -------------------------------------
 -- Verbatim reproduction of the live-current policy from
@@ -544,8 +612,14 @@ commit;
 --   end;
 --   $$;
 --
---   drop view if exists api.comments_public;
---   create view api.comments_public with (security_barrier = true) as
+--   -- Same engine-verified owner-preserving wrapper used in section 3 above
+--   -- (NEVER drop this view — api.create_comment/api.create_reply both
+--   -- `returns setof api.comments_public` and would be dropped by CASCADE).
+--   grant create on schema api to echowall_api_viewer;
+--   grant echowall_api_viewer to current_user with set true;
+--   set local role echowall_api_viewer;
+--
+--   create or replace view api.comments_public with (security_barrier = true) as
 --   select c.id, c.post_id, c.parent_comment_id,
 --     case when c.parent_comment_id is null then 0 else 1 end as depth,
 --     c.content, c.display_author_mode,
@@ -555,7 +629,10 @@ commit;
 --   where c.moderation_status = 'published' and p.moderation_status = 'published' and p.scope_type <> 'building';
 --   comment on view api.comments_public is 'Sanitized Community-only comment projection; never exposes owner_user_id.';
 --   grant select on api.comments_public to anon, authenticated;
---   alter view api.comments_public owner to echowall_api_viewer;
+--
+--   reset role;
+--   revoke set option for echowall_api_viewer from current_user;
+--   revoke create on schema api from echowall_api_viewer;
 --
 --   drop policy if exists comments_api_public_read on app.comments;
 --   create policy comments_api_public_read on app.comments for select to echowall_api_viewer
