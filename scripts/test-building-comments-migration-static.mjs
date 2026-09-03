@@ -8,18 +8,28 @@
 // exactly the Building exclusion from the 5 objects it targets, and does
 // not touch anything else (no new table, no new publication entry, no
 // weakened privacy column, no changed reply-depth rule).
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MIGRATION_PATH = path.join(
-  __dirname,
-  "..",
-  "supabase",
-  "migrations",
-  "20260903010000_building_comments_and_replies.sql"
-);
+const MIGRATIONS_DIR = path.join(__dirname, "..", "supabase", "migrations");
+
+// The Supabase CLI renames an applied migration's timestamp PREFIX to match
+// the ledger's applied version once it lands in production (see V2.2's
+// 20260902162437_20260902120000_community_realtime_signal.sql for the exact
+// same precedent) — the descriptive SUFFIX is preserved verbatim. Matching
+// by suffix, rather than hardcoding either the pre- or post-alignment full
+// filename, keeps this test correct across that expected one-time rename
+// instead of silently pointing at a file that no longer exists.
+const MIGRATION_SUFFIX = "_building_comments_and_replies.sql";
+const candidates = readdirSync(MIGRATIONS_DIR).filter(name => name.endsWith(MIGRATION_SUFFIX));
+if (candidates.length !== 1) {
+  throw new Error(
+    `Expected exactly one migration file ending in "${MIGRATION_SUFFIX}" in ${MIGRATIONS_DIR}, found ${candidates.length}: ${JSON.stringify(candidates)}`
+  );
+}
+const MIGRATION_PATH = path.join(MIGRATIONS_DIR, candidates[0]);
 
 const fullText = readFileSync(MIGRATION_PATH, "utf8");
 
