@@ -192,7 +192,14 @@ check("Never-public comment transitions still return without a signal", /if not 
 
 const wallSource = fs.readFileSync(path.join(ROOT, "app-wall.js"), "utf8");
 check("Community cards display comment-derived state", /note-comment-count/.test(wallSource) && /CommunityDataProvider\.commentCount\(note\)/.test(wallSource));
-check("Scope signals refresh wall cards", /reason === "scope"[\s\S]*CommunityDataProvider\.refreshPosts/.test(wallSource));
+// BACKEND V2.3: the scope-refetch call was factored out into a shared
+// refetchCurrentWall() (reused by Building too), so the direct
+// `reason === "scope" ... refreshPosts` adjacency check from V2.2 no longer
+// holds textually — assert the same behavior via the new indirection: the
+// SIGNAL_EVENT listener calls refetchCurrentWall() after "scope", and
+// refetchCurrentWall() itself still calls CommunityDataProvider.refreshPosts.
+check("Scope signals refresh wall cards", /reason === "scope"[\s\S]*refetchCurrentWall\(\)/.test(wallSource)
+  && /function refetchCurrentWall[\s\S]*?CommunityDataProvider\.refreshPosts/.test(wallSource));
 check("Open-post signals refresh comments", /reason === "post"[\s\S]*refetchOpenModalCommentsIfAny\(\)/.test(wallSource));
 
 const failed = results.filter(result => !result.pass);

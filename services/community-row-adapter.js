@@ -62,9 +62,16 @@
   }
 
   function scopeFromRow(row) {
-    if (row?.scope_type === "all_km") return { communityScope: "global", communityKey: "global:all", orgId: null, majorId: null };
-    if (row?.scope_type === "college") return { communityScope: "college", communityKey: `college:${Number(row.college_id)}`, orgId: Number(row.college_id), majorId: null };
-    if (row?.scope_type === "jurusan") return { communityScope: "jurusan", communityKey: `jurusan:${Number(row.college_id)}:${Number(row.jurusan_id)}`, orgId: Number(row.college_id), majorId: Number(row.jurusan_id) };
+    if (row?.scope_type === "all_km") return { contextType: "community", communityScope: "global", communityKey: "global:all", orgId: null, majorId: null, placeId: "" };
+    if (row?.scope_type === "college") return { contextType: "community", communityScope: "college", communityKey: `college:${Number(row.college_id)}`, orgId: Number(row.college_id), majorId: null, placeId: "" };
+    if (row?.scope_type === "jurusan") return { contextType: "community", communityScope: "jurusan", communityKey: `jurusan:${Number(row.college_id)}:${Number(row.jurusan_id)}`, orgId: Number(row.college_id), majorId: Number(row.jurusan_id), placeId: "" };
+    // BACKEND V2.3: a Building post is never Community content — contextType
+    // "building" (not "community") is what already makes app-wall.js's own
+    // `note.contextType === "community" ? renderCommentsSectionHTML(...) : ""`
+    // gate correctly hide comment/reply UI for these rows with zero UI
+    // changes, exactly like a local Building note today. building_id is the
+    // canonical DB key (e.g. "B_PUSTAKA") verbatim — never cased/prefixed.
+    if (row?.scope_type === "building") return { contextType: "building", communityScope: null, communityKey: null, orgId: Number(row.college_id), majorId: null, placeId: String(row.building_id || "") };
     throw new Error("Community returned an unsupported scope.");
   }
 
@@ -73,7 +80,7 @@
     const named = row.display_author_mode === "named";
     return Object.freeze({
       id: stableUiId("post", row.id), remoteId: String(row.id), schemaVersion: 4,
-      contextType: "community", ...scope, batchId: null, placeId: "",
+      contextType: "community", placeId: "", ...scope, batchId: null,
       postType: row.post_type === "question" ? "question" : "discussion",
       questionStatus: row.post_type === "question" && row.question_status === "solved" ? "solved" : (row.post_type === "question" ? "open" : null),
       canManageQuestion: row.can_manage_question === true,

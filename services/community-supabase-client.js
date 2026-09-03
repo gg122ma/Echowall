@@ -29,14 +29,21 @@
     return LOOPBACK_HOSTS.has(String(window.location?.hostname || "").toLowerCase());
   }
 
+  // BACKEND V2.3: map.html is a second first-party production page (the
+  // campus Map, same repo/deploy as index.html) that now also needs
+  // Community-Supabase activation for Map Post Directly + Building-anchored
+  // reads. This adds exactly one more literal path under the SAME required
+  // origin+basePath check below — it does not loosen the match strategy
+  // (still exact string equality, no prefix/wildcard) and does not admit
+  // any origin V2.2 didn't already require. V2.2 only ever needed
+  // index.html, so map.html was simply never added to this allowlist yet.
   function isCanonicalProduction() {
     const production = productionBoundary();
     const origin = String(window.location?.origin || "");
     const pathname = String(window.location?.pathname || "");
     const basePath = String(production.basePath || "");
-    return origin === production.origin
-      && basePath === "/Echowall/"
-      && (pathname === basePath || pathname === `${basePath}index.html`);
+    if (origin !== production.origin || basePath !== "/Echowall/") return false;
+    return pathname === basePath || pathname === `${basePath}index.html` || pathname === `${basePath}map.html`;
   }
 
   function isStagingRequested() {

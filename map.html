@@ -160,6 +160,12 @@
   </main>
 
   <script src="config/app-config.js"></script>
+  <!-- BACKEND V2.3: Community-Supabase stack, added so Map Post Directly +
+       Building-anchored public reads can reuse the exact same client/data-
+       provider/repositories/Realtime service Community and Building Wall
+       already use (no second backend implementation). Positions mirror
+       index.html's relative ordering for the same files. -->
+  <script src="services/community-supabase-client.js"></script>
   <script src="i18n/locales/en.js"></script>
   <script src="i18n/locales/ms.js"></script>
   <script src="i18n/locales/zh.js"></script>
@@ -167,6 +173,7 @@
   <script src="services/theme-service.js"></script>
   <script src="services/preferences-ui.js"></script>
   <script src="services/auth-service.js"></script>
+  <script src="services/supabase-auth-provider.js"></script>
   <script src="services/auth-ui.js"></script>
   <script src="data/campus-buildings.js"></script>
   <script src="data/demo-display-counts.js"></script>
@@ -176,6 +183,10 @@
   <script src="./data/demo-seed-bundle.v1.js"></script>
   <script src="data/demo-seed-all-student-km.v1.js"></script>
   <script src="app-data.js"></script>
+  <script src="services/community-row-adapter.js"></script>
+  <script src="services/community-supabase-repositories.js"></script>
+  <script src="services/community-data-provider.js"></script>
+  <script src="services/community-realtime-service.js"></script>
   <script src="services/map-note-service.js"></script>
   <script src="app-router.js"></script>
   <script src="app-campus-map.js"></script>

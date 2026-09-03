@@ -1,9 +1,15 @@
-/** Hybrid router: Community may be remote; Building, Map, and Study remain local. */
+/** Hybrid router: Community/Building/Map may be remote; Study remains local. */
 (function () {
   function activation() { return window.CommunitySupabaseClient.getActivationState(); }
   function isRemoteRequested() { return activation().mode !== "local"; }
+  // BACKEND V2.3: Building and Map now route to Supabase whenever remote
+  // mode is active — same "supabase requested" gate Community already uses.
+  // Building comments/replies stay local-only architecture regardless (this
+  // function documents routing for posts, not the comment feature, which
+  // is disabled for Building at the UI/DB layer instead — see app-wall.js
+  // and api.comments_public's own scope_type<>'building' filter).
   function routeFor(contextType, scope) {
-    if (contextType === "building" || contextType === "map") return "local";
+    if (contextType === "building" || contextType === "map") return isRemoteRequested() ? "supabase" : "local";
     if (contextType === "study") return "unchanged";
     if (contextType === "community" && ["global", "college", "jurusan"].includes(scope)) return isRemoteRequested() ? "supabase" : "local";
     return "local";
@@ -28,5 +34,13 @@
     refreshComments: post => repository().comments.list(post),
     createComment: (post, input) => repository().comments.create(post, input),
     castVote: (post, value) => repository().votes.cast(post, value),
+    // BACKEND V2.3 — Building Wall
+    cachedBuildingPosts: (collegeId, buildingId) => repository().posts.cachedBuilding(collegeId, buildingId),
+    refreshBuildingPosts: (collegeId, buildingId) => repository().posts.listBuilding(collegeId, buildingId),
+    createBuildingPost: input => repository().posts.createBuilding(input),
+    // BACKEND V2.3 — Map Post Directly (same canonical app.posts + app.post_map_anchors, never a second table)
+    cachedMapAnchors: collegeId => repository().mapAnchors.cached(collegeId),
+    refreshMapAnchors: collegeId => repository().mapAnchors.list(collegeId),
+    createMapPost: input => repository().mapAnchors.create(input),
   });
 })();

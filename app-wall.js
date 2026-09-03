@@ -190,22 +190,36 @@ function isRemoteCommunityContext() {
   return wallState.contextType === "community" && window.CommunityDataProvider?.isRemoteRequested() === true;
 }
 
+// BACKEND V2.3: Building Wall's Supabase equivalent of isRemoteCommunityContext().
+// Kept as a separate function (not folded into isRemoteCommunityContext)
+// because several call sites below still need to know specifically whether
+// the CURRENT WALL is Community (for communityKey-shaped refetch logic) —
+// isRemoteWallContext() is the broader "is this post backed by Supabase at
+// all" check those call sites use instead.
+function isRemoteBuildingContext() {
+  return wallState.contextType === "building" && window.CommunityDataProvider?.isRemoteRequested() === true;
+}
+
+function isRemoteWallContext() {
+  return isRemoteCommunityContext() || isRemoteBuildingContext();
+}
+
 function getWallCurrentUser() {
-  return isRemoteCommunityContext() ? CommunityDataProvider.getCurrentUser() : AuthService.getCurrentUser();
+  return isRemoteWallContext() ? CommunityDataProvider.getCurrentUser() : AuthService.getCurrentUser();
 }
 
 function findWallNote(noteId) {
-  if (isRemoteCommunityContext()) return CommunityDataProvider.findPost(noteId);
+  if (isRemoteWallContext()) return CommunityDataProvider.findPost(noteId);
   return getRuntimeNotes().find(item => Number(item.id) === Number(noteId));
 }
 
 function requireWallAuthentication() {
   showToast(I18n.t("wall.authRequired"));
-  AuthUI.open("login", { provider: isRemoteCommunityContext() ? "supabase" : "local" });
+  AuthUI.open("login", { provider: isRemoteWallContext() ? "supabase" : "local" });
 }
 
 async function ensureNamedRemoteProfile(isAnonymous, displayName) {
-  if (!isRemoteCommunityContext() || isAnonymous) return;
+  if (!isRemoteWallContext() || isAnonymous) return;
   await SupabaseAuthProvider.upsertProfile(displayName);
 }
 
@@ -371,6 +385,21 @@ function renderContextWall(container, context) {
     // live yet, this subscribe attempt degrades to a no-op and existing
     // mutate-then-refetch behavior is unaffected.
     window.CommunityRealtimeService?.subscribeToScope(context.communityKey);
+  } else if (context.contextType === "building" && window.CommunityDataProvider?.isRemoteRequested()) {
+    // BACKEND V2.3 — Building Wall Supabase read, mirroring the Community
+    // block above exactly (ready -> refetch -> render-if-still-current ->
+    // subscribe). window.KMK_COLLEGE_ID is the one shared source of truth
+    // for "which college owns the currently-populated Building directory"
+    // (see app-data.js) — never a scattered literal 1.
+    const collegeId = window.KMK_COLLEGE_ID;
+    const buildingId = context.placeId;
+    CommunityDataProvider.ready()
+      .then(() => CommunityDataProvider.refreshBuildingPosts(collegeId, buildingId))
+      .then(() => {
+        if (wallState.contextType === "building" && wallState.placeId === buildingId) renderWallNotes();
+      })
+      .catch(error => showToast(error instanceof Error ? error.message : "Building Wall is temporarily unavailable."));
+    window.CommunityRealtimeService?.subscribeToBuildingScope(collegeId, buildingId);
   }
 }
 
@@ -390,7 +419,15 @@ function wallDisplayNoteCount(realCount) {
 }
 
 function getContextNotes() {
-  if (wallState.contextType === "building") return getVisibleBuildingNotes(wallState.placeId);
+  if (wallState.contextType === "building") {
+    // BACKEND V2.3: remote mode reads Building posts from Supabase (server-
+    // side filtered on scope_type/college_id/building_id already, inside
+    // listBuildingPosts — never fetched globally then browser-filtered);
+    // local fallback is untouched, exactly like Community's own
+    // isRemoteCommunityContext() ? cachedPosts() : local-array-filter split.
+    if (isRemoteBuildingContext()) return CommunityDataProvider.cachedBuildingPosts(window.KMK_COLLEGE_ID, wallState.placeId);
+    return getVisibleBuildingNotes(wallState.placeId);
+  }
   // Community V2 (COM-V2-003): filter by communityKey (global:all/college:{orgId}/
   // jurusan:{orgId}:{majorId}) via CommunityService, not raw orgId/majorId
   // comparison — this is what lets Global/College General/Jurusan share one
@@ -499,7 +536,11 @@ async function setQuestionStatus(noteId, status) {
   const currentUser = getWallCurrentUser();
   const note = findWallNote(noteId);
   if (!note || (note.isDemoSeed === true && note.isDemoSeedRuntime === true)) return;
-  if (isRemoteCommunityContext()) {
+  // BACKEND V2.3: dispatch on the found post's own isRemote flag (same
+  // pattern voteNote() already uses below) rather than the page-level
+  // isRemoteCommunityContext() check, so a remote Building question's
+  // solve/reopen routes through CommunityDataProvider too.
+  if (note.isRemote) {
     if (!currentUser) { requireWallAuthentication(); return; }
     try {
       await CommunityDataProvider.setQuestionStatus(note, status);
@@ -787,7 +828,13 @@ function openModal(id) {
   overlay.classList.remove("hidden");
   document.body.classList.add("overlay-open");
   requestAnimationFrame(() => overlay.querySelector(".modal-close")?.focus());
-  if (note.isRemote && !CommunityDataProvider.commentsLoaded(note)) {
+  // BACKEND V2.3: comments stay Community-only (Building comments are
+  // structurally disabled — api.comments_public excludes scope_type=
+  // 'building' and create_reply/create_comment reject it too), so gate this
+  // fetch on contextType, not just isRemote, to avoid a wasted network call
+  // for a remote Building post (which renderCommentsSectionHTML already
+  // never renders a composer for).
+  if (note.isRemote && note.contextType === "community" && !CommunityDataProvider.commentsLoaded(note)) {
     CommunityDataProvider.refreshComments(note)
       .then(() => {
         if (!document.getElementById("modal-overlay")?.classList.contains("hidden")) openModal(id);
@@ -1163,6 +1210,32 @@ async function handleFormSubmit(event) {
       showToast("Note pinned to the Community wall!");
       return;
     }
+    if (isRemoteBuildingContext()) {
+      // BACKEND V2.3 — Building Wall Supabase create. Same api.create_post
+      // RPC Community uses, scope_type="building", building_id passed
+      // verbatim (wallState.placeId is already the canonical DB key, e.g.
+      // "B_PUSTAKA" — see services/community-service.js's Building Scope
+      // Key comment on why no case/prefix conversion happens anywhere).
+      if (pendingImageDataUrl) throw new Error("Photo posting is not available in Community staging yet. Remove the photo to continue.");
+      await ensureNamedRemoteProfile(anonymous, nickname);
+      await CommunityDataProvider.createBuildingPost({
+        collegeId: window.KMK_COLLEGE_ID,
+        buildingId: wallState.placeId,
+        postType: getComposerPostType(currentForm),
+        content,
+        category: safeCategory,
+        shape: SHAPES.includes(shape) ? shape : "rounded",
+        color,
+        rotation: Math.floor(Math.random() * 5) - 2,
+        positionX: 10,
+        positionY: 15,
+        isAnonymous: anonymous,
+      });
+      closeDrawer();
+      renderWallNotes();
+      showToast("Note pinned to the Building wall!");
+      return;
+    }
     const upload = pendingImageDataUrl ? await CloudinaryAdapter.uploadCompressedDataUrl(pendingImageDataUrl, { contextType: wallState.contextType, placeId: wallState.placeId || "" }) : null;
     const id = nextId++;
     // Community V2 (COM-V2-003, pulled forward from COM-V2-004's flagged
@@ -1236,10 +1309,17 @@ window.addEventListener("keydown", event => { if (event.key === "Escape") { clos
 let wallResizeTimer;
 window.addEventListener("resize", () => { clearTimeout(wallResizeTimer); wallResizeTimer = setTimeout(() => { if (document.getElementById("wall-canvas")) renderWallNotes(); }, 160); });
 window.addEventListener("echo:communityauthchange", () => {
-  if (!isRemoteCommunityContext() || !wallState.communityKey) return;
-  CommunityDataProvider.refreshPosts(wallState.communityKey)
-    .then(renderWallNotes)
-    .catch(error => showToast(error instanceof Error ? error.message : I18n.t("common.error")));
+  if (isRemoteCommunityContext() && wallState.communityKey) {
+    CommunityDataProvider.refreshPosts(wallState.communityKey)
+      .then(renderWallNotes)
+      .catch(error => showToast(error instanceof Error ? error.message : I18n.t("common.error")));
+  } else if (isRemoteBuildingContext() && wallState.placeId) {
+    // BACKEND V2.3: signing in/out can change display-name/anonymous
+    // capability for the currently-open Building Wall too.
+    CommunityDataProvider.refreshBuildingPosts(window.KMK_COLLEGE_ID, wallState.placeId)
+      .then(renderWallNotes)
+      .catch(error => showToast(error instanceof Error ? error.message : I18n.t("common.error")));
+  }
 });
 
 // BACKEND V2.2 — Community realtime wiring.
@@ -1254,7 +1334,9 @@ window.addEventListener("echo:communityauthchange", () => {
 function refetchOpenModalCommentsIfAny() {
   if (openModalNoteId == null) return;
   const post = findWallNote(openModalNoteId);
-  if (!post || !post.isRemote) return;
+  // BACKEND V2.3: Building comments stay disabled — see the openModal()
+  // comment above this same contextType check.
+  if (!post || !post.isRemote || post.contextType !== "community") return;
   CommunityDataProvider.refreshComments(post)
     .then(() => {
       const overlay = document.getElementById("modal-overlay");
@@ -1263,32 +1345,38 @@ function refetchOpenModalCommentsIfAny() {
     .catch(() => {});
 }
 
+// BACKEND V2.3: authoritative refetch for whichever wall is currently open
+// (Community by communityKey, Building by college+placeId) — shared by both
+// the SIGNAL_EVENT and RECONNECT_EVENT handlers below so the two stay in
+// sync instead of duplicating the same branch twice.
+function refetchCurrentWall() {
+  if (wallState.contextType === "community" && wallState.communityKey) {
+    return CommunityDataProvider.refreshPosts(wallState.communityKey).then(renderWallNotes);
+  }
+  if (wallState.contextType === "building" && wallState.placeId) {
+    return CommunityDataProvider.refreshBuildingPosts(window.KMK_COLLEGE_ID, wallState.placeId).then(renderWallNotes);
+  }
+  return Promise.resolve();
+}
+
 window.addEventListener(window.CommunityRealtimeService?.SIGNAL_EVENT || "echo:community-realtime-signal", event => {
-  if (!isRemoteCommunityContext()) return;
+  if (!isRemoteWallContext()) return;
   const { reason } = event.detail || {};
-  if (reason === "scope" && wallState.communityKey) {
-    CommunityDataProvider.refreshPosts(wallState.communityKey)
-      .then(renderWallNotes)
-      .catch(() => {});
+  if (reason === "scope") {
+    refetchCurrentWall().catch(() => {});
   }
   if (reason === "post") {
     refetchOpenModalCommentsIfAny();
     // A vote/solve/reopen on the open post also changes its score/status
     // card on the wall itself, not just inside the modal.
-    if (wallState.communityKey) {
-      CommunityDataProvider.refreshPosts(wallState.communityKey)
-        .then(renderWallNotes)
-        .catch(() => {});
-    }
+    refetchCurrentWall().catch(() => {});
   }
 });
 
 window.addEventListener(window.CommunityRealtimeService?.RECONNECT_EVENT || "echo:community-realtime-reconnect", () => {
   // Never assume a dropped connection didn't miss anything — one
   // authoritative refetch on reconnect, same as any other refresh trigger.
-  if (!isRemoteCommunityContext() || !wallState.communityKey) return;
-  CommunityDataProvider.refreshPosts(wallState.communityKey)
-    .then(renderWallNotes)
-    .catch(() => {});
+  if (!isRemoteWallContext()) return;
+  refetchCurrentWall().catch(() => {});
   refetchOpenModalCommentsIfAny();
 });

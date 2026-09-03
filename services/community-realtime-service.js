@@ -49,6 +49,16 @@
 
   function matchesScopeSubscription(signal) {
     if (!scopeSubscription) return false;
+    // BACKEND V2.3 — "building_college" is a local-only matching mode (not
+    // a database scope_type value): it is what a Map view subscribes as,
+    // because Map must react to ANY building's post within its college,
+    // not one specific building. It intentionally does not compare
+    // signal.scopeType against itself — it compares against the real
+    // "building" signal scope.
+    if (scopeSubscription.scopeType === "building_college") {
+      return signal.scopeType === "building"
+        && Number(signal.collegeId) === Number(scopeSubscription.collegeId);
+    }
     if (signal.scopeType !== scopeSubscription.scopeType) return false;
     if (scopeSubscription.scopeType === "all_km") return true;
     if (scopeSubscription.scopeType === "college") {
@@ -57,6 +67,14 @@
     if (scopeSubscription.scopeType === "jurusan") {
       return Number(signal.collegeId) === Number(scopeSubscription.collegeId)
         && Number(signal.jurusanId) === Number(scopeSubscription.jurusanId);
+    }
+    // BACKEND V2.3 — Building Wall: a signal wakes this subscription only
+    // when BOTH college_id and building_id match exactly. building_id alone
+    // is not sufficient — the same logical building slug is not guaranteed
+    // unique across colleges (college identity is part of Building scope).
+    if (scopeSubscription.scopeType === "building") {
+      return Number(signal.collegeId) === Number(scopeSubscription.collegeId)
+        && String(signal.buildingId) === String(scopeSubscription.buildingId);
     }
     return false;
   }
@@ -177,6 +195,45 @@
     }
   }
 
+  // BACKEND V2.3 — Building Wall scope subscription. Deliberately takes
+  // structured (collegeId, buildingId) arguments rather than a serialized
+  // string key: there is exactly one caller boundary for each (app-wall.js
+  // for Building Wall, features/map-note-overlay.js for the Map), so a
+  // shared parse/serialize round-trip would add a failure mode (a typo'd
+  // format string) for no benefit over passing the two values directly.
+  async function subscribeToBuildingScope(collegeId, buildingId) {
+    const canonicalCollegeId = Number(collegeId);
+    const canonicalBuildingId = String(buildingId || "");
+    if (!Number.isInteger(canonicalCollegeId) || canonicalCollegeId <= 0 || !canonicalBuildingId) {
+      scopeSubscription = null;
+      return;
+    }
+    scopeSubscription = { scopeType: "building", collegeId: canonicalCollegeId, buildingId: canonicalBuildingId };
+    try {
+      await ensureChannel();
+    } catch {
+      // See subscribeToScope — same non-fatal local-fallback degrade.
+    }
+  }
+
+  // BACKEND V2.3 — Map scope subscription: college-wide, not one specific
+  // building (a campus Map shows markers across every building in its
+  // college). Matched via matchesScopeSubscription's "building_college"
+  // branch above.
+  async function subscribeToMapScope(collegeId) {
+    const canonicalCollegeId = Number(collegeId);
+    if (!Number.isInteger(canonicalCollegeId) || canonicalCollegeId <= 0) {
+      scopeSubscription = null;
+      return;
+    }
+    scopeSubscription = { scopeType: "building_college", collegeId: canonicalCollegeId };
+    try {
+      await ensureChannel();
+    } catch {
+      // See subscribeToScope — same non-fatal local-fallback degrade.
+    }
+  }
+
   function unsubscribeScope() {
     scopeSubscription = null;
   }
@@ -218,6 +275,8 @@
     SIGNAL_EVENT,
     RECONNECT_EVENT,
     subscribeToScope,
+    subscribeToBuildingScope,
+    subscribeToMapScope,
     unsubscribeScope,
     subscribeToPost,
     unsubscribePost,

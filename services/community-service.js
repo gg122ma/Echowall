@@ -93,6 +93,33 @@
   // }
   const COMMENT_STORAGE_KEY = "echo-wall-comments:v1";
 
+  // BACKEND V2.3 — Building Scope Key. A separate, sibling concept to the
+  // Community Key above: Building posts are never "community" content
+  // (getCommunityKeyForNote explicitly excludes contextType !== "community"),
+  // so this intentionally does not extend parseCommunityKey/getCommunityKey.
+  // The pattern `^B_[A-Z0-9_]+$` is not invented here — it is the exact
+  // CHECK constraint on app.building_scope_keys.building_id (verified
+  // against the live-applied migration), so a string this format always
+  // round-trips to a real canonical DB building_id with no case conversion
+  // or prefixing. Building identity requires college_id + building_id
+  // together (the same logical building slug is not guaranteed unique
+  // across colleges), so both are always present in the key.
+  const BUILDING_ID_PATTERN = /^B_[A-Z0-9_]+$/;
+
+  function getBuildingScopeKey(collegeId, buildingId) {
+    const canonicalCollegeId = Number(collegeId);
+    const canonicalBuildingId = String(buildingId || "");
+    if (!Number.isInteger(canonicalCollegeId) || canonicalCollegeId <= 0) return "";
+    if (!BUILDING_ID_PATTERN.test(canonicalBuildingId)) return "";
+    return `building:${canonicalCollegeId}:${canonicalBuildingId}`;
+  }
+
+  function parseBuildingScopeKey(key) {
+    const match = /^building:(\d+):(B_[A-Z0-9_]+)$/.exec(String(key || ""));
+    if (!match) return null;
+    return { collegeId: Number(match[1]), buildingId: match[2] };
+  }
+
   window.CommunityService = Object.freeze({
     scopes: Object.freeze({ GLOBAL: "global", COLLEGE: "college", JURUSAN: "jurusan" }),
     getCommunityKey,
@@ -103,6 +130,8 @@
     mapLegacyWallKeyToCommunityKey,
     getCommunityKeyForNote,
     getCommunityPosts,
+    getBuildingScopeKey,
+    parseBuildingScopeKey,
     COMMENT_STORAGE_KEY,
   });
 })();
