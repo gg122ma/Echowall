@@ -770,6 +770,19 @@
       // channelPromise-memoized ensureChannel() from BACKEND V2.2's
       // concurrency fix). Never a second Realtime channel/service for Map.
       if (isRemoteMap()) {
+        // BACKEND V2.3 LIVE E2E FIX: SupabaseAuthProvider caches the
+        // current user in a plain module-level variable that is only
+        // populated by its own ready()/signUp()/signInWithPassword() calls
+        // — a fresh page load (map.html has no other code path that ever
+        // calls CommunityDataProvider.ready()) leaves it null even when a
+        // real session already exists in localStorage, so mapCurrentUser()
+        // would incorrectly report "not signed in" for an already-logged-in
+        // user and send them to the login dialog. Found live: clicking
+        // "Post here" as an authenticated QA user opened nothing because
+        // this was missing. Community/Building already call
+        // CommunityDataProvider.ready() before relying on getCurrentUser();
+        // Map needs the exact same call.
+        await window.CommunityDataProvider?.ready?.();
         await refresh({ serviceReady:true });
         if (state.map !== activeMap || state.remoteSignalListener) return;
         window.CommunityRealtimeService?.subscribeToMapScope?.(window.KMK_COLLEGE_ID);
