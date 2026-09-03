@@ -4,10 +4,10 @@
   function isRemoteRequested() { return activation().mode !== "local"; }
   // BACKEND V2.3: Building and Map now route to Supabase whenever remote
   // mode is active — same "supabase requested" gate Community already uses.
-  // Building comments/replies stay local-only architecture regardless (this
-  // function documents routing for posts, not the comment feature, which
-  // is disabled for Building at the UI/DB layer instead — see app-wall.js
-  // and api.comments_public's own scope_type<>'building' filter).
+  // BACKEND V2.3b: Building comments/replies now also route through the same
+  // Supabase comment RPCs as Community (api.create_comment/api.create_reply
+  // via commentsFor/createComment below) once a Building post is remote —
+  // see app-wall.js's supportsRemoteComments().
   function routeFor(contextType, scope) {
     if (contextType === "building" || contextType === "map") return isRemoteRequested() ? "supabase" : "local";
     if (contextType === "study") return "unchanged";

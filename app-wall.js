@@ -204,6 +204,26 @@ function isRemoteWallContext() {
   return isRemoteCommunityContext() || isRemoteBuildingContext();
 }
 
+// BACKEND V2.3b: a note supports Supabase-backed comments/replies when it is
+// a remote post (post.isRemote === true) in a comment-capable context —
+// Community (always was) or Building Wall (both a plain Building post and a
+// Map Post Directly share scope_type = 'building', so both qualify
+// identically; no separate check is needed for Map-originated posts).
+// Local/demo Building posts (post.isRemote !== true) intentionally do NOT
+// get a Supabase comment section — V2.3b is Supabase-backed Building
+// comments only, not a new LocalStorage Building comment system.
+function supportsRemoteComments(note) {
+  return Boolean(note) && note.isRemote === true && (note.contextType === "community" || note.contextType === "building");
+}
+
+// Whether a note's modal should render a comments section AT ALL. Community
+// notes always have (either local-CommentService-backed, for legacy/demo
+// posts, or Supabase-backed) comments; Building notes only gained a comments
+// section in V2.3b, and only for Supabase-backed (remote) posts.
+function hasCommentsSection(note) {
+  return Boolean(note) && (note.contextType === "community" || supportsRemoteComments(note));
+}
+
 function getWallCurrentUser() {
   return isRemoteWallContext() ? CommunityDataProvider.getCurrentUser() : AuthService.getCurrentUser();
 }
@@ -620,7 +640,7 @@ function buildNoteDOM(note, index) {
   const commentCount = note.isRemote
     ? CommunityDataProvider.commentCount(note)
     : (window.CommentService?.getCommentCount(note.id) ?? note.commentCount ?? 0);
-  const commentCountHTML = note.contextType === "community"
+  const commentCountHTML = hasCommentsSection(note)
     ? `<span class="note-comment-count" aria-label="Comments">💬 ${Number(commentCount)}</span>`
     : "";
   element.innerHTML = `<div class="note-pin" aria-hidden="true"></div><div class="note-category-label">${categoryIcon} ${category.replace("campus_life", "campus life")}</div>${getQuestionBadgeHTML(note)}${imageSource ? `<div class="note-photo"><img src="${imageSource}" alt="${escapeHtml(note.imageName || "Photo attached to note")}" loading="lazy" /></div>` : ""}<div class="note-content">${escapeHtml(note.content)}</div><div class="note-footer" onclick="event.stopPropagation()"><span class="note-author">👤 ${escapeHtml(name)}</span>${commentCountHTML}${noteAction}</div>`;
@@ -685,7 +705,9 @@ async function toggleNoteTranslation(id) {
 
 // Community V2 (COM-V2-005): Comments + one-level Reply, rendered inside
 // the existing Detail Modal (no separate Post Detail route this stage).
-// Building notes never get a comments section — gated by contextType below.
+// BACKEND V2.3b: a Building post now gets the same comments section too,
+// but only when it is Supabase-backed (post.isRemote === true) — see
+// hasCommentsSection()/supportsRemoteComments() above.
 function getCommentAuthorLabel(comment) {
   return comment.isAnonymous ? "Anonymous" : (comment.authorNickname || "User");
 }
@@ -709,7 +731,8 @@ function buildCommentHTML(comment, isReply) {
 
 function renderCommentsSectionHTML(postId) {
   if (typeof window.CommentService === "undefined") return "";
-  const remotePost = isRemoteCommunityContext() ? findWallNote(postId) : null;
+  const candidate = findWallNote(postId);
+  const remotePost = supportsRemoteComments(candidate) ? candidate : null;
   const thread = remotePost ? CommunityDataProvider.commentThread(remotePost) : CommentService.getCommentThreadForPost(postId);
   const count = remotePost ? CommunityDataProvider.commentCount(remotePost) : CommentService.getCommentCount(postId);
   const commentsListHTML = thread.length
@@ -758,7 +781,8 @@ async function submitComment(postId, parentCommentId) {
       authorNickname: showName ? nickname : null,
       content,
     };
-    const remotePost = isRemoteCommunityContext() ? findWallNote(postId) : null;
+    const commentCandidate = findWallNote(postId);
+    const remotePost = supportsRemoteComments(commentCandidate) ? commentCandidate : null;
     if (remotePost) await CommunityDataProvider.createComment(remotePost, payload);
     else CommentService.createComment(payload);
     renderWallNotes();
@@ -811,7 +835,7 @@ function openModal(id) {
   // went through the shared CommentService (keyed by postId, independent of
   // the note object itself), so there was never a technical reason to gate
   // this on isDemoSeed, only a UI one that is now removed.
-  const commentsSectionHTML = note.contextType === "community" ? renderCommentsSectionHTML(note.id) : "";
+  const commentsSectionHTML = hasCommentsSection(note) ? renderCommentsSectionHTML(note.id) : "";
   // Community V2 (COM-V2-006): Mark Solved / Reopen — author or prototype
   // moderator only, Question posts only. canUserMarkSolved() itself already
   // denies this for seed posts (their authorUserId never matches a real
@@ -828,13 +852,11 @@ function openModal(id) {
   overlay.classList.remove("hidden");
   document.body.classList.add("overlay-open");
   requestAnimationFrame(() => overlay.querySelector(".modal-close")?.focus());
-  // BACKEND V2.3: comments stay Community-only (Building comments are
-  // structurally disabled — api.comments_public excludes scope_type=
-  // 'building' and create_reply/create_comment reject it too), so gate this
-  // fetch on contextType, not just isRemote, to avoid a wasted network call
-  // for a remote Building post (which renderCommentsSectionHTML already
-  // never renders a composer for).
-  if (note.isRemote && note.contextType === "community" && !CommunityDataProvider.commentsLoaded(note)) {
+  // BACKEND V2.3b: auto-load comments for any remote, comment-capable post
+  // (Community or Building — see supportsRemoteComments()) whose thread
+  // hasn't been fetched yet. A local/demo post never reaches here because
+  // hasCommentsSection() already gated commentsSectionHTML above.
+  if (supportsRemoteComments(note) && !CommunityDataProvider.commentsLoaded(note)) {
     CommunityDataProvider.refreshComments(note)
       .then(() => {
         if (!document.getElementById("modal-overlay")?.classList.contains("hidden")) openModal(id);
@@ -1334,9 +1356,9 @@ window.addEventListener("echo:communityauthchange", () => {
 function refetchOpenModalCommentsIfAny() {
   if (openModalNoteId == null) return;
   const post = findWallNote(openModalNoteId);
-  // BACKEND V2.3: Building comments stay disabled — see the openModal()
-  // comment above this same contextType check.
-  if (!post || !post.isRemote || post.contextType !== "community") return;
+  // BACKEND V2.3b: Community and (now) Building both refetch here — see
+  // supportsRemoteComments().
+  if (!supportsRemoteComments(post)) return;
   CommunityDataProvider.refreshComments(post)
     .then(() => {
       const overlay = document.getElementById("modal-overlay");

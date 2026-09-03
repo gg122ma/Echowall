@@ -420,14 +420,20 @@ function buildingSignal(overrides = {}) {
 }
 
 // ---------------------------------------------------------------------
-// 18/19 (UI layer). Building comments disabled, Community comments intact —
-// static source checks against the real app-wall.js.
+// 18/19 (UI layer). BACKEND V2.3b superseded the pre-V2.3b "Building
+// comments disabled" invariant: a remote (Supabase-backed) Building post now
+// gets the same comments section as Community, while a LOCAL/demo Building
+// post still does not. These checks assert the NEW invariant against the
+// real app-wall.js source (full behavioral coverage lives in
+// scripts/test-building-comments-backend.mjs).
 // ---------------------------------------------------------------------
 {
   const wallSource = fs.readFileSync(path.join(ROOT, "app-wall.js"), "utf8");
-  check("18c. app-wall.js gates comment UI on contextType===\"community\" (Building never renders a composer)", /note\.contextType === "community" \? renderCommentsSectionHTML/.test(wallSource));
-  check("18d. openModal's comment auto-fetch is gated on contextType===\"community\" too (no wasted/leaky fetch for Building)", /note\.isRemote && note\.contextType === "community" && !CommunityDataProvider\.commentsLoaded/.test(wallSource));
-  check("18e. refetchOpenModalCommentsIfAny is gated on contextType===\"community\"", /post\.contextType !== "community"/.test(wallSource));
+  check("18c. app-wall.js's supportsRemoteComments() requires isRemote and community/building contextType", /function supportsRemoteComments\(note\)[\s\S]{0,200}note\.isRemote === true[\s\S]{0,120}contextType === "community"[\s\S]{0,60}contextType === "building"/.test(wallSource));
+  check("18d. Comment section render gate (hasCommentsSection) is used at the modal composer site, not a raw contextType===\"community\" literal", /const commentsSectionHTML = hasCommentsSection\(note\) \? renderCommentsSectionHTML/.test(wallSource) && !/note\.contextType === "community" \? renderCommentsSectionHTML/.test(wallSource));
+  check("18e. openModal's comment auto-fetch now uses supportsRemoteComments (Community OR remote Building)", /if \(supportsRemoteComments\(note\) && !CommunityDataProvider\.commentsLoaded\(note\)\)/.test(wallSource));
+  check("18f. refetchOpenModalCommentsIfAny now uses supportsRemoteComments, not a bare contextType!==\"community\" check", /if \(!supportsRemoteComments\(post\)\) return;/.test(wallSource) && !/post\.contextType !== "community"/.test(wallSource));
+  check("18g. A local (non-remote) Building post is still excluded: supportsRemoteComments short-circuits on note.isRemote === true", /note\.isRemote === true && \(note\.contextType === "community" \|\| note\.contextType === "building"\)/.test(wallSource));
   check("19b. Building Wall create routes through createBuildingPost (api.create_post), not a raw table insert or a new RPC", /CommunityDataProvider\.createBuildingPost/.test(wallSource) && !/\.from\("posts"\)\.insert/.test(wallSource));
 }
 
