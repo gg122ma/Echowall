@@ -41,15 +41,35 @@
 --    EchoWall-Feature-Foundation/supabase/migrations/20260830000700_api_views.sql,
 --    RLS policies in .../20260830000900_rls_and_grants.sql) and this
 --    branch's own 20260903092150_20260903010000_building_comments_and_replies.sql.
---    `api.building_metadata_public` is a BRAND NEW view (no prior
---    definition exists anywhere), so this migration uses the SIMPLE
---    first-time-creation pattern from 20260830000700_api_views.sql (create
---    as the migration's executing role, then `alter view ... owner to
---    echowall_api_viewer`) — NOT the temporary-role-elevation
---    create-or-replace pattern this branch's own V2.3b migration had to
---    invent, which is only necessary when REPLACING a view that is already
---    owned by echowall_api_viewer. No `drop view`/`drop function ...
---    cascade` is used anywhere in this file.
+--
+--    PRODUCTION-ENGINE-PROVEN CORRECTION (this round): an earlier draft of
+--    this migration assumed a brand-new view could simply be `create view`d
+--    as the migration's executing role and then handed to
+--    echowall_api_viewer with a trailing `alter view ... owner to
+--    echowall_api_viewer;` — reasoning that the temporary-role-elevation
+--    dance in this branch's own V2.3b migration was only ever needed for
+--    REPLACING an already-echowall_api_viewer-owned view, not for a
+--    first-time CREATE. A trusted production Postgres dry-run rejected
+--    that assumption: production's migration-executing role is a MEMBER of
+--    echowall_api_viewer but with `SET OPTION = false`, so `set role
+--    echowall_api_viewer` (needed before `alter view ... owner to`, and
+--    implicitly by ALTER OWNER's own privilege checks) fails with 42501
+--    ("must be able to SET ROLE \"echowall_api_viewer\""); and separately,
+--    echowall_api_viewer itself has `CREATE = false` on schema api, so
+--    creating the view directly AS echowall_api_viewer (the only way to
+--    avoid the ALTER OWNER step entirely) also fails with 42501
+--    ("permission denied for schema api") until CREATE is temporarily
+--    granted. Both findings came from a real production dry-run
+--    (diagnostic only, fully rolled back, zero lasting production change).
+--    This migration therefore reuses the SAME production-proven wrapper
+--    V2.3b already uses for REPLACING a view — temporarily grant CREATE on
+--    schema api to echowall_api_viewer, temporarily grant
+--    echowall_api_viewer membership WITH SET TRUE to the executing role,
+--    SET LOCAL ROLE echowall_api_viewer, create the view (now created
+--    directly AS its intended owner, so no ALTER OWNER step is needed at
+--    all), then RESET ROLE and revoke both temporary grants — even though
+--    this view is a first-time CREATE, not a REPLACE. No `drop view`/`drop
+--    function ... cascade` is used anywhere in this file.
 --
 -- CANONICAL MERGE SEMANTICS (enforced entirely in frontend code, not SQL —
 -- see services/building-metadata-provider.js): no backend row = static
@@ -296,14 +316,26 @@ create policy building_metadata_api_public_read on app.building_metadata
 grant select on app.building_metadata to echowall_api_viewer;
 
 -- 5. api.building_metadata_public ---------------------------------------------
--- Brand-new view: no prior definition exists anywhere in this project, so
--- this uses the simple first-time-creation pattern from
--- 20260830000700_api_views.sql (create as the migration's executing role,
--- then transfer ownership) rather than the temporary-role-elevation
--- create-or-replace pattern this branch's own V2.3b migration needed for
--- REPLACING an already-echowall_api_viewer-owned view. If a future
--- migration ever needs to redefine this view, it must follow that same
--- V2.4a/V2.3b-documented owner-preserving pattern instead of `drop view`.
+-- Brand-new view: no prior definition exists anywhere in this project.
+-- PRODUCTION-ENGINE-PROVEN: reuses the exact wrapper V2.3b already uses to
+-- REPLACE an already-echowall_api_viewer-owned view (temporary CREATE on
+-- schema api + temporary SET-true membership + SET LOCAL ROLE), even
+-- though this view is a first-time CREATE, not a replace — a trusted
+-- production dry-run proved the simpler "create as migration role, then
+-- ALTER OWNER" shape a prior draft used does NOT work under production's
+-- actual role configuration (migration-executing role is a member of
+-- echowall_api_viewer but with SET OPTION = false, so a bare `set role`
+-- fails 42501; echowall_api_viewer's CREATE on schema api is false, so
+-- creating directly as it fails 42501 until temporarily granted). This
+-- migration creates the view directly AS echowall_api_viewer (while SET
+-- LOCAL ROLE is active), so no ALTER OWNER statement is used or needed at
+-- all — see this file's header for the full production-engine finding. If
+-- a future migration ever needs to redefine this view, it must follow this
+-- SAME owner-preserving pattern instead of `drop view`.
+grant create on schema api to echowall_api_viewer;
+grant echowall_api_viewer to current_user with set true;
+set local role echowall_api_viewer;
+
 create view api.building_metadata_public
 with (security_barrier = true)
 as
@@ -320,7 +352,10 @@ from app.building_metadata as m;
 
 comment on view api.building_metadata_public is 'Sanitized Building metadata override projection; never exposes updated_by or any admin identity.';
 grant select on api.building_metadata_public to anon, authenticated;
-alter view api.building_metadata_public owner to echowall_api_viewer;
+
+reset role;
+revoke set option for echowall_api_viewer from current_user;
+revoke create on schema api from echowall_api_viewer;
 
 commit;
 

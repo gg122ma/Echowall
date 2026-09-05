@@ -233,10 +233,65 @@ assert(
   activeCode.includes("grant select on api.building_metadata_public to anon, authenticated;"),
   "api.building_metadata_public must grant SELECT to anon and authenticated"
 );
+
+// --- 7b. PRODUCTION-ENGINE-PROVEN VIEW OWNERSHIP (this round's fix) --------
+// A trusted production dry-run rejected the prior draft's "create as
+// migration role, then ALTER OWNER" shape: production's migration-
+// executing role is a member of echowall_api_viewer with SET OPTION =
+// false (so a bare `set role`/the SET ROLE implicit in ALTER OWNER fails
+// 42501 "must be able to SET ROLE"), and echowall_api_viewer's CREATE on
+// schema api is false (so creating directly as it fails 42501 "permission
+// denied for schema api" until temporarily granted). This migration must
+// therefore reuse the SAME production-proven wrapper V2.3b already uses
+// for REPLACING a view — even though this view is a first-time CREATE.
 assert(
-  activeCode.includes("alter view api.building_metadata_public owner to echowall_api_viewer;"),
-  "api.building_metadata_public must be transferred to the dedicated echowall_api_viewer view owner, matching every other api.*_public view"
+  !activeCode.includes("alter view api.building_metadata_public owner to echowall_api_viewer;"),
+  "must NOT use ALTER VIEW ... OWNER TO — production-engine-proven to fail 42501 under the real role configuration; the view must be created directly AS echowall_api_viewer instead"
 );
+assert(
+  activeCode.includes("grant create on schema api to echowall_api_viewer;"),
+  "must temporarily grant CREATE on schema api to echowall_api_viewer so it can create its own view"
+);
+assert(
+  activeCode.includes("grant echowall_api_viewer to current_user with set true;"),
+  "must temporarily grant echowall_api_viewer membership (WITH SET TRUE) to the executing role"
+);
+assert(
+  activeCode.includes("set local role echowall_api_viewer;"),
+  "must SET LOCAL ROLE to the view's intended owner before creating it (SET LOCAL, not a bare SET, so it cannot leak past this transaction)"
+);
+assert(activeCode.includes("reset role;"), "must RESET ROLE after creating the view");
+assert(
+  activeCode.includes("revoke set option for echowall_api_viewer from current_user;"),
+  "must revoke the temporary SET-option membership so the privilege state round-trips to its pre-migration value (no permanent widening)"
+);
+assert(
+  activeCode.includes("revoke create on schema api from echowall_api_viewer;"),
+  "must revoke the temporary CREATE-on-schema-api grant so the privilege state round-trips to its pre-migration value (no permanent widening)"
+);
+// Ordering: the elevation must strictly bracket the CREATE VIEW statement,
+// and the revocation must come after it — otherwise the statement would
+// run under insufficient privilege (creating it as migration_runner
+// instead of echowall_api_viewer) or the elevation would be left dangling.
+{
+  const grantCreateIdx = activeCode.indexOf("grant create on schema api to echowall_api_viewer;");
+  const grantSetTrueIdx = activeCode.indexOf("grant echowall_api_viewer to current_user with set true;");
+  const setRoleIdx = activeCode.indexOf("set local role echowall_api_viewer;");
+  const viewIdx = activeCode.indexOf("create view api.building_metadata_public");
+  const resetIdx = activeCode.indexOf("reset role;");
+  const revokeSetIdx = activeCode.indexOf("revoke set option for echowall_api_viewer from current_user;");
+  const revokeCreateIdx = activeCode.lastIndexOf("revoke create on schema api from echowall_api_viewer;");
+  assert(
+    grantCreateIdx !== -1 &&
+      grantCreateIdx < grantSetTrueIdx &&
+      grantSetTrueIdx < setRoleIdx &&
+      setRoleIdx < viewIdx &&
+      viewIdx < resetIdx &&
+      resetIdx < revokeSetIdx &&
+      revokeSetIdx < revokeCreateIdx,
+    "privilege elevation must strictly bracket the view creation in this exact order: grant create -> grant set true -> set local role -> create view -> reset role -> revoke set option -> revoke create"
+  );
+}
 
 // --- 8. Brand-new view: simple create, never a replace/drop, no CASCADE ----
 assert(
