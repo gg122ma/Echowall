@@ -22,9 +22,9 @@ anywhere in this repo. Only the browser-safe publishable key/project URL
 | V2.3a | Complete | Controlled live E2E validation of V2.3 against production (no schema change) |
 | V2.3b | Complete, applied | Building comments + one-level replies (removed the Building exclusion from the existing Community comment model — no new table) |
 | V2.4a | Local implementation, not yet applied to production | Building metadata read-model + static fallback (`app.building_metadata`, `api.building_metadata_public`) — read-only, no admin write path yet |
-| V2.4b1 | Current (local implementation, not yet applied to production) | Server-side college-scoped Building admin **authorization primitive only** (`app.college_admin_assignments`, `private.has_active_college_admin`, `private.can_manage_building_metadata`) — no write RPC, no role-management RPC, no Admin UI yet |
-| V2.4b2+ | Not started | `api.update_building_metadata` write RPC (will call `private.can_manage_building_metadata`) + `building_metadata_updated` audit writes |
-| V2.4c+ | Not started | Admin editor UI, wired to `SupabaseAuthProvider` |
+| V2.4b1 | Local implementation, not yet applied to production | Server-side college-scoped Building admin **authorization primitive only** (`app.college_admin_assignments`, `private.has_active_college_admin`, `private.can_manage_building_metadata`) — no write RPC, no role-management RPC, no Admin UI yet |
+| V2.4b2 | Current (local implementation, not yet applied to production) | `api.update_building_metadata(...)` — the one authenticated, authorized, audited write RPC for `app.building_metadata`. Full-row save, optimistic concurrency, one `app.audit_events` row per real mutation. No role-management RPC, no Admin UI, no frontend caller yet |
+| V2.4c+ | Not started | Admin editor UI, wired to `SupabaseAuthProvider`, calling `api.update_building_metadata` |
 
 ## Supabase project
 
@@ -53,10 +53,12 @@ locates a migration file by name should match by suffix (see
 full filename, for exactly this reason.
 
 `supabase/migrations/20260905060000_building_metadata_read_model.sql`
-(V2.4a) and
+(V2.4a),
 `supabase/migrations/20260905120000_college_admin_building_permissions.sql`
-(V2.4b1) are **local drafts only** — neither is applied to production. Do
-not apply either without explicit authorization; see each migration
+(V2.4b1), and
+`supabase/migrations/20260905150000_building_metadata_update_rpc.sql`
+(V2.4b2) are **local drafts only** — none is applied to production. Do not
+apply any of them without explicit authorization; see each migration
 file's own header for full detail.
 
 ### Foundational schema lives in a separate repo
@@ -174,12 +176,81 @@ frontend `COLLEGE_ADMIN` → `app.college_admin_assignments`; frontend
 `GLOBAL_MODERATOR`/`STUDY_MODERATOR`/`CONTENT_REVIEWER` → unrelated to
 Building-metadata authority.
 
-**Still not implemented** (out of scope for V2.4b1, tracked for later
-stages): any RPC to grant/revoke/disable a `college_admin_assignments` row
-(role-management writes need their own audit/admin design), the actual
-`api.update_building_metadata` write RPC (V2.4b2), `building_metadata_updated`
-audit writes (V2.4b2), and any Admin UI wiring (V2.4c). No production
-assignment rows exist yet — this stage is the permission model only.
+**Still not implemented** (out of scope for V2.4b1): any RPC to
+grant/revoke/disable a `college_admin_assignments` row — role-management
+writes need their own audit/admin design and are tracked for a later
+stage. No production assignment rows exist yet.
+
+**V2.4b1 ACL follow-up (P1, not yet corrected):** neither
+`private.has_active_college_admin` nor `private.can_manage_building_metadata`
+has an explicit `grant execute ... to service_role`, unlike every other
+`private.*`/`api.*` function created after
+`20260830000900_rls_and_grants.sql`'s one-time `grant execute on all
+functions in schema private to service_role` (that statement only covers
+functions that already existed when it ran — it is not a default-
+privileges mechanism). Both new functions DO correctly have `revoke
+execute ... from public, anon, authenticated`, so PUBLIC/anon/authenticated
+can never call them — this is a missing grant (too restrictive), not a
+security hole, and V2.4b2's RPC is unaffected because it runs `security
+definer` owned by the same role that owns these helpers (an owner always
+retains implicit EXECUTE on its own functions). Recommend a small,
+separately-authorized follow-up migration adding the two missing grants
+before V2.4b1 is ever applied to production, for parity with the
+project's own established convention.
+
+## Building metadata update RPC (V2.4b2)
+
+`api.update_building_metadata(p_building_id, p_description, p_purpose,
+p_special_notes, p_localized_alias, p_hours, p_expected_updated_at default
+null)` — the one authenticated mutation entry point for
+`app.building_metadata`. `SECURITY DEFINER`, `SET search_path = ''`, ACL
+matches this project's established mutation-RPC convention exactly
+(`revoke ... from public, anon; grant execute ... to authenticated,
+service_role;`, mirrored verbatim from `api.create_post`/`api.create_comment`).
+
+Key contracts (see the migration file's own header for full detail):
+
+- **Authorization**: `private.require_active_user()` for identity, then
+  college is derived server-side from `app.building_scope_keys` by
+  `p_building_id` — the RPC does **not** accept a `p_college_id` parameter,
+  so a caller can never pick an easier scope than the Building actually
+  belongs to. Authorized only via `private.can_manage_building_metadata`;
+  rejects with SQLSTATE `42501` and a generic message that never reveals
+  which college(s) the caller does or doesn't administer.
+- **Full-row save, not PATCH**: all five fields are always written from
+  the five parameters; a `NULL` parameter is stored as a real `NULL`
+  (static fallback), never treated as "leave unchanged". A future Admin UI
+  must load the actual override row (not the effective/merged
+  presentation) before saving.
+- **Optimistic concurrency** on `updated_at`: no existing row requires
+  `p_expected_updated_at IS NULL`; an existing row requires it to exactly
+  match (checked after `SELECT ... FOR UPDATE` locks the row). Every
+  stale/conflict outcome — including the concurrent "two callers both saw
+  no row" race, caught as a `23505` unique-violation on the primary key —
+  uses the same SQLSTATE `40001` and message ("Building metadata changed.
+  Reload and retry."), chosen because `40001` was otherwise unused in this
+  project.
+- **No-op saves** (all five incoming values `IS NOT DISTINCT FROM` what's
+  stored) leave `updated_at`/`updated_by` untouched and write no audit
+  event — repeated identical Saves are idempotent.
+- **Missing row + all-five-NULL is rejected** (`22023`) rather than
+  creating an empty override row, since that would be semantically
+  identical to having no row at all.
+- **Audit**: exactly one `app.audit_events` row per real mutation, in the
+  same transaction as the metadata write (no separate try/catch — an audit
+  failure rolls back the mutation too). `event_type =
+  'building_metadata_updated'`, `target_type = 'building'`, `target_id =
+  p_building_id`, `metadata = {college_id, operation, changed_fields}` —
+  `changed_fields` is computed server-side via `IS DISTINCT FROM` and
+  contains only field *names*, never any Building content/translation
+  text, email, or display name.
+- **Returns** `SETOF api.building_metadata_public` only — `updated_by` and
+  the audit row are never exposed to the caller.
+
+**Still not implemented** (tracked for later stages): any
+`api.grant_college_admin`/`revoke`/`disable` role-management RPC, any
+Admin UI, and no frontend code calls this RPC yet (V2.4c will wire the
+Admin editor UI to it).
 
 ## Branch / freeze rules
 
