@@ -276,12 +276,23 @@ create policy building_metadata_api_public_read on app.building_metadata
 -- `usage on schema app` is already granted to echowall_api_viewer by
 -- 20260830000700_api_views.sql; only the new table's own SELECT grant is
 -- needed here. No browser role (anon, authenticated) is ever granted
--- direct access to app.building_metadata, and no INSERT/UPDATE/DELETE grant
--- is created for anyone — service_role already has full DML on every
--- app-schema table via the existing blanket grant in
--- 20260830000900_rls_and_grants.sql ("grant select, insert, update, delete
--- on all tables in schema app to service_role"), so building_metadata needs
--- no separate service_role grant either.
+-- direct access to app.building_metadata — public/browser reads go only
+-- through api.building_metadata_public — and no INSERT/UPDATE/DELETE grant
+-- is created for anyone this round: this table has no write path yet, and
+-- when one is added (a future SECURITY DEFINER RPC) it will not depend on
+-- service_role having any direct table grant here. Engine-verified: the
+-- existing blanket `grant select, insert, update, delete on all tables in
+-- schema app to service_role` in 20260830000900_rls_and_grants.sql is a
+-- point-in-time GRANT — it only ever applied to tables that already
+-- existed when that statement ran, not to tables created by later
+-- migrations such as this one. No assumption should be made that
+-- service_role automatically receives DML on a newly-created app-schema
+-- table through that historical grant; if service_role ever needs direct
+-- table access here, it requires its own explicit grant in a dedicated
+-- migration, exactly as private.has_active_college_admin/
+-- private.can_manage_building_metadata's missing service_role EXECUTE
+-- grant was later found and corrected in
+-- 20260905160000_college_admin_private_helper_acl.sql.
 grant select on app.building_metadata to echowall_api_viewer;
 
 -- 5. api.building_metadata_public ---------------------------------------------
@@ -323,7 +334,26 @@ commit;
 -- ROLLBACK (manual, read-only reference — NOT executed by this file).
 -- Valid ONLY if no later migration has created a dependent object on
 -- api.building_metadata_public or app.building_metadata (neither has any
--- dependent at creation time, so this is a plain drop, no CASCADE):
+-- dependent at creation time, so this is a plain drop, no CASCADE) —
+-- ENGINE-VERIFIED WARNING: as of V2.4b2,
+-- 20260905150000_building_metadata_update_rpc.sql's
+-- `api.update_building_metadata(...) RETURNS SETOF
+-- api.building_metadata_public` IS exactly such a dependent object
+-- (confirmed live against a real PostgreSQL 17 engine during the V2.4
+-- migration stack review: attempting `drop view
+-- api.building_metadata_public` while that function still exists fails
+-- with "cannot drop view api.building_metadata_public because other
+-- objects depend on it / function api.update_building_metadata(...)
+-- depends on type api.building_metadata_public" — the same class of
+-- dependent-object error V2.3b hit on api.comments_public). Therefore,
+-- once V2.4b2 has been applied, this migration's rollback below is valid
+-- ONLY after V2.4b2's own rollback has already dropped
+-- api.update_building_metadata first — never before it, and never with
+-- CASCADE as a shortcut. Full reverse-dependency order across the stack:
+-- (1) drop api.update_building_metadata (V2.4b2's rollback), (2) only
+-- then drop api.building_metadata_public (below), (3) then
+-- app.building_metadata, (4) the two validator functions last, once every
+-- dependent (the table's own CHECK constraints included) is gone:
 --
 --   begin;
 --   revoke select on api.building_metadata_public from anon, authenticated;
