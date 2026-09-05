@@ -53,6 +53,7 @@ const RUNTIME_FILES = [
   "services/auth-service.js",
   "services/auth-ui.js",
   "services/bisheng-adapter.js",
+  "services/building-metadata-provider.js",
   "services/cloudinary-adapter.js",
   "services/comment-service.js",
   "services/community-data-provider.js",

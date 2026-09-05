@@ -184,8 +184,16 @@ function renderBuildingEchoesSection(building, visibleNoteCount) {
   return `<section class="place-profile-section"><h3>${escapeHtml(I18n.t('place.buildingEchoes'))}</h3><p class="place-profile-note-count"><b>${visibleNoteCount}</b> ${escapeHtml(I18n.t('map.visibleNotes'))}</p></section>`;
 }
 
-function renderPlaceProfile(container, placeId) {
-  const building = getCampusBuilding(placeId);
+function renderPlaceProfile(container, placeId, options) {
+  // BACKEND V2.4a: getEffectiveBuilding() returns the static building
+  // unchanged whenever there is no backend override yet (no row, local
+  // mode, request failure, or the preload below simply hasn't resolved
+  // yet) — so the very first paint is always byte-for-byte identical to
+  // pre-V2.4a behavior. window.BuildingMetadataProvider may not be loaded
+  // in every context (e.g. an older cached page), hence the guard.
+  const building = window.BuildingMetadataProvider
+    ? window.BuildingMetadataProvider.getEffectiveBuilding(placeId)
+    : getCampusBuilding(placeId);
   if (!building) {
     container.innerHTML = `<section class="container error-page"><h1>Building not found</h1><button class="btn btn-primary" onclick="navigate('#/places')">${I18n.t("place.back")}</button></section>`;
     return;
@@ -227,6 +235,22 @@ function renderPlaceProfile(container, placeId) {
       ${mediaMarkup}
     </section>
   </div>`;
+
+  // BACKEND V2.4a: one-shot, silent background refresh. preload() is
+  // memoized (one bulk request per page load, not per building), resolves
+  // `false` for local mode/empty table/any failure (nothing to do), and
+  // `true` only when backend rows exist. `options.refreshed` prevents this
+  // from re-scheduling itself when THIS re-render is the one preload()
+  // triggered (preload()'s own promise is already resolved by then, so
+  // without this guard the .then() below would fire again synchronously
+  // and recurse forever). Skipped entirely if the user has since navigated
+  // away from this exact Building profile route.
+  if (!(options && options.refreshed) && window.BuildingMetadataProvider) {
+    const routeHash = `#/place/${encodeURIComponent(placeId)}`;
+    window.BuildingMetadataProvider.preload().then(changed => {
+      if (changed && location.hash === routeHash) renderPlaceProfile(container, placeId, { refreshed: true });
+    }).catch(() => {});
+  }
 }
 
 function openPlaceFromMap(placeId) {

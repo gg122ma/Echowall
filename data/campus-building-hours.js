@@ -107,8 +107,20 @@
     return displayHour + ":" + String(minute).padStart(2, "0") + " " + period;
   }
 
+  // BACKEND V2.4a: single resolution point for which hours config to use —
+  // an optional backend override (app.building_metadata.hours, whole-object
+  // only, never merged day-by-day) takes precedence when present; otherwise
+  // falls through to the exact same static lookup as before. This is the
+  // ONLY change in this file: the open/closed calculation below is
+  // untouched, so there remains exactly one canonical runtime calculation
+  // path regardless of which config source it reads from.
+  function resolveHoursConfig(buildingId) {
+    const override = window.BuildingMetadataProvider?.getHoursOverride?.(buildingId);
+    return override || window.CAMPUS_BUILDING_HOURS[buildingId];
+  }
+
   function getSnapshot(buildingId, now) {
-    const config = window.CAMPUS_BUILDING_HOURS[buildingId];
+    const config = resolveHoursConfig(buildingId);
     if (!config || config.mode === "unavailable") return { mode: "unavailable" };
     if (config.mode === "24h") return { mode: "24h", residentsOnly: !!config.residentsOnly };
 
