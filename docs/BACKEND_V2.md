@@ -23,7 +23,8 @@ anywhere in this repo. Only the browser-safe publishable key/project URL
 | V2.3b | Complete, applied | Building comments + one-level replies (removed the Building exclusion from the existing Community comment model — no new table) |
 | V2.4a | Local implementation, not yet applied to production | Building metadata read-model + static fallback (`app.building_metadata`, `api.building_metadata_public`) — read-only, no admin write path yet |
 | V2.4b1 | Local implementation, not yet applied to production | Server-side college-scoped Building admin **authorization primitive only** (`app.college_admin_assignments`, `private.has_active_college_admin`, `private.can_manage_building_metadata`) — no write RPC, no role-management RPC, no Admin UI yet |
-| V2.4b2 | Current (local implementation, not yet applied to production) | `api.update_building_metadata(...)` — the one authenticated, authorized, audited write RPC for `app.building_metadata`. Full-row save, optimistic concurrency, one `app.audit_events` row per real mutation. No role-management RPC, no Admin UI, no frontend caller yet |
+| V2.4b2 | Local implementation, not yet applied to production | `api.update_building_metadata(...)` — the one authenticated, authorized, audited write RPC for `app.building_metadata`. Full-row save, optimistic concurrency, one `app.audit_events` row per real mutation. No role-management RPC, no Admin UI, no frontend caller yet |
+| V2.4b1.1 | Current (local implementation, not yet applied to production) | ACL-only follow-up: explicit `service_role` EXECUTE grant on V2.4b1's two private helpers (no logic/table/RPC change) |
 | V2.4c+ | Not started | Admin editor UI, wired to `SupabaseAuthProvider`, calling `api.update_building_metadata` |
 
 ## Supabase project
@@ -57,9 +58,11 @@ full filename, for exactly this reason.
 `supabase/migrations/20260905120000_college_admin_building_permissions.sql`
 (V2.4b1), and
 `supabase/migrations/20260905150000_building_metadata_update_rpc.sql`
-(V2.4b2) are **local drafts only** — none is applied to production. Do not
-apply any of them without explicit authorization; see each migration
-file's own header for full detail.
+(V2.4b2), and
+`supabase/migrations/20260905160000_college_admin_private_helper_acl.sql`
+(V2.4b1.1, ACL-only) are **local drafts only** — none is applied to
+production. Do not apply any of them without explicit authorization; see
+each migration file's own header for full detail.
 
 ### Foundational schema lives in a separate repo
 
@@ -181,22 +184,18 @@ grant/revoke/disable a `college_admin_assignments` row — role-management
 writes need their own audit/admin design and are tracked for a later
 stage. No production assignment rows exist yet.
 
-**V2.4b1 ACL follow-up (P1, not yet corrected):** neither
-`private.has_active_college_admin` nor `private.can_manage_building_metadata`
-has an explicit `grant execute ... to service_role`, unlike every other
-`private.*`/`api.*` function created after
-`20260830000900_rls_and_grants.sql`'s one-time `grant execute on all
-functions in schema private to service_role` (that statement only covers
-functions that already existed when it ran — it is not a default-
-privileges mechanism). Both new functions DO correctly have `revoke
-execute ... from public, anon, authenticated`, so PUBLIC/anon/authenticated
-can never call them — this is a missing grant (too restrictive), not a
-security hole, and V2.4b2's RPC is unaffected because it runs `security
-definer` owned by the same role that owns these helpers (an owner always
-retains implicit EXECUTE on its own functions). Recommend a small,
-separately-authorized follow-up migration adding the two missing grants
-before V2.4b1 is ever applied to production, for parity with the
-project's own established convention.
+**V2.4b1.1 ACL hardening (resolved):** V2.4b2's own security review found
+that neither `private.has_active_college_admin` nor
+`private.can_manage_building_metadata` had an explicit `grant execute ...
+to service_role` (both already correctly had `revoke execute ... from
+public, anon, authenticated`, so this was a missing grant — too
+restrictive, never a security hole; V2.4b2's RPC was never affected by it,
+since it runs `security definer` owned by the same role that owns these
+helpers). `supabase/migrations/20260905160000_college_admin_private_helper_acl.sql`
+closes this gap with an explicit, exhaustive revoke-then-grant for both
+functions (PUBLIC/anon/authenticated: no execute; service_role: execute) —
+no function logic, table, or other object was touched. Local draft, not
+yet applied to production.
 
 ## Building metadata update RPC (V2.4b2)
 
