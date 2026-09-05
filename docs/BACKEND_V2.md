@@ -21,8 +21,10 @@ anywhere in this repo. Only the browser-safe publishable key/project URL
 | V2.3 | Complete, applied | Supabase-backed Building Wall + Map Post Directly (`app.posts`, `app.post_map_anchors`) |
 | V2.3a | Complete | Controlled live E2E validation of V2.3 against production (no schema change) |
 | V2.3b | Complete, applied | Building comments + one-level replies (removed the Building exclusion from the existing Community comment model — no new table) |
-| V2.4a | Current (local implementation, not yet applied to production) | Building metadata read-model + static fallback (`app.building_metadata`, `api.building_metadata_public`) — read-only, no admin write path yet |
-| V2.4b1+ | Not started | Scoped Admin write authorization (blocked on the `app.user_roles` college-scope gap below) |
+| V2.4a | Local implementation, not yet applied to production | Building metadata read-model + static fallback (`app.building_metadata`, `api.building_metadata_public`) — read-only, no admin write path yet |
+| V2.4b1 | Current (local implementation, not yet applied to production) | Server-side college-scoped Building admin **authorization primitive only** (`app.college_admin_assignments`, `private.has_active_college_admin`, `private.can_manage_building_metadata`) — no write RPC, no role-management RPC, no Admin UI yet |
+| V2.4b2+ | Not started | `api.update_building_metadata` write RPC (will call `private.can_manage_building_metadata`) + `building_metadata_updated` audit writes |
+| V2.4c+ | Not started | Admin editor UI, wired to `SupabaseAuthProvider` |
 
 ## Supabase project
 
@@ -51,9 +53,11 @@ locates a migration file by name should match by suffix (see
 full filename, for exactly this reason.
 
 `supabase/migrations/20260905060000_building_metadata_read_model.sql`
-(V2.4a) is a **local draft only** — not applied to production. Do not apply
-it without explicit authorization; see the migration file's own header for
-full detail.
+(V2.4a) and
+`supabase/migrations/20260905120000_college_admin_building_permissions.sql`
+(V2.4b1) are **local drafts only** — neither is applied to production. Do
+not apply either without explicit authorization; see each migration
+file's own header for full detail.
 
 ### Foundational schema lives in a separate repo
 
@@ -76,8 +80,9 @@ app.jurusan_scope_keys        jurusan_id smallint PK, college_id FK
 app.building_scope_keys       building_id text PK (globally unique today),
                                college_id smallint FK, unique(building_id, college_id)
 app.building_metadata         building_id text PK/FK -> building_scope_keys (V2.4a draft, NOT yet applied)
+app.college_admin_assignments (user_id, college_id) PK -> auth.users / college_scope_keys (V2.4b1 draft, NOT yet applied; row existence = COLLEGE_ADMIN for that college, no role column)
 app.profiles                  user_id uuid PK -> auth.users
-app.user_roles                user_id, role app.app_role ('user'|'moderator'|'admin'), no college-scope column
+app.user_roles                user_id, role app.app_role ('user'|'moderator'|'admin'), GLOBAL only, no college-scope column, UNCHANGED by V2.4b1
 app.posts                     scope_type: 'global'|'college'|'jurusan'|'building'
 app.post_votes
 app.post_map_anchors          Map Post Directly anchors (post_id, lat, lng)
@@ -114,19 +119,67 @@ Browser roles (`anon`, `authenticated`) never get direct `SELECT` on an
   refetch — never a raw cache mutation from the signal payload itself.
 - V2.4a's `app.building_metadata` is deliberately **not** added to the
   realtime publication (no write path exists yet to make it meaningful).
+- V2.4b1's `app.college_admin_assignments` is likewise never added to the
+  realtime publication — it is pure server-side authorization state, never
+  broadcast to any client.
 
-## Known architectural gap (flagged by the V2.4A audit, not fixed yet)
+## College-scoped Building admin authorization (V2.4b1)
 
-`app.user_roles.role` is a flat 3-value enum (`user`/`moderator`/`admin`)
-with **no college-scope column**. It cannot express "COLLEGE_ADMIN of
-college 1" vs "college 2". A rich, already-correct per-college permission
-model (`COLLEGE_BUILDING_MODERATE`, `canModerateCollegeBuilding`, etc.)
-already exists in `services/admin-permission-service.js`, but it is bound
-to the legacy LocalStorage `AuthService`, not `SupabaseAuthProvider` (which
-does not read `app.user_roles` at all today — every Supabase-authenticated
-user resolves to `role: "user"` client-side). Any future Building-metadata
-**write** RPC (V2.4b1+) needs this gap resolved first; V2.4a has no write
-path and does not depend on it.
+The V2.4A audit flagged that `app.user_roles.role` is a flat 3-value enum
+(`user`/`moderator`/`admin`) with no college-scope column, so it cannot
+express "COLLEGE_ADMIN of college 1" vs "college 2". V2.4b1 resolves this
+**at the authorization-primitive level only** — it does not touch
+`app.user_roles` at all.
+
+**Critical security decision — read this before changing anything here:**
+a college-scoped admin assignment must NEVER be encoded by inserting
+`role = 'admin'` into `app.user_roles` for that user. The existing
+`private.has_active_role(p_user_id, p_roles app.app_role[])` helper (used
+elsewhere, unchanged, unaffected by V2.4b1) treats `app.user_roles.admin`
+as a **GLOBAL** role — any row with `role = 'admin'` there grants that user
+admin access to *every* college, everywhere `has_active_role(..., ['admin'])`
+is checked. Encoding a per-college assignment that way would be a
+privilege escalation, not a scoping mechanism.
+
+Instead, V2.4b1 adds one new, separate, purpose-specific table:
+
+```
+app.user_roles                 -> user / moderator / admin — GLOBAL role contract, UNCHANGED
+app.college_admin_assignments  -> (user_id, college_id) — COLLEGE-SCOPED COLLEGE_ADMIN contract, new and additive
+```
+
+A row in `app.college_admin_assignments` (with `disabled_at is null`)
+means exactly "this user is the Building-metadata admin for this one
+college" — no role column, because the table's existence is the
+assignment. It never implies `admin`, `moderator`, `GLOBAL_MODERATOR`,
+`STUDY_MODERATOR`, or `CONTENT_REVIEWER`.
+
+Two new `private.*` SECURITY DEFINER helpers (never exposed through the
+`api` schema):
+
+- `private.has_active_college_admin(p_user_id, p_college_id)` — true iff an
+  active `app.college_admin_assignments` row matches exactly that user and
+  college.
+- `private.can_manage_building_metadata(p_user_id, p_college_id)` — the
+  primitive a future V2.4b2 `api.update_building_metadata` RPC will call:
+  true iff `private.has_active_role(p_user_id, ARRAY['admin'::app.app_role])`
+  (global admin, every college) **or**
+  `private.has_active_college_admin(p_user_id, p_college_id)` (that
+  college's own admin). `moderator` is deliberately never included — a
+  Community/Global moderator has no Building-metadata authority.
+
+Frontend role mapping (documentation only — no UI/backend integration
+yet): frontend `SUPER_ADMIN` → future backend global `app.user_roles.admin`;
+frontend `COLLEGE_ADMIN` → `app.college_admin_assignments`; frontend
+`GLOBAL_MODERATOR`/`STUDY_MODERATOR`/`CONTENT_REVIEWER` → unrelated to
+Building-metadata authority.
+
+**Still not implemented** (out of scope for V2.4b1, tracked for later
+stages): any RPC to grant/revoke/disable a `college_admin_assignments` row
+(role-management writes need their own audit/admin design), the actual
+`api.update_building_metadata` write RPC (V2.4b2), `building_metadata_updated`
+audit writes (V2.4b2), and any Admin UI wiring (V2.4c). No production
+assignment rows exist yet — this stage is the permission model only.
 
 ## Branch / freeze rules
 
