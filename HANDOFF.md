@@ -2182,3 +2182,20 @@ Study Notes V2 (STUDY-V2-003 through FINAL-QA) is complete and browser-accepted.
 Study Notes stage unless the user explicitly asks for one. If a new session needs to interact with
 the app in a real browser, the `mcp__claude-in-chrome` bridge worked in this session — try it before
 assuming it is unavailable.
+## Backend V2.4c — local Building metadata editor (2026-09-07)
+
+Added the existing Admin route's Building metadata subsection, raw override
+service, complete five-field RPC serialization, static fallback controls,
+localized/hour editors and optimistic concurrency. Server authorization remains
+authoritative; no production writes, migration changes, push or deployment.
+Validation: 37 mocked V2.4c checks, existing regression suites, Pages build,
+artifact validator, URL lock and 59 shipped JavaScript syntax checks pass.
+Browser unavailable: desktop/mobile visual verification remains manual. The
+repository-wide syntax scan encounters an unchanged HTML fragment checkpoint.
+The portable validator's sole failure is a verified baseline exception: the
+current tree reports 262 passes/1 failure and a clean detached cb33d17 reports
+256 passes/1 failure, both for the exact same localhost literal in the unchanged
+Supabase activation boundary. V2.4c's three added runtime files account for the
+six extra passing checks. The validator and activation boundary were not edited.
+See docs/BACKEND_V2.md for integration details and manual checks. Rollback is a
+local revert of the V2.4c commit; no database rollback is needed.

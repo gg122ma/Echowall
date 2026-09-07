@@ -1503,3 +1503,20 @@ Rollback: restore only the previous portable ZIP, or restore the previous ZIP an
 - **Theme/locale, live-confirmed:** Study Notes browse/filter and the Admin Study Moderation reject form were both re-checked in Dark theme (correct contrast, layout unchanged from Light); the Study subject page was re-checked in BM and 中文 (category tabs, filter labels and resource counts all localized correctly).
 - **Mobile viewport — still not live-verified:** `resize_window` does not change `window.innerWidth` in this Chrome-bridge environment (confirmed by reading it back immediately after the call, three sessions running now per the note at line 659/682 above). Mobile CSS breakpoints were instead confirmed present in source (`style-study.css` `@media(max-width:720px)`; `style-admin.css` `@media(max-width:1100px)`/`(max-width:760px)`), which is a structural check, not a rendered observation. This is the one remaining real-device gap; worth raising with the user as a standing tooling limitation (per the existing note two audit entries above) rather than re-attempting the same failing resize call in future sessions.
 - **Non-Study regression, live-confirmed with zero console errors:** Homepage stats unchanged (715 visible notes / 12 communities / 0 photo notes); Community → All KM Students and College Communities (KMK/KMKK/KMPP/KMPK) render; KMK General Community wall loads; Echo Map (`map.html`) loads, building search/preview/outline works for Pustaka; Building Profile and dedicated Building Wall (43 real sticky notes) both render; existing Admin (KM Community Notes: 14/14 visible, 409 votes; Map Notes: 0 pins) unaffected; Auth (register/sign-in/sign-out/role) worked correctly across three distinct accounts in one session.
+## Backend V2.4c — local Building metadata editor (2026-09-07)
+
+Added the existing Admin route's Building metadata subsection, raw override
+service, complete five-field RPC serialization, static fallback controls,
+localized/hour editors and optimistic concurrency. Server authorization remains
+authoritative; no production writes, migration changes, push or deployment.
+Validation: 37 mocked V2.4c checks, existing regression suites, Pages build,
+artifact validator, URL lock and 59 shipped JavaScript syntax checks pass.
+Browser unavailable: desktop/mobile visual verification remains manual. The
+repository-wide syntax scan encounters an unchanged HTML fragment checkpoint.
+The portable validator's sole failure is a verified baseline exception: the
+current tree reports 262 passes/1 failure and a clean detached cb33d17 reports
+256 passes/1 failure, both for the exact same localhost literal in the unchanged
+Supabase activation boundary. V2.4c's three added runtime files account for the
+six extra passing checks. The validator and activation boundary were not edited.
+See docs/BACKEND_V2.md for integration details and manual checks. Rollback is a
+local revert of the V2.4c commit; no database rollback is needed.

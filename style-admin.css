@@ -270,3 +270,15 @@
   .admin-login-panel { padding:24px 14px 50px; }
   .admin-login-card { padding:26px 20px; }
 }
+/* V2.4c: reuse Admin/form styles; keep localized text and hours within mobile width. */
+.building-admin { max-width: 1400px; margin: auto; }
+.building-admin fieldset { min-width: 0; border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin: 16px 0; }
+.building-admin legend { font-weight: 700; padding: 0 6px; }
+.building-admin .form-group { display: block; margin: 12px 0; }
+.building-admin textarea { width: 100%; min-height: 90px; }
+.building-admin pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; }
+.building-admin h2, .building-admin p { overflow-wrap: anywhere; margin-block: 12px; }
+.building-admin-day { display: grid; grid-template-columns: minmax(90px, 1fr) 1fr 1fr 1fr; gap: 12px; align-items: center; margin: 12px 0; }
+.building-admin input, .building-admin select { max-width: 100%; min-width: 0; }
+.building-admin button:disabled { opacity: .55; cursor: wait; }
+@media (max-width: 640px) { .building-admin-day { grid-template-columns: 1fr 1fr; } .building-admin fieldset { padding: 10px; } }

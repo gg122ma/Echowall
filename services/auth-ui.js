@@ -550,7 +550,7 @@
         ${isRemote ? "" : `<button class="account-action account-edit" type="button" data-account-edit><span>✎</span>${profileAction}</button>`}
         <div class="account-settings-group"><span class="account-setting-label">${I18n.t("account.language")}</span><div class="account-options" role="group" aria-label="${I18n.t("account.language")}">${option("en", language, "EN", "data-account-language")}${option("ms", language, "BM", "data-account-language")}${option("zh", language, "中文", "data-account-language")}</div></div>
         <div class="account-settings-group"><span class="account-setting-label">${I18n.t("nav.theme")}</span><div class="account-options" role="group" aria-label="${I18n.t("nav.theme")}">${option("light", theme, I18n.t("theme.light"), "data-account-theme")}${option("dark", theme, I18n.t("theme.dark"), "data-account-theme")}${option("system", theme, I18n.t("theme.system"), "data-account-theme")}</div></div>
-        ${isAdmin ? `<a class="account-action" href="#/admin" data-account-admin><span>◆</span>${I18n.t("nav.adminDashboard")}</a>` : ""}
+        ${isRemote ? `<a class="account-action" href="#/admin/buildings" data-account-admin><span>◆</span>Building metadata admin</a>` : isAdmin ? `<a class="account-action" href="#/admin" data-account-admin><span>◆</span>${I18n.t("nav.adminDashboard")}</a>` : ""}
         <button class="account-action account-sign-out" type="button" data-account-sign-out><span>↪</span>${I18n.t("nav.signOut")}</button>
       </div>
     </section></div>`;

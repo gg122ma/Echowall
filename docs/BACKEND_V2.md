@@ -25,7 +25,7 @@ anywhere in this repo. Only the browser-safe publishable key/project URL
 | V2.4b1 | Local implementation, not yet applied to production | Server-side college-scoped Building admin **authorization primitive only** (`app.college_admin_assignments`, `private.has_active_college_admin`, `private.can_manage_building_metadata`) — no write RPC, no role-management RPC, no Admin UI yet |
 | V2.4b2 | Local implementation, not yet applied to production | `api.update_building_metadata(...)` — the one authenticated, authorized, audited write RPC for `app.building_metadata`. Full-row save, optimistic concurrency, one `app.audit_events` row per real mutation. No role-management RPC, no Admin UI, no frontend caller yet |
 | V2.4b1.1 | Current (local implementation, not yet applied to production) | ACL-only follow-up: explicit `service_role` EXECUTE grant on V2.4b1's two private helpers (no logic/table/RPC change) |
-| V2.4c+ | Not started | Admin editor UI, wired to `SupabaseAuthProvider`, calling `api.update_building_metadata` |
+| V2.4c | Local implementation, not deployed | Building metadata editor under `#/admin/buildings`, raw overrides and full-row RPC saves; mocked tests only, no production mutations |
 
 ## Supabase project
 
@@ -247,9 +247,71 @@ Key contracts (see the migration file's own header for full detail):
   the audit row are never exposed to the caller.
 
 **Still not implemented** (tracked for later stages): any
-`api.grant_college_admin`/`revoke`/`disable` role-management RPC, any
-Admin UI, and no frontend code calls this RPC yet (V2.4c will wire the
-Admin editor UI to it).
+`api.grant_college_admin`/`revoke`/`disable` role-management RPC.
+
+## Building metadata Admin editor (V2.4c)
+
+`#/admin/buildings` is a focused subsection of the existing Admin route,
+linked from the Supabase account menu and prototype Admin sidebar. It reuses
+the Admin/form styles. This editor is UX, never a security boundary: it does
+not consult localStorage roles or grant access to prototype moderation tools.
+The shared `CommunitySupabaseClient` supplies the Supabase session; the
+existing `SupabaseAuthProvider` supplies account-change events. A current
+authenticated, non-anonymous session is required before loading/saving.
+`api.update_building_metadata` remains the authoritative authorization and
+validation boundary. The client never supplies college_id or writes app tables.
+
+`services/building-metadata-admin.js` reads only building_id, description,
+purpose, special_notes, localized_alias, hours and updated_at from
+`api.building_metadata_public`. A failed read never becomes a missing-row
+create. Editable values come from that raw row, never the effective public
+presentation. All five values are sent on every save: null means static
+fallback, not unchanged. Each localized override is a whole en/ms/zh object;
+language inclusion is explicit, with limits of 2000/500/1000/100 characters
+for description/purpose/special_notes/localized_alias. Static values are
+read-only references and never populate override inputs.
+
+The structured hours editor supports static fallback, 24h, unavailable and
+weekly (exactly Sunday through Saturday, each closed or same-day HH:MM
+open/close with open < close). residentsOnly may be omitted, true or false.
+No open_now/is_open is serialized; BuildingHours still derives current status.
+
+The exact loaded updated_at is sent as p_expected_updated_at, or null for
+a missing row. SQLSTATE 40001 blocks further saves until explicit reload;
+reload retains the old draft as an escaped read-only comparison. Permission,
+validation and unknown-building errors have distinct messages. Network errors
+retain the form. Loading/saving disables controls and blocks duplicate requests.
+Token refresh preserves edits; an account change clears the editor state.
+Success is shown only after the RPC returns its sanitized row, which replaces
+the editor raw state and refreshes the V2.4a provider cache. An older pending
+preload cannot overwrite that saved result. Public merge logic is unchanged;
+subsequent Building profiles use that cache and a newly opened Map refetches.
+
+Validation: `node scripts/test-building-metadata-admin.mjs` covers 37 mocked
+service, serializer, renderer and auth checks without network access. Existing
+regression suites, the local Pages build, artifact validator and URL lock pass.
+Browser discovery returned no available browser, so desktop/mobile visual QA
+remains manual: open the editor with a local mock client, load a Building,
+toggle each source/language, edit weekly hours, simulate conflict and reload,
+then check keyboard focus and a 375px viewport. Never use a production Save
+for this check. The broad recursive syntax command encounters a pre-existing
+HTML-only `.js` checkpoint; shipped artifact JavaScript is checked separately.
+
+The additional legacy `validate-portable-demo.mjs` check has one verified
+pre-existing baseline failure: the current V2.4c tree reports 262 passes and
+one failure, while a clean detached worktree at cb33d17 reports 256 passes and
+the exact same one failure. Both reject the literal localhost in the unchanged
+Supabase activation boundary. V2.4c's three added runtime files account for the
+six extra passing checks. The validator and
+`services/community-supabase-client.js` match their cb33d17 blobs and were not
+weakened or edited. This baseline exception is not a V2.4c regression or commit
+blocker; all other relevant checks pass.
+
+V2.4c remains **local, undeployed, and unapplied to production**. The four
+V2.4 migration files are unchanged; no migration, production write, push,
+deployment or main merge was performed. Rollback: revert the V2.4c commit
+locally; no database rollback is required.
+V2.4d/V2.5 are not started.
 
 ## Branch / freeze rules
 

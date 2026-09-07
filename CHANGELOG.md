@@ -1666,3 +1666,20 @@ Rollback: restore the previous 200-note KMK JSON and 788-note bundle/ZIP, revert
 - Verified the portable validator, all 25 deployed JavaScript files, `git diff --check`, archive safety scans, four wall routes, runtime seed idempotency, 16 building photos, HTTP resources and the local rule-based AI fallback.
 
 Rollback: restore only the prior `EchoWall-portable-demo-v1.zip` (and its matching generated bundle if the seed sources also change). Do not clear LocalStorage or revert unrelated dirty-worktree files.
+## Backend V2.4c — local Building metadata editor (2026-09-07)
+
+Added the existing Admin route's Building metadata subsection, raw override
+service, complete five-field RPC serialization, static fallback controls,
+localized/hour editors and optimistic concurrency. Server authorization remains
+authoritative; no production writes, migration changes, push or deployment.
+Validation: 37 mocked V2.4c checks, existing regression suites, Pages build,
+artifact validator, URL lock and 59 shipped JavaScript syntax checks pass.
+Browser unavailable: desktop/mobile visual verification remains manual. The
+repository-wide syntax scan encounters an unchanged HTML fragment checkpoint.
+The portable validator's sole failure is a verified baseline exception: the
+current tree reports 262 passes/1 failure and a clean detached cb33d17 reports
+256 passes/1 failure, both for the exact same localhost literal in the unchanged
+Supabase activation boundary. V2.4c's three added runtime files account for the
+six extra passing checks. The validator and activation boundary were not edited.
+See docs/BACKEND_V2.md for integration details and manual checks. Rollback is a
+local revert of the V2.4c commit; no database rollback is needed.

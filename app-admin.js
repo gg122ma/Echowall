@@ -242,6 +242,7 @@ function adminSidebarNavHtml(user) {
   const dashLink = (source, icon, label, count) =>
     `<button class="admin-nav-item ${active === source ? "active" : ""}" onclick="adminSetSource('${source}')"><span>${icon}</span><span>${escapeHtml(label)}</span><b>${count}</b></button>`;
   const parts = [
+    `<a class="admin-nav-item" href="#/admin/buildings">Building metadata</a>`,
     dashLink("overview", "◈", I18n.t("admin.dash.overview"), ""),
     dashLink("queue", "🗂️", I18n.t("admin.dash.queue"), pendingCount),
     dashLink("reports", "🚩", I18n.t("admin.dash.reports"), reportCount),
@@ -269,6 +270,7 @@ function adminSidebarNavHtml(user) {
 }
 
 function renderAdmin(container) {
+  if (window.location?.hash === "#/admin/buildings") return window.renderAdminBuildings(container);
   const user = window.AuthService?.getCurrentUser?.() || null;
   if (!user || !isCurrentUserAdmin()) {
     renderAdminAccessState(container, user);

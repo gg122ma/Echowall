@@ -16,6 +16,7 @@
  */
 (function () {
   const cache = new Map(); // building_id -> api.building_metadata_public row
+  const savedIds = new Set(); // A pending preload must not replace a newer RPC result.
   let preloadPromise = null;
 
   function activation() { return window.CommunitySupabaseClient.getActivationState(); }
@@ -38,7 +39,7 @@
         if (error || !Array.isArray(data)) return false;
         data.forEach(row => {
           const buildingId = String(row?.building_id || "");
-          if (buildingId) cache.set(buildingId, row);
+          if (buildingId && !savedIds.has(buildingId)) cache.set(buildingId, row);
         });
         return cache.size > 0;
       } catch {
@@ -80,7 +81,15 @@
     return row && row.hours != null ? row.hours : null;
   }
 
+  // Only called after an actual successful, sanitized metadata RPC response.
+  function acceptSavedRow(row) {
+    const buildingId = String(row.building_id);
+    savedIds.add(buildingId);
+    cache.set(buildingId, JSON.parse(JSON.stringify(row)));
+  }
+
   window.BuildingMetadataProvider = Object.freeze({
+    acceptSavedRow,
     preload,
     getEffectiveBuilding,
     getHoursOverride,
