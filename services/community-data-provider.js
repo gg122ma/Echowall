@@ -44,11 +44,12 @@
     createMapPost: input => repository().mapAnchors.create(input),
     // Published-count projection. Canonical production reads one paginated,
     // metadata-only posts_public aggregation; Local mode never calls it.
-    refreshPostCounts: () => repository().postCounts.refresh(),
+    refreshPostCounts: options => repository().postCounts.refresh(options),
     cachedCommunityPostCount: key => repository().postCounts.cachedCommunity(key),
-    cachedCollegePostCount: collegeId => repository().postCounts.cachedCollege(collegeId),
+    cachedCollegeAggregatePostCount: collegeId => repository().postCounts.cachedCollegeAggregate(collegeId),
     cachedBuildingPostCount: (collegeId, buildingId) => repository().postCounts.cachedBuilding(collegeId, buildingId),
     cachedTotalPostCount: () => repository().postCounts.cachedTotal(),
+    cachedLatestPostCreatedAt: () => repository().postCounts.cachedLatestCreatedAt(),
     cachedPhotoPostCount: () => repository().postCounts.cachedPhoto(),
   });
 })();

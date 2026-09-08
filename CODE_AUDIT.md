@@ -7,14 +7,24 @@
   Production consumers now use `CommunityDataProvider` count caches; the fixed helpers remain only
   behind explicit non-remote branches.
 - The repository count projection reads one row per published post from `api.posts_public` and no
-  anchor rows, content, localStorage, or legacy 696-note bundle. Exact Global/College/Jurusan keys
-  and `(college_id, building_id)` keys prevent cross-scope addition and Map double counting.
+  anchor rows, content, localStorage, or legacy 696-note bundle. Exact Global/College/Jurusan keys,
+  a separate College aggregate cache, and `(college_id, building_id)` keys preserve the distinct UI
+  semantics and prevent Map double counting.
+- Live scope verification found 0 College-General rows and 501 Jurusan rows. In particular, KMK's
+  College aggregate is 118 while its exact College-General count is 0; the regression fixture locks
+  this formerly broken case.
+- Latest Memory is the max valid published `created_at`. Photo Notes is explicitly unresolved in
+  canonical production because no remote media dimension or canonical static photo-note source
+  exists; the UI keeps the same card and label but does not fabricate a number.
+- The Building-content audit separates the five default `SEED_BUILDING_NOTES` from 210 overlapping
+  showcase/demo Building entries in the 696-note bundle. Only those five defaults appear in the
+  proposal-only deterministic manifest, with no media or Map anchor invented.
 - Wall refreshes load the remote collection and count concurrently, then verify the active wall
   identity before updating. Other surfaces update only existing numeric elements identified by
   their current scope data attribute.
-- `scripts/test-authoritative-post-counts.mjs` passes 28/28 assertions, the complete existing test
-  suite passes, runtime JavaScript syntax passes, Pages build/artifact validation pass, production
-  URL lock passes, and `git diff --check` passes. CSS and migrations changed: none.
+- Focused regressions cover count semantics, projection caching, newest-date selection, unresolved
+  Photo Notes, manifest fidelity, demo-bundle exclusion, and no database execution. CSS and
+  migrations changed: none.
 
 ## 2026-09-08 - COMPLETE SHARED SYNC
 

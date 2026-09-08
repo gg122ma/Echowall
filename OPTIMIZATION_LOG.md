@@ -4,9 +4,12 @@
 
 - Reused the existing Supabase repository/provider boundary for all production count reads.
 - Replaced per-card full-content counting with one shared, paginated projection of four scope
-  columns, cached for Community walls, College cards, and Building surfaces.
+  columns plus `created_at`, cached for Community walls, College cards, Building surfaces, and
+  Latest Memory.
 - Concurrent callers reuse one in-flight request. Map anchors are excluded by construction, and
   local compatibility remains isolated behind the existing activation boundary.
+- Added a 30-second TTL so rapid route changes reuse the projection, while successful Community,
+  Building, or Map publication explicitly forces a fresh projection.
 
 ## 2026-09-08 - shared-sync provider reuse
 

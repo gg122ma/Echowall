@@ -4,24 +4,38 @@ Branch: `production-count-integrity`. Base/main SHA:
 `2b6b2b5ecb0c4f3d4ee1d44b2748419392c02fe2`.
 
 Canonical production note counts now terminate in the existing Supabase repository/provider layer.
-`refreshPostCounts()` reads only `scope_type`, `college_id`, `jurusan_id`, and `building_id` from
-`api.posts_public`, paginates in bounded ranges, and atomically refreshes Community-scope, College,
-and Building caches. It does not read post content or join `post_map_anchors_public`; therefore a
+`refreshPostCounts()` reads only `scope_type`, `college_id`, `jurusan_id`, `building_id`, and
+`created_at` from `api.posts_public`, paginates in bounded ranges, and atomically refreshes exact
+Community-scope, College-aggregate, Building, total, and latest-date caches. College cards and
+College Landing aggregate College-General plus all Jurusan scopes for that college. Wall headers
+remain exact scope. It does not read post content or join `post_map_anchors_public`; therefore a
 Map-created Building post contributes one post row and one count.
 
-The Home `Visible notes` statistic uses the total published-row projection. The public remote post
-schema has no image field and all remote create paths reject photos, so the existing `Photo notes`
-statistic resolves to the authoritative supported subset of 0 in canonical production.
+The Home `Visible notes` statistic uses the total published-row projection, and Latest Memory uses
+the newest published `created_at` formatted in Malaysia time. Photo Notes has no authoritative
+production dimension: the public post view has no media field, remote create paths reject photos,
+all five default Building notes have empty media, and the demo showcase has media plans but no
+payloads. Canonical mode therefore displays an unresolved dash rather than inventing zero or 53;
+the owner must decide the future metric contract.
 
 The UI markup/classes and all CSS are preserved. Existing numeric elements receive data attributes
 so their text can refresh asynchronously without a component or layout replacement. The generic
 refresh reads the current element's scope identity after the request completes, so navigation from
 Building A to Building B cannot apply A's count to B. Local mode continues to use
-`data/demo-display-counts.js`; canonical production never does.
+`data/demo-display-counts.js`; canonical production never does. A 30-second TTL prevents repeated
+projection downloads during rapid route changes, while successful post writes force a refresh.
 
 Live read-only verification on 2026-09-08 found 568 published rows in `api.posts_public`: 67
-`all_km`, 501 `jurusan`, and 0 `building`. No production row was mutated. Rollback is the single
-commit on this branch; no database rollback or migration is involved.
+`all_km`, 501 `jurusan`, 0 `college`, and 0 `building`. The College aggregates are KMK 118, KMKK
+170, KMPP 86, KMPK 126, KMKT 1, and 0 for every other configured college. Latest is
+`2026-09-07T17:21:24.625902+00:00` (Sep 8 in Malaysia).
+
+The proposed, non-executable Building baseline manifest is
+`production-launch/building-baseline-import.proposed.json`. It contains only the five default
+Building Wall entries from `app-data.js#SEED_BUILDING_NOTES`, uses stable internal seed keys, and
+requires no Map anchors. The 696 portable bundle's 210 Building showcase entries are explicitly
+excluded. Owner authorization is required before any import; no production row was mutated and no
+migration exists.
 
 # COMPLETE SHARED SYNC RELEASE CANDIDATE (2026-09-08)
 

@@ -15,10 +15,13 @@
   // college-wide, not building-specific).
   const mapAnchorCache = new Map();
   const communityPostCountCache = new Map();
-  const collegePostCountCache = new Map();
+  const collegeAggregatePostCountCache = new Map();
   const buildingPostCountCache = new Map();
+  const POST_COUNT_CACHE_TTL_MS = 30 * 1000;
   let postCountsLoaded = false;
   let totalPostCountCache = 0;
+  let latestPostCreatedAtCache = null;
+  let postCountsLoadedAt = 0;
   let postCountRefreshPromise = null;
 
   function buildingCacheKey(collegeId, buildingId) {
@@ -32,7 +35,10 @@
   // One published post contributes exactly one row here. Map anchors are
   // deliberately not joined, so a Map-created Building post is counted once
   // even though its post_id also has one post_map_anchors row. Only the four
-  // scope columns are downloaded, in bounded pages; post content is not.
+  // scope columns plus created_at are downloaded, in bounded pages; post
+  // content is not. College aggregate counts deliberately include both the
+  // exact College scope and every Jurusan scope in that college, while
+  // communityPostCountCache keeps exact wall-scope counts.
   async function loadPublishedPostCountDimensions() {
     const client = await readClient();
     const pageSize = 1000;
@@ -42,7 +48,7 @@
 
     do {
       const { data, error, count } = await client.from("posts_public")
-        .select("scope_type,college_id,jurusan_id,building_id", { count: "exact" })
+        .select("scope_type,college_id,jurusan_id,building_id,created_at", { count: "exact" })
         .in("scope_type", ["all_km", "college", "jurusan", "building"])
         .range(offset, offset + pageSize - 1);
       if (error) throw friendlyError(error, "Published post counts could not be loaded.");
@@ -54,20 +60,26 @@
     } while (true);
 
     const nextCommunityCounts = new Map();
-    const nextCollegeCounts = new Map();
+    const nextCollegeAggregateCounts = new Map();
     const nextBuildingCounts = new Map();
+    let nextLatestCreatedAt = null;
     rows.forEach(row => {
       const scopeType = String(row?.scope_type || "");
       const collegeId = Number(row?.college_id);
+      const createdAt = String(row?.created_at || "");
+      if (Number.isFinite(Date.parse(createdAt)) && (
+        !nextLatestCreatedAt || Date.parse(createdAt) > Date.parse(nextLatestCreatedAt)
+      )) nextLatestCreatedAt = createdAt;
       if (scopeType === "all_km") {
         incrementCount(nextCommunityCounts, "global:all");
       } else if (scopeType === "college" && Number.isInteger(collegeId) && collegeId > 0) {
         incrementCount(nextCommunityCounts, `college:${collegeId}`);
-        incrementCount(nextCollegeCounts, collegeId);
+        incrementCount(nextCollegeAggregateCounts, collegeId);
       } else if (scopeType === "jurusan" && Number.isInteger(collegeId) && collegeId > 0) {
         const jurusanId = Number(row?.jurusan_id);
         if (!Number.isInteger(jurusanId) || jurusanId <= 0) return;
         incrementCount(nextCommunityCounts, `jurusan:${collegeId}:${jurusanId}`);
+        incrementCount(nextCollegeAggregateCounts, collegeId);
       } else if (scopeType === "building" && Number.isInteger(collegeId) && collegeId > 0) {
         const buildingId = String(row?.building_id || "");
         if (buildingId) incrementCount(nextBuildingCounts, buildingCacheKey(collegeId, buildingId));
@@ -75,17 +87,22 @@
     });
 
     communityPostCountCache.clear();
-    collegePostCountCache.clear();
+    collegeAggregatePostCountCache.clear();
     buildingPostCountCache.clear();
     nextCommunityCounts.forEach((value, key) => communityPostCountCache.set(key, value));
-    nextCollegeCounts.forEach((value, key) => collegePostCountCache.set(key, value));
+    nextCollegeAggregateCounts.forEach((value, key) => collegeAggregatePostCountCache.set(key, value));
     nextBuildingCounts.forEach((value, key) => buildingPostCountCache.set(key, value));
     totalPostCountCache = rows.length;
+    latestPostCreatedAtCache = nextLatestCreatedAt;
     postCountsLoaded = true;
+    postCountsLoadedAt = Date.now();
     return Object.freeze({ rows: rows.length });
   }
 
-  function refreshPostCounts() {
+  function refreshPostCounts(options = {}) {
+    const force = options?.force === true;
+    const cacheIsFresh = postCountsLoaded && (Date.now() - postCountsLoadedAt) < POST_COUNT_CACHE_TTL_MS;
+    if (!force && cacheIsFresh) return Promise.resolve(Object.freeze({ rows: totalPostCountCache, cached: true }));
     if (!postCountRefreshPromise) {
       postCountRefreshPromise = loadPublishedPostCountDimensions()
         .finally(() => { postCountRefreshPromise = null; });
@@ -187,7 +204,7 @@
         p_position_x: Number(input.positionX || 10), p_position_y: Number(input.positionY || 15),
       });
       if (error) throw friendlyError(error, "Your note could not be published.");
-      await Promise.all([listPosts(input.communityKey), refreshPostCounts()]);
+      await Promise.all([listPosts(input.communityKey), refreshPostCounts({ force: true })]);
     });
   }
 
@@ -231,7 +248,7 @@
         p_position_x: Number(input.positionX || 10), p_position_y: Number(input.positionY || 15),
       });
       if (error) throw friendlyError(error, "Your note could not be published.");
-      await Promise.all([listBuildingPosts(collegeId, buildingId), refreshPostCounts()]);
+      await Promise.all([listBuildingPosts(collegeId, buildingId), refreshPostCounts({ force: true })]);
     });
   }
 
@@ -273,7 +290,7 @@
       await Promise.all([
         listBuildingPosts(frozenPost.orgId, frozenPost.placeId).catch(() => {}),
         listMapAnchors(frozenPost.orgId).catch(() => {}),
-        refreshPostCounts().catch(() => {}),
+        refreshPostCounts({ force: true }).catch(() => {}),
       ]);
       return frozenPost;
     });
@@ -388,12 +405,13 @@
     postCounts: Object.freeze({
       refresh: refreshPostCounts,
       cachedCommunity: communityKey => cachedCount(communityPostCountCache, String(communityKey || "")),
-      cachedCollege: collegeId => cachedCount(collegePostCountCache, Number(collegeId)),
+      cachedCollegeAggregate: collegeId => cachedCount(collegeAggregatePostCountCache, Number(collegeId)),
       cachedBuilding: (collegeId, buildingId) => cachedCount(buildingPostCountCache, buildingCacheKey(collegeId, buildingId)),
       cachedTotal: () => postCountsLoaded ? totalPostCountCache : null,
-      // The current public post schema has no image field and all remote
-      // create paths reject photos, so the authoritative remote subset is 0.
-      cachedPhoto: () => postCountsLoaded ? 0 : null,
+      cachedLatestCreatedAt: () => postCountsLoaded ? latestPostCreatedAtCache : null,
+      // There is currently no authoritative production Photo-note dimension.
+      // Null is intentional: absence of a source must not be presented as 0.
+      cachedPhoto: () => null,
     }),
     friendlyError,
   });

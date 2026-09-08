@@ -431,7 +431,7 @@ function usesAuthoritativePostCounts() {
 
 function getCollegeNoteDisplayCount(orgId, localCount = getCommunityNoteCount(orgId)) {
   if (!usesAuthoritativePostCounts()) return getCollegeDisplayCount(orgId, localCount);
-  const remoteCount = window.CommunityDataProvider?.cachedCollegePostCount?.(orgId);
+  const remoteCount = window.CommunityDataProvider?.cachedCollegeAggregatePostCount?.(orgId);
   return Number.isInteger(remoteCount) && remoteCount >= 0 ? remoteCount : 0;
 }
 
@@ -450,7 +450,20 @@ function getHomeNoteDisplayCount(localCount) {
 function getHomePhotoNoteDisplayCount(localCount) {
   if (!usesAuthoritativePostCounts()) return localCount;
   const remoteCount = window.CommunityDataProvider?.cachedPhotoPostCount?.();
-  return Number.isInteger(remoteCount) && remoteCount >= 0 ? remoteCount : 0;
+  return Number.isInteger(remoteCount) && remoteCount >= 0 ? remoteCount : null;
+}
+
+function formatLatestMemoryDate(createdAt) {
+  const parsed = new Date(String(createdAt || ""));
+  if (!Number.isFinite(parsed.getTime())) return null;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short", day: "numeric", year: "numeric", timeZone: "Asia/Kuala_Lumpur",
+  }).format(parsed);
+}
+
+function getLatestMemoryDisplay(localDisplay) {
+  if (!usesAuthoritativePostCounts()) return localDisplay;
+  return formatLatestMemoryDate(window.CommunityDataProvider?.cachedLatestPostCreatedAt?.()) || "—";
 }
 
 function replaceRenderedLeadingCount(element, count) {
@@ -463,7 +476,7 @@ function refreshAuthoritativePostCountElements() {
   if (!usesAuthoritativePostCounts()) return Promise.resolve(false);
   return window.CommunityDataProvider.refreshPostCounts().then(() => {
     document.querySelectorAll("[data-community-note-count]").forEach(element => {
-      const count = window.CommunityDataProvider.cachedCollegePostCount(element.dataset.communityNoteCount);
+      const count = window.CommunityDataProvider.cachedCollegeAggregatePostCount(element.dataset.communityNoteCount);
       if (Number.isInteger(count) && count >= 0) replaceRenderedLeadingCount(element, count);
     });
     document.querySelectorAll("[data-building-note-count]").forEach(element => {
@@ -481,6 +494,9 @@ function refreshAuthoritativePostCountElements() {
       element.dataset.countAnimationToken = String(Number(element.dataset.countAnimationToken || 0) + 1);
       element.textContent = String(count);
     });
+    const latestMemory = document.querySelector("[data-home-latest-memory]");
+    const latestMemoryDisplay = formatLatestMemoryDate(window.CommunityDataProvider.cachedLatestPostCreatedAt());
+    if (latestMemory && latestMemoryDisplay) latestMemory.textContent = latestMemoryDisplay;
     return true;
   }).catch(() => false);
 }
@@ -516,7 +532,11 @@ function renderHome(container) {
   const homepageVisibleNotesDisplay = getHomeNoteDisplayCount(1017);
   const homepageCommunitiesDisplay = 12;
   const homepagePhotoNotesDisplay = getHomePhotoNoteDisplayCount(53);
-  const homepageLatestMemoryDisplay = "Aug 25, 2026";
+  const homepagePhotoNotesTarget = Number.isInteger(homepagePhotoNotesDisplay)
+    ? ` data-count="${homepagePhotoNotesDisplay}"`
+    : "";
+  const homepagePhotoNotesInitial = Number.isInteger(homepagePhotoNotesDisplay) ? "0" : "—";
+  const homepageLatestMemoryDisplay = getLatestMemoryDisplay("Aug 25, 2026");
 
   container.innerHTML = `
     <div class="home-page">
@@ -553,8 +573,8 @@ function renderHome(container) {
         <div class="stats-grid">
           <article class="stat-card reveal-card" data-reveal style="--reveal-delay:0ms"><span class="stat-icon">✏️</span><span class="stat-value" data-home-note-count data-count="${homepageVisibleNotesDisplay}">0</span><span class="stat-label">${I18n.t("home.visibleNotes")}</span></article>
           <article class="stat-card reveal-card" data-reveal style="--reveal-delay:70ms"><span class="stat-icon">🏛️</span><span class="stat-value" data-count="${homepageCommunitiesDisplay}">0</span><span class="stat-label">${I18n.t("home.communities")}</span></article>
-          <article class="stat-card reveal-card" data-reveal style="--reveal-delay:140ms"><span class="stat-icon">📷</span><span class="stat-value" data-home-photo-note-count data-count="${homepagePhotoNotesDisplay}">0</span><span class="stat-label">${I18n.t("home.photoNotes")}</span></article>
-          <article class="stat-card reveal-card" data-reveal style="--reveal-delay:210ms"><span class="stat-icon">🕒</span><span class="stat-value stat-value-text">${homepageLatestMemoryDisplay}</span><span class="stat-label">${I18n.t("home.latestMemory")}</span></article>
+          <article class="stat-card reveal-card" data-reveal style="--reveal-delay:140ms"><span class="stat-icon">📷</span><span class="stat-value" data-home-photo-note-count${homepagePhotoNotesTarget}>${homepagePhotoNotesInitial}</span><span class="stat-label">${I18n.t("home.photoNotes")}</span></article>
+          <article class="stat-card reveal-card" data-reveal style="--reveal-delay:210ms"><span class="stat-icon">🕒</span><span class="stat-value stat-value-text" data-home-latest-memory>${homepageLatestMemoryDisplay}</span><span class="stat-label">${I18n.t("home.latestMemory")}</span></article>
         </div>
       </section>
 

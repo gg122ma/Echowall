@@ -4,13 +4,21 @@
 
 - Canonical production Home note statistics, Community, Building Stories, Building Detail,
   Building Wall, Home building cards, and Echo Map building-preview note counts now use a shared
-  metadata-only projection of published `api.posts_public` rows. Global, College, Jurusan, and
-  Building scopes remain distinct; the unsupported remote photo-post subset is authoritatively 0.
+  metadata-only projection of published `api.posts_public` rows. College cards and College Landing
+  aggregate exact College plus every Jurusan scope for that college; College-General, Jurusan, and
+  Global Wall headers remain exact-scope counts.
+- Home Latest Memory now derives from the newest published `created_at`. Photo Notes has no current
+  authoritative production dimension and renders as unresolved instead of fabricating zero; its
+  original fixed value remains Local-mode compatibility only.
 - Historical values in `data/demo-display-counts.js` remain available only in non-canonical Local
   mode and cannot override canonical production counts.
 - Map anchors are not joined into the count projection, so one Map-created Building post counts
   once. No CSS, layout, schema, migration, database row, Auth/RLS, or shared-sync route changed.
-- Added `scripts/test-authoritative-post-counts.mjs` with 28 focused assertions.
+- Added a 30-second projection cache with explicit force-refresh after post creation, plus focused
+  count and proposed Building-baseline-manifest regression coverage.
+- Read-only Building audit proposes only the five original `SEED_BUILDING_NOTES` entries for a
+  separately authorized import. The 210 Building entries inside the 696-note portable bundle are
+  excluded. Nothing was imported or otherwise mutated.
 
 ## 2026-09-08 - COMPLETE SHARED SYNC RELEASE CANDIDATE
 

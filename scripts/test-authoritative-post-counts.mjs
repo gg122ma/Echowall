@@ -45,16 +45,16 @@ function post(overrides = {}) {
 const initialized = [
   post({ id: "global-1", scope_type: "all_km", college_id: null, building_id: null }),
   post({ id: "global-2", scope_type: "all_km", college_id: null, building_id: null }),
-  post({ id: "college-1", scope_type: "college", building_id: null }),
-  post({ id: "jurusan-1", scope_type: "jurusan", jurusan_id: 10, building_id: null }),
-  post({ id: "jurusan-2", scope_type: "jurusan", jurusan_id: 10, building_id: null }),
+  ...Array.from({ length: 118 }, (_, index) => post({ id: `jurusan-${index}`, scope_type: "jurusan", jurusan_id: 10, building_id: null })),
+  post({ id: "college-2-a", scope_type: "college", college_id: 2, building_id: null }),
+  post({ id: "college-2-b", scope_type: "college", college_id: 2, building_id: null }),
   ...Array.from({ length: 41 }, (_, index) => post({ id: `pustaka-${index}`, building_id: "B_PUSTAKA" })),
-  ...Array.from({ length: 521 }, (_, index) => post({ id: `other-${index}` })),
+  ...Array.from({ length: 404 }, (_, index) => post({ id: `other-${index}` })),
 ];
 assert.equal(initialized.length, 567);
 const newer = [
   post({ id: "map-created", building_id: "B_PUSTAKA", is_seed: false, created_at: "2026-09-08T00:00:00Z" }),
-  post({ id: "new-college", scope_type: "college", building_id: null, is_seed: false, created_at: "2026-09-08T01:00:00Z" }),
+  post({ id: "new-college", scope_type: "college", college_id: 2, building_id: null, is_seed: false, created_at: "2026-09-08T01:00:00Z" }),
 ];
 const cloud = {
   posts: [...initialized, ...newer],
@@ -112,17 +112,24 @@ for (const file of [
 ]) vm.runInContext(read(file), context, { filename: file });
 
 await window.CommunityDataProvider.refreshPostCounts();
-check("canonical Community college count uses exact published college scope", window.CommunityDataProvider.cachedCollegePostCount(1) === 2);
+check("College Hub aggregate includes every Jurusan scope in its college", window.CommunityDataProvider.cachedCollegeAggregatePostCount(1) === 118);
+check("College with 118 Jurusan posts and no College-General posts does not display 0", window.CommunityDataProvider.cachedCollegeAggregatePostCount(1) === 118);
 check("canonical global count uses exact all_km scope", window.CommunityDataProvider.cachedCommunityPostCount("global:all") === 2);
-check("canonical college-wall count uses exact college scope", window.CommunityDataProvider.cachedCommunityPostCount("college:1") === 2);
-check("canonical jurusan count uses exact college and jurusan scope", window.CommunityDataProvider.cachedCommunityPostCount("jurusan:1:10") === 2);
+check("College General Wall remains exact College scope", window.CommunityDataProvider.cachedCommunityPostCount("college:1") === 0);
+check("a second College aggregate adds exact College rows", window.CommunityDataProvider.cachedCollegeAggregatePostCount(2) === 3);
+check("Jurusan Wall remains exact college and Jurusan scope", window.CommunityDataProvider.cachedCommunityPostCount("jurusan:1:10") === 118);
 check("Home visible-note total uses all published remote post rows", window.CommunityDataProvider.cachedTotalPostCount() === 569);
-check("Home photo-note total reflects the remote schema's supported subset", window.CommunityDataProvider.cachedPhotoPostCount() === 0);
+check("Latest Memory uses the newest published created_at", window.CommunityDataProvider.cachedLatestPostCreatedAt() === "2026-09-08T01:00:00Z");
+check("Photo Notes is unresolved rather than silently invented as zero", window.CommunityDataProvider.cachedPhotoPostCount() === null);
 check("Building count includes the Map-created Building post once", window.CommunityDataProvider.cachedBuildingPostCount(1, "B_PUSTAKA") === 42);
 check("Map anchor metadata is not counted as a second post", window.CommunityDataProvider.cachedBuildingPostCount(1, "B_PUSTAKA") === cloud.posts.filter(row => row.scope_type === "building" && row.building_id === "B_PUSTAKA").length);
 check("count aggregation reads posts_public and never the anchor view", calls.length === 1 && calls[0].table === "posts_public");
-check("count aggregation downloads dimensions only, never post content", calls[0].columns === "scope_type,college_id,jurusan_id,building_id" && !calls[0].columns.includes("content"));
+check("count aggregation downloads dimensions and created_at only, never post content", calls[0].columns === "scope_type,college_id,jurusan_id,building_id,created_at" && !calls[0].columns.includes("content"));
 check("count aggregation uses exact count semantics and bounded range", calls[0].options.count === "exact" && calls[0].range[0] === 0 && calls[0].range[1] === 999);
+await window.CommunityDataProvider.refreshPostCounts();
+check("fresh count cache avoids a repeated full projection read", calls.length === 1);
+await window.CommunityDataProvider.refreshPostCounts({ force: true });
+check("explicit force refresh performs one projection read after a write", calls.length === 2);
 check("567 initialized rows require no mutation", JSON.stringify(cloud.posts.slice(0, 567)) === JSON.stringify(initialized));
 check("legitimate newer rows require no mutation", JSON.stringify(cloud.posts.slice(567)) === JSON.stringify(newer));
 check("the read-only count operation performs no database mutation", JSON.stringify(cloud) === before);
@@ -136,10 +143,11 @@ const helperWindow = {
   KMK_COLLEGE_ID: 1,
   CommunityDataProvider: {
     isRemoteRequested: () => true,
-    cachedCollegePostCount: () => 2,
+    cachedCollegeAggregatePostCount: () => 118,
     cachedBuildingPostCount: () => 42,
     cachedTotalPostCount: () => 569,
-    cachedPhotoPostCount: () => 0,
+    cachedLatestPostCreatedAt: () => "2026-09-07T17:21:24.625902+00:00",
+    cachedPhotoPostCount: () => null,
   },
 };
 const helperContext = {
@@ -154,13 +162,15 @@ const helperContext = {
 helperWindow.window = helperWindow;
 vm.createContext(helperContext);
 vm.runInContext(helperSource, helperContext);
-check("Community fixed override cannot replace production count", helperContext.getCollegeNoteDisplayCount(1, 999) === 2);
+check("Community fixed override cannot replace the production College aggregate", helperContext.getCollegeNoteDisplayCount(1, 999) === 118);
 check("Building fixed override cannot replace production count", helperContext.getBuildingNoteDisplayCount("B_PUSTAKA", 999) === 42);
 check("Home fixed visible-note number cannot replace production total", helperContext.getHomeNoteDisplayCount(1017) === 569);
-check("Home fixed photo-note number cannot replace production subset", helperContext.getHomePhotoNoteDisplayCount(53) === 0);
+check("Home Photo Notes does not invent a canonical numeric count", helperContext.getHomePhotoNoteDisplayCount(53) === null);
+check("Home Latest Memory formats the newest canonical timestamp in Malaysia time", helperContext.getLatestMemoryDisplay("Aug 25, 2026") === "Sep 8, 2026");
 helperWindow.CommunityDataProvider.isRemoteRequested = () => false;
 check("non-canonical Local mode retains college compatibility", helperContext.getCollegeNoteDisplayCount(1, 999) === 203);
 check("non-canonical Local mode retains building compatibility", helperContext.getBuildingNoteDisplayCount("B_PUSTAKA", 999) === 43);
+check("non-canonical Local mode retains its Latest Memory fallback", helperContext.getLatestMemoryDisplay("Aug 25, 2026") === "Aug 25, 2026");
 
 const communitySource = read("app-community.js");
 const placeSource = read("app-place.js");
@@ -174,5 +184,7 @@ check("Map preview uses Building count semantics, not anchored-only count", /get
 check("all production posts still use the same normal wall renderer", /filtered\.forEach\(\(note, index\) => canvas\.appendChild\(buildNoteDOM\(note, index\)\)\)/.test(wallSource) && !/renderSeedPost/.test(wallSource));
 check("no public provenance badge or separate renderer was introduced", !/(seed|demo|sample)-(badge|section|renderer|post)/i.test([communitySource, placeSource, wallSource, mapSource].join("\n")));
 check("fixed display tables are reachable only behind non-remote branches", /if \(!usesAuthoritativePostCounts\(\)\) return getCollegeDisplayCount/.test(routerSource) && /if \(!usesAuthoritativePostCounts\(\)\) return getBuildingDisplayCount/.test(routerSource));
+check("canonical Photo Notes renders an unresolved value rather than a fabricated number", /homepagePhotoNotesInitial[^;]+\? "0" : "—"/.test(routerSource));
+check("Latest Memory has an async in-place refresh target", /data-home-latest-memory/.test(routerSource) && /cachedLatestPostCreatedAt/.test(routerSource));
 
 console.log(`\n${passed}/${passed} assertions passed.`);
