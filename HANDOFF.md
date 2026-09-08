@@ -1,3 +1,21 @@
+# COMPLETE SHARED SYNC RELEASE CANDIDATE (2026-09-08)
+
+Release branch: `competition-shared-sync-20260908`. Pre-release main is
+`ab838a7782c1b98fe64bcc01b03e0cb89dc9788e`; pushed rollback tag is
+`innostem-2026-pre-shared-sync-20260908-073516-sgt`.
+
+The production database already contains every required additive backend object, so this release
+has no migration. Community, Map user posts/anchors, and Building Wall content use Supabase on the
+canonical `/Echowall/` site. Local providers remain available only for non-canonical compatibility.
+The existing non-seed `jurusan:14:40` post and its owner records are legitimate production data and
+must never be included in QA cleanup.
+
+The Community cross-device defect was isolated to frontend read/session coupling: the production
+row is publicly readable and maps correctly to `jurusan:14:40`, but public queries shared the
+session-restoring client. Public views now use a session-free anonymous client until a valid user is
+published; an authenticated refetch then restores ownership controls. The focused regression is
+`scripts/test-shared-sync-production-routing.mjs`.
+
 # ADMIN V2 — FINAL STATE (ADMIN-V2-001 through ADMIN-V2-FINAL-QA, COMPLETE)
 
 Status: **COMPLETE** (2026-08-23). Every ADMIN-V2 stage (001, 001A, 002, 002A, 003, 003A, 004, 005,

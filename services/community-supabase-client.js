@@ -10,6 +10,7 @@
   const SDK_URL = `https://cdn.jsdelivr.net/npm/@supabase/supabase-js@${SDK_VERSION}/dist/umd/supabase.min.js`;
   const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
   let clientPromise = null;
+  let publicClientPromise = null;
 
   function communityConfig() {
     return window.EchoConfig?.community || {};
@@ -29,14 +30,21 @@
     return LOOPBACK_HOSTS.has(String(window.location?.hostname || "").toLowerCase());
   }
 
+  // BACKEND V2.3: map.html is a second first-party production page (the
+  // campus Map, same repo/deploy as index.html) that now also needs
+  // Community-Supabase activation for Map Post Directly + Building-anchored
+  // reads. This adds exactly one more literal path under the SAME required
+  // origin+basePath check below — it does not loosen the match strategy
+  // (still exact string equality, no prefix/wildcard) and does not admit
+  // any origin V2.2 didn't already require. V2.2 only ever needed
+  // index.html, so map.html was simply never added to this allowlist yet.
   function isCanonicalProduction() {
     const production = productionBoundary();
     const origin = String(window.location?.origin || "");
     const pathname = String(window.location?.pathname || "");
     const basePath = String(production.basePath || "");
-    return origin === production.origin
-      && basePath === "/Echowall/"
-      && (pathname === basePath || pathname === `${basePath}index.html`);
+    if (origin !== production.origin || basePath !== "/Echowall/") return false;
+    return pathname === basePath || pathname === `${basePath}index.html` || pathname === `${basePath}map.html`;
   }
 
   function isStagingRequested() {
@@ -134,6 +142,31 @@
     return clientPromise;
   }
 
+  async function getPublicClient() {
+    const config = readPublicConfig();
+    const activation = getActivationState();
+    if (!activation.mode.startsWith("supabase-") || !config) throw activationError();
+    if (!publicClientPromise) {
+      // Anonymous read views must remain usable even when this browser has a
+      // stale/invalid persisted login. Keep the read client completely free
+      // of session restoration; authenticated writes continue through
+      // getClient() and its normal persisted Supabase Auth session.
+      publicClientPromise = loadPinnedSdk().then(sdk => sdk.createClient(config.url, config.publishableKey, {
+        db: { schema: "api" },
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+          storageKey: "echo-wall-public-read:v1",
+        },
+      })).catch(error => {
+        publicClientPromise = null;
+        throw error;
+      });
+    }
+    return publicClientPromise;
+  }
+
   window.CommunitySupabaseClient = Object.freeze({
     SDK_VERSION,
     SDK_URL,
@@ -141,5 +174,6 @@
     isCanonicalProduction,
     getActivationState,
     getClient,
+    getPublicClient,
   });
 })();

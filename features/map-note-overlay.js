@@ -39,6 +39,19 @@
     return composeCopy[language]?.[key] || composeCopy.en[key] || key;
   }
 
+  // BACKEND V2.3: whether Map Post Directly + the Map's own read path
+  // should use Supabase (api.create_map_post / post_map_anchors_public +
+  // posts_public) instead of the local MapNoteService. Mirrors
+  // isRemoteCommunityContext()/isRemoteBuildingContext() in app-wall.js —
+  // same single "is Community Supabase activated for this browser" gate.
+  function isRemoteMap() {
+    return window.CommunityDataProvider?.isRemoteRequested?.() === true;
+  }
+
+  function mapCurrentUser() {
+    return isRemoteMap() ? window.CommunityDataProvider.getCurrentUser() : window.AuthService?.getCurrentUser?.();
+  }
+
   function postTypeText(value) {
     const key = value === 'question' ? 'form.postTypeQuestion' : 'form.postTypeDiscussion';
     const translated = window.I18n?.t?.(key);
@@ -331,7 +344,7 @@
     form.querySelectorAll('[data-shape]').forEach(option => {
       option.textContent = composeShapeText(option.dataset.shape);
     });
-    const user = window.AuthService?.getCurrentUser?.();
+    const user = mapCurrentUser();
     const namedDisplay = form.querySelector('[data-role=namedDisplay]');
     if (namedDisplay) namedDisplay.textContent = user?.displayName || '';
     const location = form.querySelector('[data-role=location]');
@@ -359,10 +372,10 @@
 
   function openComposeForm() {
     if (!state.placementSelection || !state.formOverlay) return;
-    const user = window.AuthService?.getCurrentUser?.();
+    const user = mapCurrentUser();
     if (!user) {
       state.pendingFormOpen = true;
-      window.AuthUI?.open?.('login');
+      window.AuthUI?.open?.('login', { provider: isRemoteMap() ? 'supabase' : 'local' });
       return;
     }
     state.pendingFormOpen = false;
@@ -387,9 +400,10 @@
 
   async function submitComposeForm(event) {
     event.preventDefault();
-    const user = window.AuthService?.getCurrentUser?.();
+    const remote = isRemoteMap();
+    const user = mapCurrentUser();
     if (!user) {
-      window.AuthUI?.open?.('login');
+      window.AuthUI?.open?.('login', { provider: remote ? 'supabase' : 'local' });
       return;
     }
     const form = event.currentTarget;
@@ -403,6 +417,36 @@
     const submit = form.querySelector('[data-copy=submit]');
     submit.disabled = true;
     setComposeError('');
+    // BACKEND V2.3 — Map Post Directly, Supabase branch. Calls
+    // api.create_map_post exactly once (see services/community-supabase-
+    // repositories.js's createMapPost for why: that RPC is the single
+    // atomic transaction that creates both the canonical app.posts row and
+    // its app.post_map_anchors row under the SAME post_id — there is no
+    // second create_post call and no manually-written anchor here).
+    if (remote) {
+      if (state.pendingImageDataUrl) { setComposeError(composeText('failed')); submit.disabled = false; return; }
+      try {
+        if (!isAnonymous) await window.SupabaseAuthProvider.upsertProfile(user.displayName);
+        await window.CommunityDataProvider.createMapPost({
+          buildingId: entry.placeId,
+          lat: state.placementSelection.lat,
+          lng: state.placementSelection.lng,
+          postType: window.EchoPostTypeContract.normalize(form.elements.postType?.value),
+          content,
+          category: form.elements.category?.value,
+          shape: form.elements.shape?.value,
+          color: form.elements.color?.value,
+          isAnonymous,
+        });
+        exitPlacementMode();
+        showPluginToast(composeText('success'));
+      } catch {
+        setComposeError(composeText('failed'));
+      } finally {
+        submit.disabled = false;
+      }
+      return;
+    }
     try {
       await window.MapNoteService.ready();
       await window.MapNoteService.create({
@@ -683,8 +727,19 @@
     if (!state.map || !state.publicLayer || !state.privateLayer) return;
     const requestToken = ++state.refreshToken;
     try {
-      if (!serviceReady) await window.MapNoteService.ready();
-      const notes = await window.MapNoteService.list({ visibility:'visible' });
+      // BACKEND V2.3: remote mode reads anchor-backed Map notes from
+      // Supabase (api.post_map_anchors_public joined with api.posts_public,
+      // college-scoped server-side — see CommunitySupabaseRepositories.
+      // mapAnchors.list). Local MapNoteService/its LocalStorage providers
+      // are completely untouched — Admin's Map moderation tab still reads
+      // that same local provider directly, unaffected by this branch.
+      let notes;
+      if (isRemoteMap()) {
+        notes = await window.CommunityDataProvider.refreshMapAnchors(window.KMK_COLLEGE_ID);
+      } else {
+        if (!serviceReady) await window.MapNoteService.ready();
+        notes = await window.MapNoteService.list({ visibility:'visible' });
+      }
       if (requestToken !== state.refreshToken || !state.map) return;
       const buildings = getBuildings();
       const publicNotes = getPublicNotes(notes, buildings);
@@ -704,6 +759,14 @@
   async function connectService() {
     const activeMap = state.map;
     try {
+      if (isRemoteMap()) {
+        // Keep anonymous public Map reads independent from auth restoration.
+        // Restoration still runs so an existing signed-in session can post,
+        // and its auth-change event refreshes the composer when it resolves.
+        void window.CommunityDataProvider.ready().catch(() => {});
+        await refresh({ serviceReady:true });
+        return;
+      }
       await window.MapNoteService.ready();
       await refresh({ serviceReady:true });
       if (state.map !== activeMap || state.serviceUnsubscribe) return;
@@ -740,7 +803,15 @@
     addListener(window,'pageshow',() => { void refresh(); });
     addListener(window,'echo:authchange',() => {
       void refresh();
-      if (state.pendingFormOpen && window.AuthService?.getCurrentUser?.()) openComposeForm();
+      if (state.pendingFormOpen && mapCurrentUser()) openComposeForm();
+      else updateComposeFormCopy();
+    });
+    // BACKEND V2.3: Supabase sign-in/out fires echo:communityauthchange
+    // (see services/supabase-auth-provider.js), not echo:authchange — the
+    // remote-mode equivalent of the listener just above.
+    addListener(window,'echo:communityauthchange',() => {
+      void refresh();
+      if (state.pendingFormOpen && mapCurrentUser()) openComposeForm();
       else updateComposeFormCopy();
     });
     addListener(window,'echo:languagechange',() => { void refresh({ serviceReady:true }); });

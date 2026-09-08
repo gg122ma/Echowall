@@ -14,7 +14,13 @@
   let activeProfileOptionIndex = -1;
 
   function isSupabaseCommunityRoute() {
-    if (window.CommunityDataProvider?.isRemoteRequested() !== true || typeof window.getRoute !== "function") return false;
+    if (window.CommunityDataProvider?.isRemoteRequested() !== true) return false;
+    // The standalone canonical Map page now owns shared Supabase posts too,
+    // so its navbar must reflect and sign out the same remote session used by
+    // Post Directly. Exact-path production activation is enforced by
+    // CommunitySupabaseClient before this branch can be reached.
+    if (String(window.location?.pathname || "").endsWith("/map.html")) return true;
+    if (typeof window.getRoute !== "function") return false;
     return ["community-hub", "community-college", "community-global", "community-college-general", "wall"].includes(getRoute().page);
   }
 

@@ -17,6 +17,14 @@ const organizations = [
   { id: 14, name: "KMKT", type: "college", emoji: "🏫" },
 ];
 
+// BACKEND V2.3: single canonical source for "which college owns the
+// currently-populated Building directory" (data/campus-buildings.js is
+// KMK-only today — every app.building_scope_keys row is college_id=1). Any
+// code that needs to send a Building post's college_id to Supabase reads
+// this constant instead of hardcoding the literal 1.
+const KMK_COLLEGE_ID = organizations.find(org => org.name === "KMK")?.id ?? 1;
+window.KMK_COLLEGE_ID = KMK_COLLEGE_ID;
+
 /**
  * Batches Mapping List
  * Links graduation timelines to their parent organizations

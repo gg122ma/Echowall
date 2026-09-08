@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-09-08 - COMPLETE SHARED SYNC RELEASE CANDIDATE
+
+- Fixed Community public reads with a session-free anonymous Supabase client, so `posts_public`
+  refreshes cannot be blocked by stale client-auth restoration. Scope changes also reset transient
+  category, search, sort, and post-type filters before the new wall renders.
+- Canonical production now routes Map Post Directly and Building Wall user content through the
+  existing Supabase providers. Map creation uses the atomic `api.create_map_post` RPC for its post
+  and coordinates; Building posts and supported interactions reuse the existing authenticated
+  post/comment/reply/vote/question RPCs and public read views.
+- Static map/building data, photos, Echo Library, Ask Echo, themes, languages, production identity,
+  and Realtime publication remain unchanged. No database migration, Storage, or Cloudinary was
+  introduced.
+- Added `scripts/test-shared-sync-production-routing.mjs` with 27 focused provider, fresh-session,
+  localStorage-authority, authorization, and building-isolation assertions.
+
 ## 2026-08-23 — COMMUNITY-SEED-INTERACTION-ECHO-LIBRARY
 
 - **Echo Library rename**: "Study Notes" renamed to "Echo Library" everywhere a user actually sees

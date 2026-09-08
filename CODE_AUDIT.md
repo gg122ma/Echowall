@@ -1,5 +1,17 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-08 - COMPLETE SHARED SYNC
+
+- Production catalog inspection confirmed `building_id`, `app.post_map_anchors`, public post/anchor/
+  comment views, authenticated create/comment/reply/vote/question RPCs, server-side scope and
+  coordinate validation, grants, RLS, and cleanup-safe foreign keys. Migration decision: none.
+- The owner-created Community post is returned by `api.posts_public` for exact predicates
+  `scope_type=jurusan`, `college_id=14`, `jurusan_id=40`; the frontend route, key, repository query,
+  adapter, and default filters were verified against that same shape without mutating the row.
+- Release diff is limited to shared provider wiring, Community public-read sequencing, one focused
+  regression test, and release documentation. No static Building data/photos, Library, Ask Echo,
+  themes/languages, admin metadata work, Storage, Cloudinary, or publication membership changed.
+
 ## 2026-08-23 — DISPLAY-COUNT-CONSISTENCY
 
 - **Data safety invariant checked**: `data/demo-display-counts.js` and its two helpers never read,

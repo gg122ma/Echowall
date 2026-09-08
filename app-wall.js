@@ -186,22 +186,56 @@ function isRemoteCommunityContext() {
   return wallState.contextType === "community" && window.CommunityDataProvider?.isRemoteRequested() === true;
 }
 
+// BACKEND V2.3: Building Wall's Supabase equivalent of isRemoteCommunityContext().
+// Kept as a separate function (not folded into isRemoteCommunityContext)
+// because several call sites below still need to know specifically whether
+// the CURRENT WALL is Community (for communityKey-shaped refetch logic) —
+// isRemoteWallContext() is the broader "is this post backed by Supabase at
+// all" check those call sites use instead.
+function isRemoteBuildingContext() {
+  return wallState.contextType === "building" && window.CommunityDataProvider?.isRemoteRequested() === true;
+}
+
+function isRemoteWallContext() {
+  return isRemoteCommunityContext() || isRemoteBuildingContext();
+}
+
+// BACKEND V2.3b: a note supports Supabase-backed comments/replies when it is
+// a remote post (post.isRemote === true) in a comment-capable context —
+// Community (always was) or Building Wall (both a plain Building post and a
+// Map Post Directly share scope_type = 'building', so both qualify
+// identically; no separate check is needed for Map-originated posts).
+// Local/demo Building posts (post.isRemote !== true) intentionally do NOT
+// get a Supabase comment section — V2.3b is Supabase-backed Building
+// comments only, not a new LocalStorage Building comment system.
+function supportsRemoteComments(note) {
+  return Boolean(note) && note.isRemote === true && (note.contextType === "community" || note.contextType === "building");
+}
+
+// Whether a note's modal should render a comments section AT ALL. Community
+// notes always have (either local-CommentService-backed, for legacy/demo
+// posts, or Supabase-backed) comments; Building notes only gained a comments
+// section in V2.3b, and only for Supabase-backed (remote) posts.
+function hasCommentsSection(note) {
+  return Boolean(note) && (note.contextType === "community" || supportsRemoteComments(note));
+}
+
 function getWallCurrentUser() {
-  return isRemoteCommunityContext() ? CommunityDataProvider.getCurrentUser() : AuthService.getCurrentUser();
+  return isRemoteWallContext() ? CommunityDataProvider.getCurrentUser() : AuthService.getCurrentUser();
 }
 
 function findWallNote(noteId) {
-  if (isRemoteCommunityContext()) return CommunityDataProvider.findPost(noteId);
+  if (isRemoteWallContext()) return CommunityDataProvider.findPost(noteId);
   return getRuntimeNotes().find(item => Number(item.id) === Number(noteId));
 }
 
 function requireWallAuthentication() {
   showToast(I18n.t("wall.authRequired"));
-  AuthUI.open("login", { provider: isRemoteCommunityContext() ? "supabase" : "local" });
+  AuthUI.open("login", { provider: isRemoteWallContext() ? "supabase" : "local" });
 }
 
 async function ensureNamedRemoteProfile(isAnonymous, displayName) {
-  if (!isRemoteCommunityContext() || isAnonymous) return;
+  if (!isRemoteWallContext() || isAnonymous) return;
   await SupabaseAuthProvider.upsertProfile(displayName);
 }
 
@@ -288,6 +322,22 @@ function renderBuildingWall(container, placeId) {
 }
 
 function renderContextWall(container, context) {
+  const previousScopeIdentity = wallState.contextType === "building"
+    ? `building:${wallState.placeId}`
+    : `community:${wallState.communityKey}`;
+  const nextScopeIdentity = context.contextType === "building"
+    ? `building:${String(context.placeId || "")}`
+    : `community:${String(context.communityKey || "")}`;
+  if (previousScopeIdentity !== nextScopeIdentity) {
+    // A filter chosen on one wall must never silently hide the only post on
+    // a different wall. Keep filters while re-rendering the same scope, but
+    // start every newly selected Community/Building scope from its complete
+    // shared result set.
+    wallState.category = "all";
+    wallState.sort = "hot";
+    wallState.search = "";
+    wallState.postType = "all";
+  }
   wallState.contextType = context.contextType;
   wallState.orgId = context.orgId || 0;
   wallState.majorId = context.majorId || 0;
@@ -350,12 +400,24 @@ function renderContextWall(container, context) {
     </div>`;
   renderWallNotes();
   if (context.contextType === "community" && window.CommunityDataProvider?.isRemoteRequested()) {
-    CommunityDataProvider.ready()
-      .then(() => CommunityDataProvider.refreshPosts(context.communityKey))
+    // Public reads must not wait for auth-session restoration. A stale or
+    // invalid session may fail to restore on one device, but posts_public is
+    // intentionally anonymous-readable and still has to render there.
+    void CommunityDataProvider.ready().catch(() => {});
+    CommunityDataProvider.refreshPosts(context.communityKey)
       .then(() => {
         if (wallState.contextType === "community" && wallState.communityKey === context.communityKey) renderWallNotes();
       })
       .catch(error => showToast(error instanceof Error ? error.message : "Community is temporarily unavailable."));
+  } else if (context.contextType === "building" && window.CommunityDataProvider?.isRemoteRequested()) {
+    const collegeId = window.KMK_COLLEGE_ID;
+    const buildingId = context.placeId;
+    void CommunityDataProvider.ready().catch(() => {});
+    CommunityDataProvider.refreshBuildingPosts(collegeId, buildingId)
+      .then(() => {
+        if (wallState.contextType === "building" && wallState.placeId === buildingId) renderWallNotes();
+      })
+      .catch(error => showToast(error instanceof Error ? error.message : "Building Wall is temporarily unavailable."));
   }
 }
 
@@ -375,7 +437,15 @@ function wallDisplayNoteCount(realCount) {
 }
 
 function getContextNotes() {
-  if (wallState.contextType === "building") return getVisibleBuildingNotes(wallState.placeId);
+  if (wallState.contextType === "building") {
+    // BACKEND V2.3: remote mode reads Building posts from Supabase (server-
+    // side filtered on scope_type/college_id/building_id already, inside
+    // listBuildingPosts — never fetched globally then browser-filtered);
+    // local fallback is untouched, exactly like Community's own
+    // isRemoteCommunityContext() ? cachedPosts() : local-array-filter split.
+    if (isRemoteBuildingContext()) return CommunityDataProvider.cachedBuildingPosts(window.KMK_COLLEGE_ID, wallState.placeId);
+    return getVisibleBuildingNotes(wallState.placeId);
+  }
   // Community V2 (COM-V2-003): filter by communityKey (global:all/college:{orgId}/
   // jurusan:{orgId}:{majorId}) via CommunityService, not raw orgId/majorId
   // comparison — this is what lets Global/College General/Jurusan share one
@@ -484,7 +554,11 @@ async function setQuestionStatus(noteId, status) {
   const currentUser = getWallCurrentUser();
   const note = findWallNote(noteId);
   if (!note || (note.isDemoSeed === true && note.isDemoSeedRuntime === true)) return;
-  if (isRemoteCommunityContext()) {
+  // BACKEND V2.3: dispatch on the found post's own isRemote flag (same
+  // pattern voteNote() already uses below) rather than the page-level
+  // isRemoteCommunityContext() check, so a remote Building question's
+  // solve/reopen routes through CommunityDataProvider too.
+  if (note.isRemote) {
     if (!currentUser) { requireWallAuthentication(); return; }
     try {
       await CommunityDataProvider.setQuestionStatus(note, status);
@@ -564,7 +638,7 @@ function buildNoteDOM(note, index) {
   const commentCount = note.isRemote
     ? CommunityDataProvider.commentCount(note)
     : (window.CommentService?.getCommentCount(note.id) ?? note.commentCount ?? 0);
-  const commentCountHTML = note.contextType === "community"
+  const commentCountHTML = hasCommentsSection(note)
     ? `<span class="note-comment-count" aria-label="Comments">💬 ${Number(commentCount)}</span>`
     : "";
   element.innerHTML = `<div class="note-pin" aria-hidden="true"></div><div class="note-category-label">${categoryIcon} ${category.replace("campus_life", "campus life")}</div>${getQuestionBadgeHTML(note)}${imageSource ? `<div class="note-photo"><img src="${imageSource}" alt="${escapeHtml(note.imageName || "Photo attached to note")}" loading="lazy" /></div>` : ""}<div class="note-content">${escapeHtml(note.content)}</div><div class="note-footer" onclick="event.stopPropagation()"><span class="note-author">👤 ${escapeHtml(name)}</span>${commentCountHTML}${noteAction}</div>`;
@@ -629,7 +703,9 @@ async function toggleNoteTranslation(id) {
 
 // Community V2 (COM-V2-005): Comments + one-level Reply, rendered inside
 // the existing Detail Modal (no separate Post Detail route this stage).
-// Building notes never get a comments section — gated by contextType below.
+// BACKEND V2.3b: a Building post now gets the same comments section too,
+// but only when it is Supabase-backed (post.isRemote === true) — see
+// hasCommentsSection()/supportsRemoteComments() above.
 function getCommentAuthorLabel(comment) {
   return comment.isAnonymous ? "Anonymous" : (comment.authorNickname || "User");
 }
@@ -653,7 +729,8 @@ function buildCommentHTML(comment, isReply) {
 
 function renderCommentsSectionHTML(postId) {
   if (typeof window.CommentService === "undefined") return "";
-  const remotePost = isRemoteCommunityContext() ? findWallNote(postId) : null;
+  const candidate = findWallNote(postId);
+  const remotePost = supportsRemoteComments(candidate) ? candidate : null;
   const thread = remotePost ? CommunityDataProvider.commentThread(remotePost) : CommentService.getCommentThreadForPost(postId);
   const count = remotePost ? CommunityDataProvider.commentCount(remotePost) : CommentService.getCommentCount(postId);
   const commentsListHTML = thread.length
@@ -702,7 +779,8 @@ async function submitComment(postId, parentCommentId) {
       authorNickname: showName ? nickname : null,
       content,
     };
-    const remotePost = isRemoteCommunityContext() ? findWallNote(postId) : null;
+    const commentCandidate = findWallNote(postId);
+    const remotePost = supportsRemoteComments(commentCandidate) ? commentCandidate : null;
     if (remotePost) await CommunityDataProvider.createComment(remotePost, payload);
     else CommentService.createComment(payload);
     renderWallNotes();
@@ -753,7 +831,7 @@ function openModal(id) {
   // went through the shared CommentService (keyed by postId, independent of
   // the note object itself), so there was never a technical reason to gate
   // this on isDemoSeed, only a UI one that is now removed.
-  const commentsSectionHTML = note.contextType === "community" ? renderCommentsSectionHTML(note.id) : "";
+  const commentsSectionHTML = hasCommentsSection(note) ? renderCommentsSectionHTML(note.id) : "";
   // Community V2 (COM-V2-006): Mark Solved / Reopen — author or prototype
   // moderator only, Question posts only. canUserMarkSolved() itself already
   // denies this for seed posts (their authorUserId never matches a real
@@ -770,7 +848,11 @@ function openModal(id) {
   overlay.classList.remove("hidden");
   document.body.classList.add("overlay-open");
   requestAnimationFrame(() => overlay.querySelector(".modal-close")?.focus());
-  if (note.isRemote && !CommunityDataProvider.commentsLoaded(note)) {
+  // BACKEND V2.3b: auto-load comments for any remote, comment-capable post
+  // (Community or Building — see supportsRemoteComments()) whose thread
+  // hasn't been fetched yet. A local/demo post never reaches here because
+  // hasCommentsSection() already gated commentsSectionHTML above.
+  if (supportsRemoteComments(note) && !CommunityDataProvider.commentsLoaded(note)) {
     CommunityDataProvider.refreshComments(note)
       .then(() => {
         if (!document.getElementById("modal-overlay")?.classList.contains("hidden")) openModal(id);
@@ -1144,6 +1226,32 @@ async function handleFormSubmit(event) {
       showToast("Note pinned to the Community wall!");
       return;
     }
+    if (isRemoteBuildingContext()) {
+      // BACKEND V2.3 — Building Wall Supabase create. Same api.create_post
+      // RPC Community uses, scope_type="building", building_id passed
+      // verbatim (wallState.placeId is already the canonical DB key, e.g.
+      // "B_PUSTAKA" — see services/community-service.js's Building Scope
+      // Key comment on why no case/prefix conversion happens anywhere).
+      if (pendingImageDataUrl) throw new Error("Photo posting is not available in Community staging yet. Remove the photo to continue.");
+      await ensureNamedRemoteProfile(anonymous, nickname);
+      await CommunityDataProvider.createBuildingPost({
+        collegeId: window.KMK_COLLEGE_ID,
+        buildingId: wallState.placeId,
+        postType: getComposerPostType(currentForm),
+        content,
+        category: safeCategory,
+        shape: SHAPES.includes(shape) ? shape : "rounded",
+        color,
+        rotation: Math.floor(Math.random() * 5) - 2,
+        positionX: 10,
+        positionY: 15,
+        isAnonymous: anonymous,
+      });
+      closeDrawer();
+      renderWallNotes();
+      showToast("Note pinned to the Building wall!");
+      return;
+    }
     const upload = pendingImageDataUrl ? await CloudinaryAdapter.uploadCompressedDataUrl(pendingImageDataUrl, { contextType: wallState.contextType, placeId: wallState.placeId || "" }) : null;
     const id = nextId++;
     // Community V2 (COM-V2-003, pulled forward from COM-V2-004's flagged
@@ -1217,8 +1325,13 @@ window.addEventListener("keydown", event => { if (event.key === "Escape") { clos
 let wallResizeTimer;
 window.addEventListener("resize", () => { clearTimeout(wallResizeTimer); wallResizeTimer = setTimeout(() => { if (document.getElementById("wall-canvas")) renderWallNotes(); }, 160); });
 window.addEventListener("echo:communityauthchange", () => {
-  if (!isRemoteCommunityContext() || !wallState.communityKey) return;
-  CommunityDataProvider.refreshPosts(wallState.communityKey)
-    .then(renderWallNotes)
-    .catch(error => showToast(error instanceof Error ? error.message : I18n.t("common.error")));
+  if (isRemoteCommunityContext() && wallState.communityKey) {
+    CommunityDataProvider.refreshPosts(wallState.communityKey)
+      .then(renderWallNotes)
+      .catch(error => showToast(error instanceof Error ? error.message : I18n.t("common.error")));
+  } else if (isRemoteBuildingContext() && wallState.placeId) {
+    CommunityDataProvider.refreshBuildingPosts(window.KMK_COLLEGE_ID, wallState.placeId)
+      .then(renderWallNotes)
+      .catch(error => showToast(error instanceof Error ? error.message : I18n.t("common.error")));
+  }
 });

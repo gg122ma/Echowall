@@ -1,5 +1,14 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-08 - shared-sync provider reuse
+
+- Reused the existing `CommunityDataProvider`/Supabase repository layer for all three wall paths
+  instead of embedding RPC calls in Map or Building UI code.
+- Reused the existing atomic Map RPC and public API views, avoiding a second write transaction,
+  a new schema, and any Realtime subscription. Production reads are refresh-based by design.
+- Preserved local providers for non-canonical development while ensuring canonical Map/Building
+  paths return before any local content write.
+
 ## 2026-08-23 — ADMIN-V2-003: one shared admin sidebar instead of two duplicated copies
 
 - `adminSidebarNavHtml()` (`app-admin.js`) replaces two independently-maintained inline sidebar
