@@ -404,7 +404,10 @@ function renderContextWall(container, context) {
     // invalid session may fail to restore on one device, but posts_public is
     // intentionally anonymous-readable and still has to render there.
     void CommunityDataProvider.ready().catch(() => {});
-    CommunityDataProvider.refreshPosts(context.communityKey)
+    Promise.all([
+      CommunityDataProvider.refreshPosts(context.communityKey),
+      CommunityDataProvider.refreshPostCounts().catch(() => null),
+    ])
       .then(() => {
         if (wallState.contextType === "community" && wallState.communityKey === context.communityKey) renderWallNotes();
       })
@@ -413,7 +416,10 @@ function renderContextWall(container, context) {
     const collegeId = window.KMK_COLLEGE_ID;
     const buildingId = context.placeId;
     void CommunityDataProvider.ready().catch(() => {});
-    CommunityDataProvider.refreshBuildingPosts(collegeId, buildingId)
+    Promise.all([
+      CommunityDataProvider.refreshBuildingPosts(collegeId, buildingId),
+      CommunityDataProvider.refreshPostCounts().catch(() => null),
+    ])
       .then(() => {
         if (wallState.contextType === "building" && wallState.placeId === buildingId) renderWallNotes();
       })
@@ -421,18 +427,18 @@ function renderContextWall(container, context) {
   }
 }
 
-// UI-only display-count override for the Building Wall header, sourced from
-// the same data/demo-display-counts.js config every other Building entry
-// point reads (Building Stories, Building Detail, Echo Map). Only applies to
-// building context — Community wall headers stay real (a Global/College
-// General/Jurusan wall count is a narrower, distinct metric from the
-// College Community card total, see HANDOFF.md). getContextNotes()'s actual
-// returned array (what renderWallNotes() renders as real note cards) is
-// never touched by this — only this header's text.
+// Remote walls use the shared published-post count projection. Local mode
+// retains its existing display override compatibility.
 function wallDisplayNoteCount(realCount) {
-  if (wallState.contextType === "building" && typeof getBuildingDisplayCount === "function") {
-    return getBuildingDisplayCount(wallState.placeId, realCount);
+  if (isRemoteBuildingContext()) {
+    const remoteCount = CommunityDataProvider.cachedBuildingPostCount(window.KMK_COLLEGE_ID, wallState.placeId);
+    return Number.isInteger(remoteCount) && remoteCount >= 0 ? remoteCount : realCount;
   }
+  if (isRemoteCommunityContext()) {
+    const remoteCount = CommunityDataProvider.cachedCommunityPostCount(wallState.communityKey);
+    return Number.isInteger(remoteCount) && remoteCount >= 0 ? remoteCount : realCount;
+  }
+  if (wallState.contextType === "building" && typeof getBuildingDisplayCount === "function") return getBuildingDisplayCount(wallState.placeId, realCount);
   return realCount;
 }
 
@@ -1326,11 +1332,17 @@ let wallResizeTimer;
 window.addEventListener("resize", () => { clearTimeout(wallResizeTimer); wallResizeTimer = setTimeout(() => { if (document.getElementById("wall-canvas")) renderWallNotes(); }, 160); });
 window.addEventListener("echo:communityauthchange", () => {
   if (isRemoteCommunityContext() && wallState.communityKey) {
-    CommunityDataProvider.refreshPosts(wallState.communityKey)
+    Promise.all([
+      CommunityDataProvider.refreshPosts(wallState.communityKey),
+      CommunityDataProvider.refreshPostCounts().catch(() => null),
+    ])
       .then(renderWallNotes)
       .catch(error => showToast(error instanceof Error ? error.message : I18n.t("common.error")));
   } else if (isRemoteBuildingContext() && wallState.placeId) {
-    CommunityDataProvider.refreshBuildingPosts(window.KMK_COLLEGE_ID, wallState.placeId)
+    Promise.all([
+      CommunityDataProvider.refreshBuildingPosts(window.KMK_COLLEGE_ID, wallState.placeId),
+      CommunityDataProvider.refreshPostCounts().catch(() => null),
+    ])
       .then(renderWallNotes)
       .catch(error => showToast(error instanceof Error ? error.message : I18n.t("common.error")));
   }

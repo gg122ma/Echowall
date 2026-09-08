@@ -1,12 +1,8 @@
 /**
- * Single source of truth for the demo/prototype "notes count" shown on
- * College Community and KMK Building entry points (cards, previews, detail
- * pages, wall headers). This is a DISPLAY-ONLY override layer — it never
- * touches real note/post data, LocalStorage, IndexedDB, moderation, or
- * Admin counts. Every UI spot that shows one of these counts should read it
- * through getCollegeDisplayCount()/getBuildingDisplayCount() below instead
- * of hand-computing or hardcoding its own number, so the same entity always
- * shows the same figure no matter which page/component renders it.
+ * Legacy Local/demo compatibility counts. Canonical production must never
+ * use these values for notes/posts; its UI reads the published Supabase post
+ * count projection through CommunityDataProvider instead. This file remains
+ * available only for non-canonical Local mode and never touches stored data.
  *
  * Keyed by canonical org id (see `organizations` in app-data.js) and
  * canonical building id (see `CAMPUS_BUILDINGS` in data/campus-buildings.js)

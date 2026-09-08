@@ -14,9 +14,88 @@
   // Map anchor-backed post cache, keyed by collegeId (a Map view is
   // college-wide, not building-specific).
   const mapAnchorCache = new Map();
+  const communityPostCountCache = new Map();
+  const collegePostCountCache = new Map();
+  const buildingPostCountCache = new Map();
+  let postCountsLoaded = false;
+  let totalPostCountCache = 0;
+  let postCountRefreshPromise = null;
 
   function buildingCacheKey(collegeId, buildingId) {
     return `${Number(collegeId)}:${String(buildingId || "")}`;
+  }
+
+  function incrementCount(cache, key) {
+    cache.set(key, (cache.get(key) || 0) + 1);
+  }
+
+  // One published post contributes exactly one row here. Map anchors are
+  // deliberately not joined, so a Map-created Building post is counted once
+  // even though its post_id also has one post_map_anchors row. Only the four
+  // scope columns are downloaded, in bounded pages; post content is not.
+  async function loadPublishedPostCountDimensions() {
+    const client = await readClient();
+    const pageSize = 1000;
+    const rows = [];
+    let offset = 0;
+    let total = null;
+
+    do {
+      const { data, error, count } = await client.from("posts_public")
+        .select("scope_type,college_id,jurusan_id,building_id", { count: "exact" })
+        .in("scope_type", ["all_km", "college", "jurusan", "building"])
+        .range(offset, offset + pageSize - 1);
+      if (error) throw friendlyError(error, "Published post counts could not be loaded.");
+      const page = Array.isArray(data) ? data : [];
+      rows.push(...page);
+      if (count !== null && count !== undefined && Number.isFinite(Number(count))) total = Number(count);
+      offset += page.length;
+      if (!page.length || (total !== null && offset >= total) || (total === null && page.length < pageSize)) break;
+    } while (true);
+
+    const nextCommunityCounts = new Map();
+    const nextCollegeCounts = new Map();
+    const nextBuildingCounts = new Map();
+    rows.forEach(row => {
+      const scopeType = String(row?.scope_type || "");
+      const collegeId = Number(row?.college_id);
+      if (scopeType === "all_km") {
+        incrementCount(nextCommunityCounts, "global:all");
+      } else if (scopeType === "college" && Number.isInteger(collegeId) && collegeId > 0) {
+        incrementCount(nextCommunityCounts, `college:${collegeId}`);
+        incrementCount(nextCollegeCounts, collegeId);
+      } else if (scopeType === "jurusan" && Number.isInteger(collegeId) && collegeId > 0) {
+        const jurusanId = Number(row?.jurusan_id);
+        if (!Number.isInteger(jurusanId) || jurusanId <= 0) return;
+        incrementCount(nextCommunityCounts, `jurusan:${collegeId}:${jurusanId}`);
+      } else if (scopeType === "building" && Number.isInteger(collegeId) && collegeId > 0) {
+        const buildingId = String(row?.building_id || "");
+        if (buildingId) incrementCount(nextBuildingCounts, buildingCacheKey(collegeId, buildingId));
+      }
+    });
+
+    communityPostCountCache.clear();
+    collegePostCountCache.clear();
+    buildingPostCountCache.clear();
+    nextCommunityCounts.forEach((value, key) => communityPostCountCache.set(key, value));
+    nextCollegeCounts.forEach((value, key) => collegePostCountCache.set(key, value));
+    nextBuildingCounts.forEach((value, key) => buildingPostCountCache.set(key, value));
+    totalPostCountCache = rows.length;
+    postCountsLoaded = true;
+    return Object.freeze({ rows: rows.length });
+  }
+
+  function refreshPostCounts() {
+    if (!postCountRefreshPromise) {
+      postCountRefreshPromise = loadPublishedPostCountDimensions()
+        .finally(() => { postCountRefreshPromise = null; });
+    }
+    return postCountRefreshPromise;
+  }
+
+  function cachedCount(cache, key) {
+    if (!postCountsLoaded) return null;
+    return cache.get(key) || 0;
   }
 
   function registerUiIndex(post) {
@@ -108,7 +187,7 @@
         p_position_x: Number(input.positionX || 10), p_position_y: Number(input.positionY || 15),
       });
       if (error) throw friendlyError(error, "Your note could not be published.");
-      await listPosts(input.communityKey);
+      await Promise.all([listPosts(input.communityKey), refreshPostCounts()]);
     });
   }
 
@@ -152,7 +231,7 @@
         p_position_x: Number(input.positionX || 10), p_position_y: Number(input.positionY || 15),
       });
       if (error) throw friendlyError(error, "Your note could not be published.");
-      await listBuildingPosts(collegeId, buildingId);
+      await Promise.all([listBuildingPosts(collegeId, buildingId), refreshPostCounts()]);
     });
   }
 
@@ -194,6 +273,7 @@
       await Promise.all([
         listBuildingPosts(frozenPost.orgId, frozenPost.placeId).catch(() => {}),
         listMapAnchors(frozenPost.orgId).catch(() => {}),
+        refreshPostCounts().catch(() => {}),
       ]);
       return frozenPost;
     });
@@ -304,6 +384,16 @@
       list: listMapAnchors,
       cached: collegeId => mapAnchorCache.get(Number(collegeId)) || [],
       create: createMapPost,
+    }),
+    postCounts: Object.freeze({
+      refresh: refreshPostCounts,
+      cachedCommunity: communityKey => cachedCount(communityPostCountCache, String(communityKey || "")),
+      cachedCollege: collegeId => cachedCount(collegePostCountCache, Number(collegeId)),
+      cachedBuilding: (collegeId, buildingId) => cachedCount(buildingPostCountCache, buildingCacheKey(collegeId, buildingId)),
+      cachedTotal: () => postCountsLoaded ? totalPostCountCache : null,
+      // The current public post schema has no image field and all remote
+      // create paths reject photos, so the authoritative remote subset is 0.
+      cachedPhoto: () => postCountsLoaded ? 0 : null,
     }),
     friendlyError,
   });

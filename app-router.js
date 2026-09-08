@@ -278,6 +278,8 @@ function animateHomeCounters() {
   counters.forEach(counter => {
     const target = Number(counter.dataset.count || 0);
     if (!Number.isFinite(target)) return;
+    const animationToken = String((Number(counter.dataset.countAnimationToken || 0) + 1));
+    counter.dataset.countAnimationToken = animationToken;
     if (reduceMotion) {
       counter.textContent = String(target);
       return;
@@ -286,6 +288,7 @@ function animateHomeCounters() {
     const startedAt = performance.now();
     const duration = 850;
     const tick = now => {
+      if (counter.dataset.countAnimationToken !== animationToken) return;
       const progress = Math.min(1, (now - startedAt) / duration);
       const eased = 1 - Math.pow(1 - progress, 3);
       counter.textContent = String(Math.round(target * eased));
@@ -422,6 +425,66 @@ function getCommunityNoteCount(orgId, visibleNotes = getVisibleRuntimeNotes()) {
   return getVisibleCommunityNotes(orgId, visibleNotes).length;
 }
 
+function usesAuthoritativePostCounts() {
+  return window.CommunityDataProvider?.isRemoteRequested?.() === true;
+}
+
+function getCollegeNoteDisplayCount(orgId, localCount = getCommunityNoteCount(orgId)) {
+  if (!usesAuthoritativePostCounts()) return getCollegeDisplayCount(orgId, localCount);
+  const remoteCount = window.CommunityDataProvider?.cachedCollegePostCount?.(orgId);
+  return Number.isInteger(remoteCount) && remoteCount >= 0 ? remoteCount : 0;
+}
+
+function getBuildingNoteDisplayCount(buildingId, localCount = getBuildingNotes(buildingId).length) {
+  if (!usesAuthoritativePostCounts()) return getBuildingDisplayCount(buildingId, localCount);
+  const remoteCount = window.CommunityDataProvider?.cachedBuildingPostCount?.(window.KMK_COLLEGE_ID, buildingId);
+  return Number.isInteger(remoteCount) && remoteCount >= 0 ? remoteCount : 0;
+}
+
+function getHomeNoteDisplayCount(localCount) {
+  if (!usesAuthoritativePostCounts()) return localCount;
+  const remoteCount = window.CommunityDataProvider?.cachedTotalPostCount?.();
+  return Number.isInteger(remoteCount) && remoteCount >= 0 ? remoteCount : 0;
+}
+
+function getHomePhotoNoteDisplayCount(localCount) {
+  if (!usesAuthoritativePostCounts()) return localCount;
+  const remoteCount = window.CommunityDataProvider?.cachedPhotoPostCount?.();
+  return Number.isInteger(remoteCount) && remoteCount >= 0 ? remoteCount : 0;
+}
+
+function replaceRenderedLeadingCount(element, count) {
+  if (!element) return;
+  const current = String(element.textContent || "");
+  element.textContent = /^\d+/.test(current) ? current.replace(/^\d+/, String(count)) : String(count);
+}
+
+function refreshAuthoritativePostCountElements() {
+  if (!usesAuthoritativePostCounts()) return Promise.resolve(false);
+  return window.CommunityDataProvider.refreshPostCounts().then(() => {
+    document.querySelectorAll("[data-community-note-count]").forEach(element => {
+      const count = window.CommunityDataProvider.cachedCollegePostCount(element.dataset.communityNoteCount);
+      if (Number.isInteger(count) && count >= 0) replaceRenderedLeadingCount(element, count);
+    });
+    document.querySelectorAll("[data-building-note-count]").forEach(element => {
+      const count = window.CommunityDataProvider.cachedBuildingPostCount(window.KMK_COLLEGE_ID, element.dataset.buildingNoteCount);
+      if (Number.isInteger(count) && count >= 0) replaceRenderedLeadingCount(element, count);
+    });
+    const homeCounts = [
+      ["[data-home-note-count]", window.CommunityDataProvider.cachedTotalPostCount()],
+      ["[data-home-photo-note-count]", window.CommunityDataProvider.cachedPhotoPostCount()],
+    ];
+    homeCounts.forEach(([selector, count]) => {
+      const element = document.querySelector(selector);
+      if (!element || !Number.isInteger(count) || count < 0) return;
+      element.dataset.count = String(count);
+      element.dataset.countAnimationToken = String(Number(element.dataset.countAnimationToken || 0) + 1);
+      element.textContent = String(count);
+    });
+    return true;
+  }).catch(() => false);
+}
+
 function getVisibleCommunityCount(visibleNotes = getVisibleRuntimeNotes()) {
   return new Set(visibleNotes
     .filter(note => note.contextType === "community" && Number.isFinite(Number(note.orgId)))
@@ -450,9 +513,9 @@ function getCommunityWallKey(note) {
 }
 
 function renderHome(container) {
-  const homepageVisibleNotesDisplay = 1017;
+  const homepageVisibleNotesDisplay = getHomeNoteDisplayCount(1017);
   const homepageCommunitiesDisplay = 12;
-  const homepagePhotoNotesDisplay = 53;
+  const homepagePhotoNotesDisplay = getHomePhotoNoteDisplayCount(53);
   const homepageLatestMemoryDisplay = "Aug 25, 2026";
 
   container.innerHTML = `
@@ -488,9 +551,9 @@ function renderHome(container) {
 
       <section class="container stats-section" aria-label="Echo Wall statistics">
         <div class="stats-grid">
-          <article class="stat-card reveal-card" data-reveal style="--reveal-delay:0ms"><span class="stat-icon">✏️</span><span class="stat-value" data-count="${homepageVisibleNotesDisplay}">0</span><span class="stat-label">${I18n.t("home.visibleNotes")}</span></article>
+          <article class="stat-card reveal-card" data-reveal style="--reveal-delay:0ms"><span class="stat-icon">✏️</span><span class="stat-value" data-home-note-count data-count="${homepageVisibleNotesDisplay}">0</span><span class="stat-label">${I18n.t("home.visibleNotes")}</span></article>
           <article class="stat-card reveal-card" data-reveal style="--reveal-delay:70ms"><span class="stat-icon">🏛️</span><span class="stat-value" data-count="${homepageCommunitiesDisplay}">0</span><span class="stat-label">${I18n.t("home.communities")}</span></article>
-          <article class="stat-card reveal-card" data-reveal style="--reveal-delay:140ms"><span class="stat-icon">📷</span><span class="stat-value" data-count="${homepagePhotoNotesDisplay}">0</span><span class="stat-label">${I18n.t("home.photoNotes")}</span></article>
+          <article class="stat-card reveal-card" data-reveal style="--reveal-delay:140ms"><span class="stat-icon">📷</span><span class="stat-value" data-home-photo-note-count data-count="${homepagePhotoNotesDisplay}">0</span><span class="stat-label">${I18n.t("home.photoNotes")}</span></article>
           <article class="stat-card reveal-card" data-reveal style="--reveal-delay:210ms"><span class="stat-icon">🕒</span><span class="stat-value stat-value-text">${homepageLatestMemoryDisplay}</span><span class="stat-label">${I18n.t("home.latestMemory")}</span></article>
         </div>
       </section>
@@ -523,7 +586,7 @@ function renderHome(container) {
 
       <section class="container section-block building-home-section">
         <div class="section-heading" data-reveal><div><p class="eyebrow">${I18n.t("places.eyebrow")}</p><h2>${I18n.t("home.buildings.title")}</h2></div><p>${I18n.t("home.buildings.description")}</p></div>
-        <div class="building-home-grid">${CAMPUS_BUILDINGS.slice(0,6).map((building,index) => `<button class="building-home-card reveal-card" data-reveal style="--reveal-delay:${index*55}ms" onclick="setPlaceReturnSource('places','${escapeHtml(building.id)}');navigate('#/place/${encodeURIComponent(building.id)}')"><span>${escapeHtml(building.emoji)}</span><div><strong>${escapeHtml(building.name)}</strong><small>${getBuildingDisplayCount(building.id, getBuildingNotes(building.id).length)} notes · ${escapeHtml(getBuildingZoneName(building))}</small></div><b>→</b></button>`).join("")}</div>
+        <div class="building-home-grid">${CAMPUS_BUILDINGS.slice(0,6).map((building,index) => `<button class="building-home-card reveal-card" data-reveal style="--reveal-delay:${index*55}ms" onclick="setPlaceReturnSource('places','${escapeHtml(building.id)}');navigate('#/place/${encodeURIComponent(building.id)}')"><span>${escapeHtml(building.emoji)}</span><div><strong>${escapeHtml(building.name)}</strong><small data-building-note-count="${escapeHtml(building.id)}">${getBuildingNoteDisplayCount(building.id)} notes · ${escapeHtml(getBuildingZoneName(building))}</small></div><b>→</b></button>`).join("")}</div>
         <div class="building-home-more"><button class="btn btn-outline btn-lg" onclick="navigate('#/places')">${I18n.t("places.title")} →</button></div>
       </section>
 
@@ -553,6 +616,7 @@ function renderHome(container) {
         <div class="footer-actions"><span>© 2026 Matriks EchoWall</span></div>
       </footer>
     </div>`;
+  void refreshAuthoritativePostCountElements();
 }
 
 function renderOrgHeaderActions(orgId) {
@@ -578,13 +642,14 @@ function renderOrgDetails(container, orgId) {
         <button class="page-back" onclick="navigate('#/')">← ${I18n.t("org.back")}</button>
         <header class="org-header">
           <div class="org-header-icon">${org.emoji}</div>
-          <div><p class="eyebrow">${I18n.t("org.workspace")}</p><h1>${escapeHtml(org.name)}</h1><div class="org-header-meta"><span class="org-meta-tag">${escapeHtml(org.type)}</span><span>${getCollegeDisplayCount(org.id, getCommunityNoteCount(org.id))} visible notes</span></div></div>
+          <div><p class="eyebrow">${I18n.t("org.workspace")}</p><h1>${escapeHtml(org.name)}</h1><div class="org-header-meta"><span class="org-meta-tag">${escapeHtml(org.type)}</span><span data-community-note-count="${org.id}">${getCollegeNoteDisplayCount(org.id)} visible notes</span></div></div>
           ${renderOrgHeaderActions(org.id)}
         </header>
         <section class="selection-shell">
           <div class="empty-state">${I18n.t("org.comingSoon")}</div>
         </section>
       </div>`;
+    void refreshAuthoritativePostCountElements();
     return;
   }
 
@@ -601,7 +666,7 @@ function renderOrgDetails(container, orgId) {
       <button class="page-back" onclick="navigate('#/')">← ${I18n.t("org.back")}</button>
       <header class="org-header">
         <div class="org-header-icon">${org.emoji}</div>
-        <div><p class="eyebrow">${I18n.t("org.workspace")}</p><h1>${escapeHtml(org.name)}</h1><div class="org-header-meta"><span class="org-meta-tag">${escapeHtml(org.type)}</span><span>${getCollegeDisplayCount(org.id, getCommunityNoteCount(org.id))} visible notes</span></div></div>
+        <div><p class="eyebrow">${I18n.t("org.workspace")}</p><h1>${escapeHtml(org.name)}</h1><div class="org-header-meta"><span class="org-meta-tag">${escapeHtml(org.type)}</span><span data-community-note-count="${org.id}">${getCollegeNoteDisplayCount(org.id)} visible notes</span></div></div>
         ${renderOrgHeaderActions(org.id)}
       </header>
       <section class="selection-shell">
@@ -614,6 +679,7 @@ function renderOrgDetails(container, orgId) {
         <button class="btn btn-primary btn-lg btn-round" onclick="enterWallCanvas(${orgId})">${I18n.t("org.enter")} →</button>
       </div>
     </div>`;
+  void refreshAuthoritativePostCountElements();
 }
 
 function selectMajorItem(id) {

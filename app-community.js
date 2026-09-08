@@ -80,7 +80,7 @@ function renderCommunityHub(container) {
       <span class="org-card-pointer-glow" aria-hidden="true"></span>
       <div class="org-card-header">
         <span class="org-emoji">${org.emoji}</span>
-        <span class="note-count">📖 <strong>${getCollegeDisplayCount(org.id, getCommunityNoteCount(org.id))}</strong></span>
+        <span class="note-count">📖 <strong data-community-note-count="${org.id}">${getCollegeNoteDisplayCount(org.id)}</strong></span>
       </div>
       <div class="org-card-body">
         <span class="org-card-kicker">${I18n.t("community.hub.collegeKicker")}</span>
@@ -106,6 +106,7 @@ function renderCommunityHub(container) {
         <div class="org-grid">${collegeCards}</div>
       </section>
     </div>`;
+  void refreshAuthoritativePostCountElements();
 }
 
 function renderCollegeLanding(container, orgId) {
@@ -139,7 +140,7 @@ function renderCollegeLanding(container, orgId) {
       <button class="page-back" onclick="navigate('#/community')">← ${I18n.t("community.hub.title")}</button>
       <header class="org-header">
         <div class="org-header-icon">${org.emoji}</div>
-        <div><p class="eyebrow">${I18n.t("org.workspace")}</p><h1>${escapeHtml(org.name)}</h1><div class="org-header-meta"><span class="org-meta-tag">${escapeHtml(org.type)}</span><span>${getCollegeDisplayCount(org.id, getCommunityNoteCount(org.id))} visible notes</span></div></div>
+        <div><p class="eyebrow">${I18n.t("org.workspace")}</p><h1>${escapeHtml(org.name)}</h1><div class="org-header-meta"><span class="org-meta-tag">${escapeHtml(org.type)}</span><span data-community-note-count="${org.id}">${getCollegeNoteDisplayCount(org.id)} visible notes</span></div></div>
         ${typeof renderOrgHeaderActions === "function" ? renderOrgHeaderActions(org.id) : ""}
       </header>
       <section class="selection-shell" style="margin-top:24px">
@@ -148,6 +149,7 @@ function renderCollegeLanding(container, orgId) {
         </div>
       </section>
     </div>`;
+  void refreshAuthoritativePostCountElements();
 }
 
 // Community V2 (COM-V2-002 shells for Global/College General were replaced

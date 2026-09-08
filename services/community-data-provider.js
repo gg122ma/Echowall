@@ -42,5 +42,13 @@
     cachedMapAnchors: collegeId => repository().mapAnchors.cached(collegeId),
     refreshMapAnchors: collegeId => repository().mapAnchors.list(collegeId),
     createMapPost: input => repository().mapAnchors.create(input),
+    // Published-count projection. Canonical production reads one paginated,
+    // metadata-only posts_public aggregation; Local mode never calls it.
+    refreshPostCounts: () => repository().postCounts.refresh(),
+    cachedCommunityPostCount: key => repository().postCounts.cachedCommunity(key),
+    cachedCollegePostCount: collegeId => repository().postCounts.cachedCollege(collegeId),
+    cachedBuildingPostCount: (collegeId, buildingId) => repository().postCounts.cachedBuilding(collegeId, buildingId),
+    cachedTotalPostCount: () => repository().postCounts.cachedTotal(),
+    cachedPhotoPostCount: () => repository().postCounts.cachedPhoto(),
   });
 })();

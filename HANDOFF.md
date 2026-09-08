@@ -1,3 +1,28 @@
+# AUTHORITATIVE SUPABASE NOTE COUNTS (2026-09-08)
+
+Branch: `production-count-integrity`. Base/main SHA:
+`2b6b2b5ecb0c4f3d4ee1d44b2748419392c02fe2`.
+
+Canonical production note counts now terminate in the existing Supabase repository/provider layer.
+`refreshPostCounts()` reads only `scope_type`, `college_id`, `jurusan_id`, and `building_id` from
+`api.posts_public`, paginates in bounded ranges, and atomically refreshes Community-scope, College,
+and Building caches. It does not read post content or join `post_map_anchors_public`; therefore a
+Map-created Building post contributes one post row and one count.
+
+The Home `Visible notes` statistic uses the total published-row projection. The public remote post
+schema has no image field and all remote create paths reject photos, so the existing `Photo notes`
+statistic resolves to the authoritative supported subset of 0 in canonical production.
+
+The UI markup/classes and all CSS are preserved. Existing numeric elements receive data attributes
+so their text can refresh asynchronously without a component or layout replacement. The generic
+refresh reads the current element's scope identity after the request completes, so navigation from
+Building A to Building B cannot apply A's count to B. Local mode continues to use
+`data/demo-display-counts.js`; canonical production never does.
+
+Live read-only verification on 2026-09-08 found 568 published rows in `api.posts_public`: 67
+`all_km`, 501 `jurusan`, and 0 `building`. No production row was mutated. Rollback is the single
+commit on this branch; no database rollback or migration is involved.
+
 # COMPLETE SHARED SYNC RELEASE CANDIDATE (2026-09-08)
 
 Release branch: `competition-shared-sync-20260908`. Pre-release main is

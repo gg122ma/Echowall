@@ -1,5 +1,21 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-08 - AUTHORITATIVE SUPABASE COUNT INTEGRITY
+
+- Every live `getCollegeDisplayCount`/`getBuildingDisplayCount` consumer was classified. All are
+  note-count surfaces; none represents capacity, population, rooms, or another static domain fact.
+  Production consumers now use `CommunityDataProvider` count caches; the fixed helpers remain only
+  behind explicit non-remote branches.
+- The repository count projection reads one row per published post from `api.posts_public` and no
+  anchor rows, content, localStorage, or legacy 696-note bundle. Exact Global/College/Jurusan keys
+  and `(college_id, building_id)` keys prevent cross-scope addition and Map double counting.
+- Wall refreshes load the remote collection and count concurrently, then verify the active wall
+  identity before updating. Other surfaces update only existing numeric elements identified by
+  their current scope data attribute.
+- `scripts/test-authoritative-post-counts.mjs` passes 28/28 assertions, the complete existing test
+  suite passes, runtime JavaScript syntax passes, Pages build/artifact validation pass, production
+  URL lock passes, and `git diff --check` passes. CSS and migrations changed: none.
+
 ## 2026-09-08 - COMPLETE SHARED SYNC
 
 - Production catalog inspection confirmed `building_id`, `app.post_map_anchors`, public post/anchor/

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-08 - AUTHORITATIVE SUPABASE NOTE COUNTS
+
+- Canonical production Home note statistics, Community, Building Stories, Building Detail,
+  Building Wall, Home building cards, and Echo Map building-preview note counts now use a shared
+  metadata-only projection of published `api.posts_public` rows. Global, College, Jurusan, and
+  Building scopes remain distinct; the unsupported remote photo-post subset is authoritatively 0.
+- Historical values in `data/demo-display-counts.js` remain available only in non-canonical Local
+  mode and cannot override canonical production counts.
+- Map anchors are not joined into the count projection, so one Map-created Building post counts
+  once. No CSS, layout, schema, migration, database row, Auth/RLS, or shared-sync route changed.
+- Added `scripts/test-authoritative-post-counts.mjs` with 28 focused assertions.
+
 ## 2026-09-08 - COMPLETE SHARED SYNC RELEASE CANDIDATE
 
 - Fixed Community public reads with a session-free anonymous Supabase client, so `posts_public`

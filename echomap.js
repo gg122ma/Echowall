@@ -476,10 +476,11 @@ window.addEventListener("DOMContentLoaded", async () => {
   function openPlacePreview(building, { scrollOnMobile = true } = {}) {
     if (!building || !PREVIEW_PLACE_IDS.has(building.id)) return;
     previewedPlaceId = building.id;
-    const realNoteCount = getVisibleRuntimeBuildingNotes(building.id).length;
-    const visibleNoteCount = typeof window.getBuildingDisplayCount === 'function'
-      ? window.getBuildingDisplayCount(building.id, realNoteCount)
-      : realNoteCount;
+    // This preview enters the Building Wall and has always counted that
+    // building's visible notes, not only the subset with Map anchors.
+    const visibleNoteCount = typeof window.getBuildingNoteDisplayCount === 'function'
+      ? window.getBuildingNoteDisplayCount(building.id, getVisibleRuntimeBuildingNotes(building.id).length)
+      : getVisibleRuntimeBuildingNotes(building.id).length;
     const nameParts = getBuildingNameParts(building.name);
     const description = String(window.getLocalizedBuildingText?.(building, 'description') || '').trim();
     const descriptionMarkup = description
@@ -495,7 +496,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         descriptionMarkup +
         hoursMarkup +
         moreDetailsMarkup +
-        '<div class=place-preview-count><strong>' + visibleNoteCount + '</strong><span>' + escapeHtml(I18n.t('map.visibleNotes')) + '</span></div>' +
+        '<div class=place-preview-count><strong data-building-note-count="' + escapeHtml(building.id) + '">' + visibleNoteCount + '</strong><span>' + escapeHtml(I18n.t('map.visibleNotes')) + '</span></div>' +
       '</div>' +
       '<button id="enter-building-wall" class="btn btn-primary btn-lg btn-round place-preview-action" type="button">' + escapeHtml(I18n.t("place.enterWall")) + ' <span aria-hidden="true">→</span></button>';
     mapGuide.hidden = true;
@@ -534,6 +535,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
     if (scrollOnMobile && window.innerWidth < 980) {
       requestAnimationFrame(() => mapSide.scrollIntoView({ behavior:"smooth", block:"start" }));
+    }
+    if (typeof window.refreshAuthoritativePostCountElements === 'function') {
+      void window.refreshAuthoritativePostCountElements();
     }
   }
 

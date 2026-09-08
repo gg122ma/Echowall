@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 /**
  * DISPLAY-COUNT-CONSISTENCY — direct-call test suite for
- * data/demo-display-counts.js, the single display-only source of truth for
- * College Community and KMK Building "notes count" figures shown across
- * Building Stories, Building Detail, Building Wall, Echo Map, Community Hub
- * and College Landing.
+ * data/demo-display-counts.js, retained only for non-canonical Local/demo
+ * compatibility. Canonical production consumers are covered separately by
+ * test-authoritative-post-counts.mjs.
  *
  * This project has no test runner/package manager (see CLAUDE.md) — run
  * directly with `node scripts/test-display-count-consistency.mjs`.
@@ -149,27 +148,31 @@ for (const file of CONSUMER_FILES) {
 }
 
 check(
-  'app-place.js calls the shared building display-count helper',
-  fs.readFileSync(path.join(ROOT, 'app-place.js'), 'utf8').includes('getBuildingDisplayCount('),
+  'app-place.js uses the production-aware building count helper',
+  fs.readFileSync(path.join(ROOT, 'app-place.js'), 'utf8').includes('getBuildingNoteDisplayCount('),
 );
 check(
-  'app-router.js calls both shared display-count helpers',
+  'app-router.js retains both Local compatibility helpers behind the production-aware boundary',
   (() => {
     const source = fs.readFileSync(path.join(ROOT, 'app-router.js'), 'utf8');
-    return source.includes('getBuildingDisplayCount(') && source.includes('getCollegeDisplayCount(');
+    return /if \(!usesAuthoritativePostCounts\(\)\) return getBuildingDisplayCount/.test(source)
+      && /if \(!usesAuthoritativePostCounts\(\)\) return getCollegeDisplayCount/.test(source);
   })(),
 );
 check(
-  'app-community.js calls the shared college display-count helper',
-  fs.readFileSync(path.join(ROOT, 'app-community.js'), 'utf8').includes('getCollegeDisplayCount('),
+  'app-community.js no longer calls the Local college override directly',
+  !fs.readFileSync(path.join(ROOT, 'app-community.js'), 'utf8').includes('getCollegeDisplayCount('),
 );
 check(
-  'echomap.js calls the shared building display-count helper',
-  fs.readFileSync(path.join(ROOT, 'echomap.js'), 'utf8').includes('getBuildingDisplayCount('),
+  'echomap.js no longer calls the Local building override directly',
+  !fs.readFileSync(path.join(ROOT, 'echomap.js'), 'utf8').includes('getBuildingDisplayCount('),
 );
 check(
-  'app-wall.js calls the shared building display-count helper',
-  fs.readFileSync(path.join(ROOT, 'app-wall.js'), 'utf8').includes('getBuildingDisplayCount('),
+  'app-wall.js retains the Local building override only after remote count branches',
+  (() => {
+    const source = fs.readFileSync(path.join(ROOT, 'app-wall.js'), 'utf8');
+    return source.indexOf('cachedBuildingPostCount') < source.indexOf('getBuildingDisplayCount');
+  })(),
 );
 
 // --- Report ------------------------------------------------------------------

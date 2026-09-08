@@ -105,14 +105,14 @@ function renderPlaceDirectory(container) {
     .sort((a, b) => a.rank - b.rank || a.sourceIndex - b.sourceIndex)
     .map(entry => entry.building);
   const cards = orderedBuildings.map((building, index) => {
-    const count = getBuildingDisplayCount(building.id, getBuildingNotes(building.id).length);
+    const count = getBuildingNoteDisplayCount(building.id);
     return `<button class="place-card reveal-card" data-reveal style="--reveal-delay:${Math.min(index * 35, 420)}ms" onclick="setPlaceReturnSource('places','${escapeHtml(building.id)}');navigate('#/place/${encodeURIComponent(building.id)}')">
       <div class="place-card-visual" style="--place-color:${escapeHtml({ learning:'#5f74d6','student-life':'#9b70cf',residence:'#dc5b83',sports:'#4ba874',services:'#65748d',mobility:'#8b7867' }[building.zoneId] || '#8b5e3c')}">
         ${renderPlaceCardVisual(building)}
         <span class="place-emoji">${escapeHtml(building.emoji)}</span>
       </div>
       <div class="place-card-copy"><span class="place-zone">${escapeHtml(getBuildingZoneName(building))}</span><h3>${escapeHtml(building.name)}</h3><p>${escapeHtml(getBuildingDescription(building))}</p></div>
-      <span class="place-card-foot"><b>${count}</b> notes <span>${I18n.t("home.buildings.open")} →</span></span>
+      <span class="place-card-foot"><b data-building-note-count="${escapeHtml(building.id)}">${count}</b> notes <span>${I18n.t("home.buildings.open")} →</span></span>
     </button>`;
   }).join("");
 
@@ -122,6 +122,7 @@ function renderPlaceDirectory(container) {
     <div class="place-filter-bar"><span>${CAMPUS_BUILDINGS.length} buildings</span><input id="place-search" class="form-input" type="search" placeholder="Search buildings" oninput="filterPlaceCards(event)" /></div>
     <div id="place-grid" class="place-grid">${cards}</div>
   </div>`;
+  void refreshAuthoritativePostCountElements();
 }
 
 function filterPlaceCards(event) {
@@ -181,7 +182,7 @@ function renderBuildingEventsSection(building, status, titleKey, emptyKey) {
 }
 
 function renderBuildingEchoesSection(building, visibleNoteCount) {
-  return `<section class="place-profile-section"><h3>${escapeHtml(I18n.t('place.buildingEchoes'))}</h3><p class="place-profile-note-count"><b>${visibleNoteCount}</b> ${escapeHtml(I18n.t('map.visibleNotes'))}</p></section>`;
+  return `<section class="place-profile-section"><h3>${escapeHtml(I18n.t('place.buildingEchoes'))}</h3><p class="place-profile-note-count"><b data-building-note-count="${escapeHtml(building.id)}">${visibleNoteCount}</b> ${escapeHtml(I18n.t('map.visibleNotes'))}</p></section>`;
 }
 
 function renderPlaceProfile(container, placeId) {
@@ -197,7 +198,7 @@ function renderPlaceProfile(container, placeId) {
   const backAction = cameFromMap ? "location.href='map.html'" : "navigate('#/places')";
   const backLabel = cameFromMap ? I18n.t("place.backToMap") : I18n.t("place.back");
   const description = String(getBuildingDescription(building) || '').trim();
-  const visibleNoteCount = getBuildingDisplayCount(building.id, getBuildingNotes(building.id).length);
+  const visibleNoteCount = getBuildingNoteDisplayCount(building.id);
   const photos = getBuildingPhotos(building);
   const descriptionMarkup = description ? `<p class='place-profile-description'>${escapeHtml(description)}</p>` : '';
   const detailSections = [
@@ -227,6 +228,7 @@ function renderPlaceProfile(container, placeId) {
       ${mediaMarkup}
     </section>
   </div>`;
+  void refreshAuthoritativePostCountElements();
 }
 
 function openPlaceFromMap(placeId) {

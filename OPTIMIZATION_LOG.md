@@ -1,5 +1,13 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-08 - authoritative count projection
+
+- Reused the existing Supabase repository/provider boundary for all production count reads.
+- Replaced per-card full-content counting with one shared, paginated projection of four scope
+  columns, cached for Community walls, College cards, and Building surfaces.
+- Concurrent callers reuse one in-flight request. Map anchors are excluded by construction, and
+  local compatibility remains isolated behind the existing activation boundary.
+
 ## 2026-09-08 - shared-sync provider reuse
 
 - Reused the existing `CommunityDataProvider`/Supabase repository layer for all three wall paths

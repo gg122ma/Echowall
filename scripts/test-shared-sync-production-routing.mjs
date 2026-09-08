@@ -42,15 +42,21 @@ function createClient(cloud, authenticated = true) {
       && query.in.every(([key, values]) => values.includes(item[key])));
   }
   function from(table) {
-    const query = { table, eq: [], in: [] };
+    const query = { table, eq: [], in: [], select: null, range: null };
     calls.from.push(query);
+    function result() {
+      const all = filtered(table, query);
+      const data = query.range ? all.slice(query.range[0], query.range[1] + 1) : all;
+      return { data, error: null, count: query.select?.options?.count ? all.length : null };
+    }
     const builder = {
-      select() { return builder; },
+      select(columns, options) { query.select = { columns, options }; return builder; },
       eq(key, value) { query.eq.push([key, value]); return builder; },
       in(key, values) { query.in.push([key, values]); return builder; },
       order() { return builder; },
-      limit() { return Promise.resolve({ data: filtered(table, query), error: null }); },
-      then(resolve, reject) { return Promise.resolve({ data: filtered(table, query), error: null }).then(resolve, reject); },
+      limit() { return Promise.resolve(result()); },
+      range(from, to) { query.range = [from, to]; return Promise.resolve(result()); },
+      then(resolve, reject) { return Promise.resolve(result()).then(resolve, reject); },
     };
     return builder;
   }
