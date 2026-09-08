@@ -1,5 +1,10 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-08 - Echo Library detail cleanup
+
+- Reused the existing responsive `study-detail-grid`; removing the two complete cells lets its
+  current layout close the space naturally, with no CSS override or replacement component.
+
 ## 2026-09-08 - authoritative count projection
 
 - Reused the existing Supabase repository/provider boundary for all production count reads.

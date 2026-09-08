@@ -796,7 +796,7 @@ function renderStudySubjectShell(container, jurusanId, semester, subjectCode) {
 }
 
 // #/study/resource/:resourceId — STUDY-V2-004: real metadata (subject,
-// semester, type, year, source, verification, paired Question/Scheme).
+// semester, type, year, paired Question/Scheme).
 // Gated by isResourcePublishable() so a guessed/stray resourceId can never
 // leak a manual_review/rejected/duplicate item through a direct link — the
 // same "hide from ordinary users" rule every list view already applies. No
@@ -827,7 +827,6 @@ function renderStudyResourceDetail(container, resourceId) {
   const jurusanName = jurusan ? studyJurusanDisplayName(jurusan) : resource.jurusan;
   const backHash = `#/study/${resource.jurusan}/sem/${resource.semester}/${resource.subjectCode}`;
   const category = StudyResourceService.getResourceCategory(resource);
-  const verificationBadge = studyVerificationBadgeHtml(resource.verificationStatus) || `<span class="study-badge">${I18n.t("study.unverified")}</span>`;
 
   const related = StudyResourceService.getRelatedResource(resource);
   const relatedHtml = related && StudyResourceService.isResourcePublishable(related)
@@ -871,8 +870,6 @@ function renderStudyResourceDetail(container, resourceId) {
           <div><dt>${I18n.t("study.detail.semester")}</dt><dd>${I18n.t("study.semesterLabel")} ${resource.semester}</dd></div>
           <div><dt>${I18n.t("study.detail.type")}</dt><dd>${escapeHtml(studyResourceCategoryLabel(category))}</dd></div>
           <div><dt>${I18n.t("study.detail.year")}</dt><dd>${escapeHtml(studyYearLabel(resource))}</dd></div>
-          <div><dt>${I18n.t("study.detail.source")}</dt><dd>${studySourceLabel(resource)}</dd></div>
-          <div><dt>${I18n.t("study.detail.verification")}</dt><dd>${verificationBadge}</dd></div>
         </dl>
         ${contributedNote}
         ${resource.description ? `<p class="study-detail-description">${escapeHtml(resource.description)}</p>` : ""}

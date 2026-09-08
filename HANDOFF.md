@@ -1,3 +1,11 @@
+# ECHO LIBRARY PUBLIC DETAIL CLEANUP (2026-09-08)
+
+`renderStudyResourceDetail()` no longer emits Source or Verification `<dt>/<dd>` cells on the
+public material detail route. The underlying `sourceCollege`, `sourceType`, and
+`verificationStatus` data and all admin/filter/upload behavior remain unchanged. The existing
+responsive definition-list grid now contains Subject, Semester, Type, and Year only, so there are
+no empty placeholder cells. No CSS or manifest was changed.
+
 # AUTHORITATIVE SUPABASE NOTE COUNTS (2026-09-08)
 
 Branch: `production-count-integrity`. Base/main SHA:

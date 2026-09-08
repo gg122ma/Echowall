@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-08 - ECHO LIBRARY DETAIL METADATA CLEANUP
+
+- Removed the public Source and Verification cells from the existing Echo Library material-detail
+  grid. Subject, Semester, Type, Year, paired Question/Answer Scheme links, and file actions remain
+  unchanged; the four retained grid cells naturally reflow through the existing CSS.
+- Source and verification fields, filters, upload/moderation flows, and manifest data remain intact
+  internally. No CSS, PDF, manifest, database, or architecture change was made.
+
 ## 2026-09-08 - AUTHORITATIVE SUPABASE NOTE COUNTS
 
 - Canonical production Home note statistics, Community, Building Stories, Building Detail,

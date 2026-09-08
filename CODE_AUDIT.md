@@ -1,5 +1,14 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-08 - ECHO LIBRARY PUBLIC DETAIL METADATA
+
+- `renderStudyResourceDetail()` was the only public detail renderer for the two requested cells.
+  Its Source and Verification markup was removed completely, including the unused local badge
+  value; no placeholder or empty grid cell remains.
+- Internal metadata access remains in Study filtering, upload, moderation, and service code.
+  `scripts/test-study-detail-public-metadata.mjs` locks the public renderer boundary and the four
+  retained metadata cells without changing CSS or data.
+
 ## 2026-09-08 - AUTHORITATIVE SUPABASE COUNT INTEGRITY
 
 - Every live `getCollegeDisplayCount`/`getBuildingDisplayCount` consumer was classified. All are
