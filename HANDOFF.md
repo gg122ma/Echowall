@@ -1,3 +1,49 @@
+# HOME STATS DATA-BASIS DECISION — FINAL (2026-09-09)
+
+Owner decision: the historical Home values `1017 Visible Notes` and
+`53 Photo Notes` do NOT have a real legacy dataset behind them.
+
+They were historical presentation / competition-video values only.
+
+Therefore they must NOT be reintroduced into canonical production as:
+
+- authoritative post counts
+- authoritative photo-note counts
+- synthetic baseline + live delta counters
+- Supabase targets
+- migration targets
+
+Canonical production remains source-backed:
+
+- Visible Notes → authoritative published Supabase post total
+- Communities → existing static directory inventory
+- Photo Notes → unresolved (`—`) until a real authoritative photo-note source exists
+- Latest Memory → newest published Supabase `created_at`
+
+At the production freeze verified after the Building baseline import:
+
+- Visible Notes: `573`
+- Communities: `12`
+- Photo Notes: `—`
+- Latest Memory: `Sep 8, 2026`
+
+The competition video may contain the historical `1017 / 53` presentation
+values. Any future correction to that mismatch is a video/presentation task,
+not a reason to fabricate production data.
+
+No runtime code change.
+No Supabase mutation.
+No UI change.
+No deployment.
+No architecture change.
+
+Production count-integrity release remains frozen at:
+
+`3600c7b04d732430629e3bb5653f4b8de6b41765`
+
+Do not reopen this decision unless a genuine authoritative photo-note or
+legacy-post dataset is discovered and independently verified.
+
 # ECHO LIBRARY PUBLIC DETAIL CLEANUP (2026-09-08)
 
 `renderStudyResourceDetail()` no longer emits Source or Verification `<dt>/<dd>` cells on the
