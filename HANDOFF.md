@@ -1,3 +1,69 @@
+# AI / PHOTO / AUTH RELEASE-CANDIDATE HANDOFF (2026-09-10)
+
+Status: **LOCAL GATES PASS; MAP MIGRATION APPLIED; PAGES RELEASE AUTHORIZED**.
+
+The focused correctness review is complete without resetting or discarding the
+working tree. Owner-source facts, semantic conflict handling, canonical place
+IDs, conversation context, Map handoff/return state, standalone Map loading,
+false-premise wording, friendly hours, and nearby ranking are covered by the
+73-case campus suite plus 18 focused Map-action assertions.
+
+Phase 3 adds the missing remote Map-photo path while reusing the existing photo
+processor, Cloudinary adapter, publish guard, post repository, and Map system.
+The new forward migration is
+`supabase/migrations/20260909161836_add_atomic_map_photo_publish.sql`. Production
+records the exact SQL as
+`20260909173321_add_atomic_map_photo_publish`. Catalog verification confirms
+the RPC is present with its intended helper, fixed search path, and grants.
+
+Phase 4's application and SQL checks pass, but the live read-only Auth settings
+request on 2026-09-10 returned `mailer_autoconfirm: true`. The owner has chosen
+not to change that external setting for this release. This does not remove or
+weaken the verified-email-aware application/database checks, but it means real
+mailbox ownership verification is not operational. Report Auth as
+`PARTIAL / BLOCKED BY SUPABASE AUTO-CONFIRM`. Re-run the read-only check with:
+
+```powershell
+node scripts/check-production-auth-settings.mjs
+```
+
+The check exits successfully for this explicitly accepted known limitation and
+prints the partial status. It reports full email confirmation only when
+`mailer_autoconfirm: false`. Also review the current Supabase advisor findings
+recorded in `CODE_AUDIT.md`.
+
+Automated gates completed:
+
+- Runtime/source `node --check`: PASS (historical checkpoint fragments excluded).
+- Every `scripts/test-*.mjs`: PASS (22 files).
+- Campus AI: 73/73; Map actions: 18/18; photos: 46/46; auth: 33/33.
+- Pages build and artifact validation: PASS, 484 files, no warnings.
+- Portable demo and both seed validators: PASS.
+- `git diff --check`: PASS apart from expected line-ending notices.
+
+The in-app/browser runtime reported no available browser, so the following
+remain unclaimed follow-up QA: desktop and mobile rendering, browser console,
+AI -> Map -> details/wall -> Back, manual Map entry, Community -> Map, Building
+-> Map, real Cloudinary upload/persistence, sign-up confirmation, verified
+sign-in, anonymous/named post, and sign-out/session reload.
+
+Release procedure:
+
+1. Re-run all local gates and the production Auth setting check.
+2. Verify the applied forward Map-photo migration; never rewrite either applied
+   migration.
+3. Re-run Supabase security and performance advisors and verify the RPC grants.
+4. Perform non-mutating production smoke checks. Do not create test posts or
+   Cloudinary assets merely to exercise the release.
+5. Rebuild/validate the Pages artifact, then deploy through the existing Pages
+   workflow. Record the deployed SHA in the release report.
+
+Rollback: the database migration is already applied. Any database rollback
+must be another reviewed forward migration that removes
+only the new Map-photo RPC/grant; do not drop posts, anchors, media, users, or
+rewrite migration history. Frontend rollback should redeploy the last known-good
+Pages artifact and disable the relevant feature flags if needed.
+
 # HOME STATS — AUTHORITATIVE OWNER RULE (2026-09-09)
 
 This is the single current rule for the four Home statistics. It supersedes the

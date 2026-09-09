@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-10 - AI / PHOTO / VERIFIED-EMAIL RELEASE CANDIDATE
+
+- Corrected the KMK campus assistant against the owner-provided facility source
+  summary for Serambi, CUBIC, Cafe Admin, Library, KOOP, Cafe A/B/C, and Dewan
+  Kuliah. Unsupported room, location, service, restriction, and page claims
+  were removed.
+- Replaced raw-record conflict comparison with semantic same-fact comparison,
+  fixed explicit-entity context override, added concise EN/MS/ZH false-premise
+  corrections, localized friendly hours, and labelled coordinate-based nearby
+  fallback as approximate.
+- Validated every manual `B_*` association against `CAMPUS_BUILDINGS`; places
+  without a real footprint remain information-only and cannot create Map
+  actions. AI Map handoff is standalone, one-shot, expiry-safe, and preserves
+  the existing return snapshot unless focus succeeds.
+- Unified Community, Building, and Map photos on the same browser re-encoding
+  and unsigned Cloudinary adapter. Added the forward-only
+  `20260909161836_add_atomic_map_photo_publish.sql` migration for atomic Map
+  post + anchor + media persistence. The exact forward SQL was applied to
+  production as `20260909173321_add_atomic_map_photo_publish`.
+- Extended verified-email coverage through the Map-photo RPC and added a
+  repeatable read-only production Auth settings check.
+- All 22 `scripts/test-*.mjs` suites, runtime syntax, Pages build/artifact,
+  portable bundle, and seed validators pass. Automated browser rendering was
+  unavailable.
+- Production reported `mailer_autoconfirm: true` on 2026-09-10. Per the owner,
+  this remains a known external limitation rather than a stop for the rest of
+  the release. The verified-email-aware application and database architecture
+  remains intact, but real mailbox ownership verification is not operational
+  and must be reported as `PARTIAL / BLOCKED BY SUPABASE AUTO-CONFIRM`.
+
 ## 2026-09-08 - ECHO LIBRARY DETAIL METADATA CLEANUP
 
 - Removed the public Source and Verification cells from the existing Echo Library material-detail

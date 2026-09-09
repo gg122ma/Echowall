@@ -30,5 +30,13 @@
       || /(那里|那边|它|附近|怎么去|如何去)/.test(String(message || ""));
   }
 
-  window.EchoAI.ConversationContext = Object.freeze({ get, update, clear, referencesPrevious });
+  function isEllipticalFollowUp(message) {
+    const normalized = window.EchoAI.Normalizer.normalize(message);
+    if (!normalized) return false;
+    return /^(?:what about|how about|kalau)\b/.test(normalized)
+      || /^(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday|ahad|isnin|selasa|rabu|khamis|jumaat|jumat|sabtu)(?:\s+(?:then|pula))?$/.test(normalized)
+      || /^(?:那|那么)?(?:星期|周)[一二三四五六日天](?:呢)?$/.test(String(message || "").trim().replace(/[？?。.!！]/g, ""));
+  }
+
+  window.EchoAI.ConversationContext = Object.freeze({ get, update, clear, referencesPrevious, isEllipticalFollowUp });
 }());

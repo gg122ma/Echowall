@@ -35,20 +35,21 @@ check("missing action fields are rejected", !window.EchoAI.MapAction.validate({ 
 check("executing a valid action writes a pending focus request", window.EchoAI.MapAction.execute(libraryAction));
 check("valid action navigates to the existing map.html", window.location.href === "map.html");
 check("fresh pending action round-trips", window.EchoAI.MapAction.readPending()?.buildingId === "B_PUSTAKA");
-window.EchoAI.MapAction.clearPending();
-check("pending action can be consumed exactly once", window.EchoAI.MapAction.readPending() === null);
+check("pending action is returned by one-shot consumption", window.EchoAI.MapAction.consumePending()?.buildingId === "B_PUSTAKA");
+check("pending action is consumed exactly once", window.EchoAI.MapAction.consumePending() === null);
 
 values.set(window.EchoAI.MapAction.STORAGE_KEY, JSON.stringify({ version: 1, createdAt: Date.now() - 600000, placeId: "library", buildingId: "B_PUSTAKA" }));
-check("stale pending action is rejected", window.EchoAI.MapAction.readPending() === null);
+check("stale pending action is rejected and consumed safely", window.EchoAI.MapAction.consumePending() === null && !values.has(window.EchoAI.MapAction.STORAGE_KEY));
 values.set(window.EchoAI.MapAction.STORAGE_KEY, "not-json");
-check("malformed pending action is rejected safely", window.EchoAI.MapAction.readPending() === null);
+check("malformed pending action is rejected and consumed safely", window.EchoAI.MapAction.consumePending() === null && !values.has(window.EchoAI.MapAction.STORAGE_KEY));
 
 const mapSource = read("echomap.js");
 const mapHtml = read("map.html");
 check("Echo Map loads the shared validated action module", /services\/ai\/map-action\.js/.test(mapHtml));
 check("AI handoff reuses the existing footprint selection", /applyPendingAIMapAction[\s\S]*selectBuildingFootprint\(action\.buildingId/.test(mapSource));
 check("AI handoff reuses existing map focus behavior", /applyPendingAIMapAction[\s\S]*focusBuildingTarget\(building\)/.test(mapSource));
-check("AI handoff consumes pending state before restoring old return state", /if \(!applyPendingAIMapAction\(\)\) restoreMapReturnSnapshot\(\)/.test(mapSource));
+check("AI handoff consumes pending state before restoring old return state", /MapAction\?\.consumePending[\s\S]*if \(!applyPendingAIMapAction\(\)\) restoreMapReturnSnapshot\(\)/.test(mapSource));
+check("failed AI focus does not erase an existing return snapshot", /selectBuildingFootprint\(action\.buildingId[\s\S]*focusBuildingTarget\(building\)[\s\S]*removeMapReturnSnapshot\(\)/.test(mapSource));
 check("existing Building-to-Map return snapshot remains implemented", /saveMapReturnSnapshot[\s\S]*restoreMapReturnSnapshot/.test(mapSource));
 check("existing place-detail return source remains implemented", /setPlaceReturnSource\("map", building\.id\)/.test(mapSource));
 

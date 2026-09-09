@@ -5,8 +5,12 @@
   const VERSION = 1;
   const TTL_MS = 5 * 60 * 1000;
 
+  function defaultStorage() {
+    try { return window.sessionStorage || null; } catch { return null; }
+  }
+
   function create(place) {
-    if (!window.EchoAI.PlaceRegistry.hasMapTarget(place)) return null;
+    if (!window.EchoAI.PlaceRegistry?.hasMapTarget?.(place)) return null;
     return Object.freeze({ type: "OPEN_MAP", placeId: place.canonicalId, buildingId: place.buildingId });
   }
 
@@ -21,13 +25,16 @@
       || (window.CAMPUS_BUILDINGS || []).find(item => item.id === action.buildingId);
     const latitude = Number(building?.mapTarget?.lat);
     const longitude = Number(building?.mapTarget?.lng);
-    return Boolean(building && Number.isFinite(latitude) && Number.isFinite(longitude) && Array.isArray(building.mapFootprint));
+    return Boolean(building && Number.isFinite(latitude) && Number.isFinite(longitude)
+      && Array.isArray(building.mapFootprint) && building.mapFootprint.length > 0);
   }
 
   function execute(action) {
     if (!validate(action)) return false;
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+      const storage = defaultStorage();
+      if (!storage) return false;
+      storage.setItem(STORAGE_KEY, JSON.stringify({
         version: VERSION,
         createdAt: Date.now(),
         placeId: action.placeId,
@@ -40,7 +47,8 @@
     return true;
   }
 
-  function readPending(storage = sessionStorage) {
+  function readPending(storage = defaultStorage()) {
+    if (!storage) return null;
     let parsed;
     try { parsed = JSON.parse(storage.getItem(STORAGE_KEY) || "null"); } catch { return null; }
     if (!parsed || parsed.version !== VERSION) return null;
@@ -50,9 +58,16 @@
     return validate(action) ? action : null;
   }
 
-  function clearPending(storage = sessionStorage) {
+  function clearPending(storage = defaultStorage()) {
+    if (!storage) return;
     try { storage.removeItem(STORAGE_KEY); } catch {}
   }
 
-  window.EchoAI.MapAction = Object.freeze({ STORAGE_KEY, create, validate, execute, readPending, clearPending });
+  function consumePending(storage = defaultStorage()) {
+    const action = readPending(storage);
+    clearPending(storage);
+    return action;
+  }
+
+  window.EchoAI.MapAction = Object.freeze({ STORAGE_KEY, create, validate, execute, readPending, clearPending, consumePending });
 }());

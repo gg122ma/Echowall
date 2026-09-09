@@ -69,6 +69,17 @@ const processedPng = await window.PhotoService.processImage({ type: "image/png",
   blobToDataUrl: async blob => `data:${blob.type};base64,AA==`,
 });
 check("transparent PNG falls back to PNG instead of JPEG", pngTypes.join(",") === "image/webp,image/png" && processedPng.format === "png");
+const webpTypes = [];
+const processedTransparentWebp = await window.PhotoService.processImage({ type: "image/webp", size: 300_000 }, {
+  decode: async () => ({ source: {}, width: 800, height: 600, close: () => {} }),
+  encode: async options => {
+    webpTypes.push(options.type);
+    if (options.type === "image/webp") throw new Error("unsupported");
+    return new Blob([new Uint8Array(200_000)], { type: "image/png" });
+  },
+  blobToDataUrl: async blob => `data:${blob.type};base64,AA==`,
+});
+check("WebP fallback preserves possible transparency by using PNG", webpTypes.join(",") === "image/webp,image/png" && processedTransparentWebp.format === "png");
 
 let closed = false;
 let iterations = 0;
@@ -104,7 +115,7 @@ const adapter = new window.UnsignedCloudinaryAdapter(window.EchoConfig.cloudinar
 const uploaded = await adapter.uploadPhoto(new Blob([new Uint8Array(100)], { type: "image/webp" }), { filename: "campus.webp" });
 check("Cloudinary endpoint uses public cloud name das8chiyz", requestedUrl === "https://api.cloudinary.com/v1_1/das8chiyz/image/upload");
 check("unsigned request sends EchoWall preset", requestedForm.get("upload_preset") === "EchoWall");
-check("unsigned request explicitly keeps overwrite false", requestedForm.get("overwrite") === "false");
+check("unsigned request relies on Cloudinary's forced no-overwrite behavior", requestedForm.get("overwrite") === null);
 check("validated Cloudinary response retains useful metadata", uploaded.publicId === "echo/photo" && uploaded.width === 1200 && uploaded.bytes === 345678 && uploaded.format === "webp");
 await rejects("invalid Cloudinary delivery host is rejected", async () => window.CloudinaryAdapter.validateUploadResponse({ secure_url: "https://evil.example/photo", public_id: "photo", width: 1, height: 1, bytes: 1, format: "jpg" }, "das8chiyz"), /invalid delivery URL/i);
 await rejects("incomplete Cloudinary success response is rejected", async () => window.CloudinaryAdapter.validateUploadResponse({ secure_url: "https://res.cloudinary.com/das8chiyz/image/upload/a.jpg" }, "das8chiyz"), /incomplete image metadata/i);
@@ -135,6 +146,16 @@ check("database callback is untouched after upload failure", failedUploadPersist
 const repositorySource = read("services/community-supabase-repositories.js");
 check("remote photo writes use a dedicated atomic post-with-media RPC", /create_post_with_media/.test(repositorySource));
 check("non-photo post writes retain the existing create_post RPC", /media \? "create_post_with_media" : "create_post"/.test(repositorySource));
+check("remote Map photos use their dedicated atomic post-anchor-media RPC", /media \? "create_map_post_with_media" : "create_map_post"/.test(repositorySource));
+const mapSource = read("features/map-note-overlay.js");
+const mapHtml = read("map.html");
+check("Map photo input uses the shared re-encoding pipeline", /PhotoService\?\.processImage/.test(mapSource) && /pendingImageAsset/.test(mapSource));
+check("Map remote photo publish uses the shared guarded upload service", /PhotoPublishService\.publish[\s\S]*createMapPost/.test(mapSource));
+check("Map loads photo dependencies before its overlay", mapHtml.indexOf("services/photo-service.js") < mapHtml.indexOf("features/map-note-overlay.js") && mapHtml.indexOf("services/cloudinary-adapter.js") < mapHtml.indexOf("features/map-note-overlay.js") && mapHtml.indexOf("services/photo-publish-service.js") < mapHtml.indexOf("features/map-note-overlay.js"));
+const mapPhotoMigration = read("supabase/migrations/20260909161836_add_atomic_map_photo_publish.sql");
+check("Map photo migration creates post, anchor, and media in one transaction", /create_map_post_with_media[\s\S]*api\.create_map_post\([\s\S]*insert into app\.media_assets/.test(mapPhotoMigration));
+check("Map photo RPC is not executable by anon or PUBLIC", /revoke all on function api\.create_map_post_with_media[\s\S]*from public, anon, authenticated/.test(mapPhotoMigration));
+check("Map photo RPC is granted only to authenticated application roles", /grant execute on function api\.create_map_post_with_media[\s\S]*to authenticated, service_role/.test(mapPhotoMigration));
 check("client does not contain a Cloudinary API secret", !/CLOUDINARY_API_SECRET|api_secret/i.test([read("services/cloudinary-adapter.js"), read("config/app-config.js")].join("\n")));
 
 console.log(`\n${passed}/${passed} assertions passed.`);

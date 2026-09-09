@@ -2,7 +2,9 @@
 
 ## Application behavior
 
-“Verified email” means Supabase has confirmed mailbox ownership. Client syntax
+The application uses Supabase's authoritative `email_confirmed_at` field as its
+verified-email signal. When Supabase Confirm Email is enabled, that field can
+represent completion of the mailbox confirmation flow. Client syntax
 validation is only an early usability check and is never treated as proof.
 
 `services/supabase-auth-provider.js` preserves the authoritative Supabase
@@ -28,21 +30,33 @@ grant browser roles access to `auth.users`.
 
 The existing `api.create_post` and `api.create_map_post` RPCs use that helper.
 The new authenticated-only `api.create_post_with_media` RPC creates the post and
-its validated Cloudinary metadata atomically. Existing RLS is not disabled or
-weakened; direct browser writes to `app` tables remain unavailable.
+its validated Cloudinary metadata atomically. The additive
+`20260909161836_add_atomic_map_photo_publish.sql` migration provides the same
+verified-user and atomicity guarantees for a Map post, its Map anchor, and its
+media row. Existing RLS is not disabled or weakened; direct browser writes to
+`app` tables remain unavailable.
 
-## Production configuration blocker
+## Production configuration limitation
 
-Read-only inspection on 2026-09-09 reported `mailer_autoconfirm: true` for the
+Read-only inspection on 2026-09-10 reported `mailer_autoconfirm: true` for the
 production Supabase project. With auto-confirm enabled, new email users are
 implicitly confirmed, so production cannot honestly demonstrate a mailbox
 confirmation gate even though the application and database checks are ready.
+The owner decided not to change this setting for the current release. Status is
+`PARTIAL / BLOCKED BY SUPABASE AUTO-CONFIRM`; do not describe real mailbox
+ownership verification as operational or passing.
+
+Run `node scripts/check-production-auth-settings.mjs` for the repeatable public,
+read-only configuration check. It prints only non-secret Auth policy flags. It
+reports the accepted partial status while `mailer_autoconfirm` is `true`, and
+reports full email confirmation only when that value is `false`.
 
 Before verification is considered operational, the project owner must enable
 Supabase Auth **Confirm Email**, configure production SMTP/redirect URLs, and
-test one new unverified account followed by the confirmation-link flow. This
-release does not silently change that sensitive Auth setting. Existing users
-are not rewritten by the migration.
+test one new unverified account followed by the confirmation-link flow. The
+current release does not silently change that sensitive Auth setting, weaken
+the database helper, or fake confirmation. Existing users are not rewritten by
+the migration.
 
 Never place a `service_role` key in browser code. The existing publishable key
 is expected public configuration and remains constrained by RLS/RPC policy.

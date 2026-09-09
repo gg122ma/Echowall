@@ -63,8 +63,9 @@
     groupedKnowledgeRecords().forEach((records, canonicalId) => {
       const sorted = [...records].sort((a, b) => a.authority - b.authority);
       const primary = sorted[0];
-      const buildingId = primary.buildingId || BUILDING_LINKS[canonicalId] || "";
-      const building = buildingById.get(buildingId) || null;
+      const requestedBuildingId = primary.buildingId || BUILDING_LINKS[canonicalId] || "";
+      const building = buildingById.get(requestedBuildingId) || null;
+      const buildingId = building?.id || "";
       if (building) usedBuildings.add(building.id);
       const aliases = unique([
         primary.title,
@@ -116,22 +117,28 @@
   function hasMapTarget(place) {
     const latitude = Number(place?.building?.mapTarget?.lat);
     const longitude = Number(place?.building?.mapTarget?.lng);
-    return Boolean(place?.buildingId) && Number.isFinite(latitude) && Number.isFinite(longitude) && Array.isArray(place?.building?.mapFootprint);
+    return Boolean(place?.buildingId) && Number.isFinite(latitude) && Number.isFinite(longitude)
+      && Array.isArray(place?.building?.mapFootprint) && place.building.mapFootprint.length > 0;
+  }
+
+  function getNearbyDetails(place) {
+    if (!place) return Object.freeze({ places: Object.freeze([]), basis: "none" });
+    const explicit = EXPLICIT_RELATIONS[place.canonicalId] || [];
+    const explicitPlaces = explicit.map(getById).filter(Boolean);
+    if (explicitPlaces.length) return Object.freeze({ places: Object.freeze(explicitPlaces), basis: "explicit" });
+    if (!hasMapTarget(place)) return Object.freeze({ places: Object.freeze([]), basis: "none" });
+    const lat = Number(place.building.mapTarget.lat);
+    const lng = Number(place.building.mapTarget.lng);
+    const places = getPlaces().filter(candidate => candidate.canonicalId !== place.canonicalId && hasMapTarget(candidate)).map(candidate => ({
+      candidate,
+      coordinateDelta: Math.hypot(Number(candidate.building.mapTarget.lat) - lat, Number(candidate.building.mapTarget.lng) - lng),
+    })).sort((a, b) => a.coordinateDelta - b.coordinateDelta).slice(0, 3).map(item => item.candidate);
+    return Object.freeze({ places: Object.freeze(places), basis: places.length ? "coordinate-order" : "none" });
   }
 
   function getNearby(place) {
-    if (!place) return [];
-    const explicit = EXPLICIT_RELATIONS[place.canonicalId] || [];
-    const explicitPlaces = explicit.map(getById).filter(Boolean);
-    if (explicitPlaces.length) return explicitPlaces;
-    if (!hasMapTarget(place)) return [];
-    const lat = Number(place.building.mapTarget.lat);
-    const lng = Number(place.building.mapTarget.lng);
-    return getPlaces().filter(candidate => candidate.canonicalId !== place.canonicalId && hasMapTarget(candidate)).map(candidate => ({
-      candidate,
-      distance: Math.hypot(Number(candidate.building.mapTarget.lat) - lat, Number(candidate.building.mapTarget.lng) - lng),
-    })).sort((a, b) => a.distance - b.distance).slice(0, 3).map(item => item.candidate);
+    return getNearbyDetails(place).places;
   }
 
-  window.EchoAI.PlaceRegistry = Object.freeze({ getPlaces, getById, hasMapTarget, getNearby });
+  window.EchoAI.PlaceRegistry = Object.freeze({ getPlaces, getById, hasMapTarget, getNearby, getNearbyDetails });
 }());

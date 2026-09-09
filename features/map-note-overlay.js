@@ -15,7 +15,7 @@
     placementLayers:[], placementHandlers:[], composeButton:null, cancelButton:null,
     placementPanel:null, placementMarker:null, visibleBeforePlacement:true, formOverlay:null, pendingFormOpen:false,
     toastElement:null, previousShowToast:null, serviceUnsubscribe:null, refreshToken:0,
-    pendingImageDataUrl:'', pendingImageName:'',
+    pendingImageDataUrl:'', pendingImageName:'', pendingImageAsset:null,
   };
 
   const composeCopy = {
@@ -29,9 +29,9 @@
     zh:{ rounded:"圆角", square:"方形", rect:"长方形", circle:"圆形", envelope:"信封", torn:"撕纸", speech:"对话框", polaroid:"拍立得", ticket:"票券", hexagon:"六边形" },
   };
   const composeMediaCopy = {
-    en:{ photo:'Photo', photoHint:'Optional JPG, PNG, or WebP (up to 450 KB stored)', color:'Color' },
-    ms:{ photo:'Foto', photoHint:'JPG, PNG atau WebP pilihan (sehingga 450 KB disimpan)', color:'Warna' },
-    zh:{ photo:'照片', photoHint:'可选 JPG、PNG 或 WebP（存储上限 450 KB）', color:'颜色' },
+    en:{ photo:'Photo', photoHint:'Optional JPG, PNG, or WebP (up to 8 MB; optimized before upload)', color:'Color' },
+    ms:{ photo:'Foto', photoHint:'JPG, PNG atau WebP pilihan (sehingga 8 MB; dioptimumkan sebelum muat naik)', color:'Warna' },
+    zh:{ photo:'照片', photoHint:'可选 JPG、PNG 或 WebP（最大 8 MB；上传前会优化）', color:'颜色' },
   };
 
   function composeText(key) {
@@ -63,20 +63,11 @@
     return composeMediaCopy[language]?.[key] || composeMediaCopy.en[key] || key;
   }
 
-  function readComposeImage(file) {
-    return new Promise((resolve,reject) => {
-      if (!file) return resolve({ dataUrl:'', name:'' });
-      if (!['image/jpeg','image/png','image/webp'].includes(file.type)) return reject(new Error('Choose a JPG, PNG, or WebP image.'));
-      if (file.size > 450 * 1024) return reject(new Error(mediaText('photoHint')));
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = String(reader.result || '');
-        if (!/^data:image\/(?:png|jpe?g|webp);base64,[a-z0-9+/=]+$/i.test(dataUrl)) return reject(new Error('The selected photo is invalid.'));
-        resolve({ dataUrl, name:String(file.name || 'photo').slice(0,120) });
-      };
-      reader.onerror = () => reject(new Error('The selected photo could not be read.'));
-      reader.readAsDataURL(file);
-    });
+  async function readComposeImage(file) {
+    if (!file) return { asset:null, dataUrl:'', name:'' };
+    if (!window.PhotoService?.processImage) throw new Error('Photo processing is unavailable.');
+    const asset = await window.PhotoService.processImage(file);
+    return { asset, dataUrl:asset.dataUrl, name:String(file.name || 'photo').slice(0,120) };
   }
 
   function composeShapeText(value) {
@@ -364,6 +355,7 @@
       state.formOverlay.querySelector('form')?.reset();
       state.pendingImageDataUrl = '';
       state.pendingImageName = '';
+      state.pendingImageAsset = null;
       const count = state.formOverlay.querySelector('[data-role=count]');
       if (count) count.textContent = '0 / 500';
     }
@@ -425,17 +417,13 @@
     const submit = form.querySelector('[data-copy=submit]');
     submit.disabled = true;
     setComposeError('');
-    // BACKEND V2.3 — Map Post Directly, Supabase branch. Calls
-    // api.create_map_post exactly once (see services/community-supabase-
-    // repositories.js's createMapPost for why: that RPC is the single
-    // atomic transaction that creates both the canonical app.posts row and
-    // its app.post_map_anchors row under the SAME post_id — there is no
-    // second create_post call and no manually-written anchor here).
+    // Map Post Directly uses one RPC transaction. Photo posts first upload
+    // one re-encoded Blob, then create post + anchor + media metadata through
+    // api.create_map_post_with_media in one database transaction.
     if (remote) {
-      if (state.pendingImageDataUrl) { setComposeError(composeText('failed')); submit.disabled = false; return; }
       try {
         if (!isAnonymous) await window.SupabaseAuthProvider.upsertProfile(user.displayName);
-        await window.CommunityDataProvider.createMapPost({
+        const remoteMapInput = {
           buildingId: entry.placeId,
           lat: state.placementSelection.lat,
           lng: state.placementSelection.lng,
@@ -445,7 +433,15 @@
           shape: form.elements.shape?.value,
           color: form.elements.color?.value,
           isAnonymous,
-        });
+        };
+        if (state.pendingImageAsset) {
+          await window.PhotoPublishService.publish({
+            asset: state.pendingImageAsset,
+            filename: state.pendingImageName,
+            context: { contextType:'map', buildingId:entry.placeId },
+            persist: photo => window.CommunityDataProvider.createMapPost({ ...remoteMapInput, photo }),
+          });
+        } else await window.CommunityDataProvider.createMapPost(remoteMapInput);
         exitPlacementMode();
         showPluginToast(composeText('success'));
       } catch (error) {
@@ -573,10 +569,12 @@
       const status = overlay.querySelector('[data-role=photo-status]');
       state.pendingImageDataUrl = '';
       state.pendingImageName = '';
+      state.pendingImageAsset = null;
       try {
         const image = await readComposeImage(event.target.files?.[0]);
         state.pendingImageDataUrl = image.dataUrl;
         state.pendingImageName = image.name;
+        state.pendingImageAsset = image.asset;
         if (status) status.textContent = image.name;
       } catch (error) {
         event.target.value = '';
@@ -852,6 +850,7 @@
       placementActive:false, placementSelection:null, placementLayers:[], placementHandlers:[],
       composeButton:null, cancelButton:null, placementPanel:null, placementMarker:null, visibleBeforePlacement:true,
       formOverlay:null, pendingFormOpen:false, toastElement:null, previousShowToast:null,
+      pendingImageDataUrl:'', pendingImageName:'', pendingImageAsset:null,
       serviceUnsubscribe:null, refreshToken:state.refreshToken,
     });
   }

@@ -1,5 +1,32 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-10 - AI / PHOTO / AUTH RELEASE-CANDIDATE CORRECTION
+
+- Conflict handling compared two approaches: raw record-field equality and
+  semantic same-fact comparison. The semantic approach was selected so
+  complementary multilingual/service records merge while incompatible values
+  for a shared day/hour fact remain visible.
+- Context handling compared intent-based reuse with explicit refer-back reuse.
+  Explicit refer-back reuse was selected to prevent an intent such as
+  `campus_hours` from overriding a newly named place.
+- Map handoff compared clearing return state before focus with clearing it only
+  after successful focus. The latter preserves existing manual,
+  Community-to-Map, and Building-to-Map recovery when a pending AI action is
+  invalid or stale.
+- Map photos compared retaining the old local Data URL path with reusing the
+  Community/Building processing and remote publish pipeline. The shared path
+  was selected to keep format/size/privacy validation and duplicate-submit
+  protection consistent, with one new atomic Map RPC instead of a second media
+  system.
+- The portable validator now distinguishes a real loopback resource dependency
+  from the intentional literal loopback hostname allowlist used for local
+  staging. Production resource-path checks remain fail-closed.
+- No runtime performance gain is claimed without browser measurements. The
+  deterministic suites and artifact build pass; live browser testing was
+  unavailable. Supabase auto-confirm remains a known external limitation, so
+  mailbox ownership verification is not operational even though the release's
+  verified-email-aware application and database code remains in place.
+
 ## 2026-09-08 - Echo Library detail cleanup
 
 - Reused the existing responsive `study-detail-grid`; removing the two complete cells lets its

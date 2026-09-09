@@ -5,7 +5,7 @@
 - Cloudinary cloud name: `das8chiyz`
 - Upload preset: `EchoWall`
 - Mode: unsigned
-- Overwrite: `false`
+- Overwrite: forced `false` by Cloudinary for unsigned uploads
 - Endpoint: `https://api.cloudinary.com/v1_1/das8chiyz/image/upload`
 - Feature switch: `EchoConfig.features.photoUploads`
 
@@ -34,21 +34,24 @@ drops source EXIF/GPS metadata while preserving the decoded visual orientation.
 ## Upload and database ordering
 
 `services/cloudinary-adapter.js` contains a replaceable
-`UnsignedCloudinaryAdapter`. It sends only the file, preset, and `overwrite`
-flag, then validates HTTPS host/cloud path, public ID, dimensions, byte count,
-and format before accepting the response.
+`UnsignedCloudinaryAdapter`. It sends only the file and preset. Cloudinary
+forces overwrite off for unsigned uploads. The adapter validates HTTPS
+host/cloud path, public ID, dimensions, byte count, and format before accepting
+the response.
 
 `services/photo-publish-service.js` performs:
 
 1. one guarded Cloudinary upload;
-2. one Supabase `create_post_with_media` call;
-3. an atomic post plus `app.media_assets` insert in the database migration.
+2. one Supabase `create_post_with_media` or `create_map_post_with_media` call;
+3. an atomic post, optional Map anchor, and `app.media_assets` insert in the
+   database migration.
 
 A failed upload never creates a post row. If Cloudinary succeeds but the DB
 transaction fails, the browser keeps only the returned `publicId`, URL, time,
 and cleanup reason in `getLastOrphan()` for an operator cleanup workflow. It
 does not retry into duplicate public content or retain the image bytes/EXIF.
-The composer and repository each have in-flight protection.
+The Community/Building composer and Map composer use the same processing and
+publishing services. Their repositories have in-flight protection.
 
 ## Security limitation
 

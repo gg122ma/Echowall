@@ -871,14 +871,15 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
 
   function applyPendingAIMapAction() {
-    const action = window.EchoAI?.MapAction?.readPending?.();
-    window.EchoAI?.MapAction?.clearPending?.();
+    const action = window.EchoAI?.MapAction?.consumePending?.();
     if (!action) return false;
     const building = getInteractionBuilding(action.buildingId);
     if (!building) return false;
-    removeMapReturnSnapshot();
     if (!selectBuildingFootprint(action.buildingId, { scrollPreviewOnMobile:false })) return false;
     focusBuildingTarget(building);
+    // The AI focus is now the active Map state. Only after it succeeds is an
+    // older return snapshot obsolete; failed actions still fall back to it.
+    removeMapReturnSnapshot();
     return true;
   }
 

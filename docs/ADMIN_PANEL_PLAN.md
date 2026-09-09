@@ -27,33 +27,47 @@ deletion requires an explicit elevated workflow and reason.
 
 Edit one fact through labeled fields: place, topic, English/Bahasa Melayu/
 Chinese wording, source title, source date, PDF page, effective date, and review
-status. Show source freshness and flag records that need re-verification.
+status. Show source freshness and flag records that need re-verification. A page
+number may be published only when it is present in the owner-provided source;
+otherwise retain the fact with an explicit `reference requires verification`
+state. Historical provenance is append-only: an edit creates a revision and
+never rewrites the evidence attached to an earlier revision.
 
 ### Source conflict review
 
 Present disagreeing values side by side with source authority, page, date, and
 affected answers. Staff may mark a newer source authoritative, keep the result
 uncertain, or request review. Never silently discard the losing record; retain
-the resolution reason and audit history.
+the resolution reason and audit history. The queue is created only when sources
+assert incompatible values for the same semantic fact (for example, Friday
+`closed` versus Friday `08:00-16:30`). Different descriptions, services, rules,
+languages, or complementary subsets do not create a conflict by themselves.
 
 ### Map/place association
 
 Choose campus places by name/search, preview the existing Echo Map target, and
 validate Building IDs without asking staff to type UUIDs. Ambiguous or missing
 targets block publication of a navigation action but do not block an
-information-only fact.
+information-only fact. The server accepts only IDs from the canonical Building
+registry; the UI cannot fabricate a `B_*` association or fall back to another
+place.
 
 ### Photo moderation
 
 Show the post context, Cloudinary preview, uploader, dimensions/bytes/format,
 reports, and orphan-cleanup state. Support approve, hide, archive, restore, and
-request-review actions. Do not expose Cloudinary secrets or raw EXIF/GPS.
+request-review actions. Failed post attachment leaves an auditable
+`orphan-pending` item for an idempotent cleanup worker; staff do not delete an
+arbitrary Cloudinary public ID. Do not expose Cloudinary secrets or raw
+EXIF/GPS.
 
 ### Users and roles
 
 Search users by display name/email, show verified/unverified status and active/
 disabled state, then assign human-readable roles and scopes. Use institution and
-Building pickers, not IDs. High-impact grants require confirmation and a reason.
+Building pickers, not IDs. Verified status is read-only and comes from
+Supabase Auth's authoritative confirmation timestamp, never editable profile
+metadata. High-impact grants require confirmation and a reason.
 
 ### Audit log
 

@@ -1,5 +1,58 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-10 - AI / PHOTO / AUTH CORRECTNESS REVIEW
+
+- Campus records were checked against the owner-provided facility summary:
+  Serambi p.7, CUBIC p.8, Cafe Admin p.9, Library p.10, KOOP p.11, Cafe A p.12,
+  Cafe B p.13, Cafe C p.14, and Dewan Kuliah p.22. The actual PDF is not stored
+  in this checkout; these page values are retained because the owner summary
+  explicitly supplies them, not because they were inferred.
+- Conflict detection now extracts comparable day/hour facts and optional
+  explicit semantic facts. Complementary content/description/service/rule text
+  is not treated as a contradiction. An incompatible value for the same day
+  remains a real conflict.
+- Place mappings are fail-closed: the exposed Building ID must exist, and a Map
+  action additionally requires finite coordinates plus a nonempty footprint.
+  KOOP therefore remains queryable but cannot fall back to `B_PUSTAKA` or
+  create a fake Map focus.
+- Conversation context is considered only after direct entity resolution fails
+  and the text is a clear refer-back or elliptical follow-up. A named or generic
+  new entity is resolved independently.
+- `map-action.js` has no PlaceRegistry dependency on `map.html`; it can validate
+  against `CAMPUS_BUILDINGS`, initializes `window.EchoAI` safely, consumes a
+  pending command once, and ignores expired/malformed commands. Existing Map
+  return state is deleted only after successful focus.
+- Photo uploads are re-encoded before upload and validated again at the client
+  repository and SQL RPC boundaries. Community/Building and Map media writes
+  are atomic inside PostgreSQL, though an upload followed by DB rejection can
+  still require operator orphan cleanup because the approved unsigned browser
+  architecture has no Cloudinary destroy credential.
+- Verified publishing reads `auth.users.email_confirmed_at` in a locked
+  security-definer helper and never authorizes from `user_metadata`. The live
+  Auth setting still auto-confirms users, so real mailbox ownership
+  verification is not operational. The implementation remains verification-
+  aware for future activation; current status is
+  `PARTIAL / BLOCKED BY SUPABASE AUTO-CONFIRM`.
+- The additive Map-photo migration was applied as production migration
+  `20260909173321_add_atomic_map_photo_publish`. Catalog verification confirms
+  the RPC has a fixed empty search path, calls the verified-user helper, and is
+  executable by `authenticated`/`service_role` but not `anon`/`PUBLIC`.
+- Supabase advisors were rerun on 2026-09-10. Existing production findings
+  include four `security_definer_view` errors, intentional authenticated
+  security-definer RPC warnings, leaked-password protection disabled, and
+  informational index/RLS notices. The new deliberately authenticated Map-
+  photo RPC adds one expected security-definer-function warning; all other
+  security and performance findings are unchanged. The pre-existing findings
+  were not silently rewritten in this focused task and require a separate
+  backend hardening/acceptance review.
+- Secret-pattern review found no Cloudinary API secret, Supabase service-role
+  key, private key, or private model credential in the runtime changes.
+- Runtime/source syntax passes after excluding two historical checkpoint
+  fragments that are intentionally incomplete. All 22 test scripts pass; the
+  Pages artifact and remaining validators pass. No browser backend was
+  available, so interactive desktop/mobile and console acceptance is not
+  claimed.
+
 ## 2026-09-08 - ECHO LIBRARY PUBLIC DETAIL METADATA
 
 - `renderStudyResourceDetail()` was the only public detail renderer for the two requested cells.

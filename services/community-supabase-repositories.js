@@ -160,9 +160,14 @@
     const width = Number(photo.width);
     const height = Number(photo.height);
     const format = String(photo.format || "").toLowerCase();
+    const cloudName = String(window.EchoConfig?.cloudinary?.cloudName || "").trim();
     let url;
     try { url = new URL(secureUrl); } catch { throw new Error("The uploaded photo metadata is invalid."); }
-    if (url.protocol !== "https:" || url.hostname !== "res.cloudinary.com" || !publicId || !Number.isInteger(bytes) || bytes <= 0 || !Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0 || !/^(jpe?g|png|webp)$/.test(format)) {
+    if (!cloudName || url.protocol !== "https:" || url.hostname !== "res.cloudinary.com"
+      || !url.pathname.startsWith(`/${cloudName}/image/upload/`)
+      || !/^[A-Za-z0-9/_-]{1,255}$/.test(publicId)
+      || !Number.isInteger(bytes) || bytes <= 0 || !Number.isInteger(width) || width <= 0
+      || !Number.isInteger(height) || height <= 0 || !/^(jpe?g|png|webp)$/.test(format)) {
       throw new Error("The uploaded photo metadata is invalid.");
     }
     return { p_media_public_id: publicId, p_media_secure_url: secureUrl, p_media_bytes: bytes, p_media_width: width, p_media_height: height, p_media_format: format };
@@ -282,13 +287,13 @@
   // create_post call and no manual anchor insert here, so there is only
   // ever one canonical post/UUID for a Map-created note.
   async function createMapPost(input) {
-    if (input.imageDataUrl || input.imageUrl || input.photo) throw new Error("Photo posting is not available in Community staging yet. Remove the photo to continue.");
     const buildingId = String(input.buildingId || "");
     const lat = Number(input.lat);
     const lng = Number(input.lng);
     return once(`create-map-post:${buildingId}:${lat}:${lng}`, async () => {
       const client = await window.CommunitySupabaseClient.getClient();
-      const { data, error } = await client.rpc("create_map_post", {
+      const media = mediaRpcParameters(input.photo);
+      const { data, error } = await client.rpc(media ? "create_map_post_with_media" : "create_map_post", {
         p_post_type: input.postType === "question" ? "question" : "discussion",
         p_building_id: buildingId,
         p_lat: lat,
@@ -298,6 +303,7 @@
         p_shape: String(input.shape || ""),
         p_color: String(input.color || ""),
         p_display_author_mode: input.isAnonymous === false ? "named" : "anonymous",
+        ...(media || {}),
       });
       if (error) throw friendlyError(error, "Your map note could not be published.");
       const row = Array.isArray(data) ? data[0] : data;

@@ -19,7 +19,46 @@
     const source = window.EchoAI.SourceRegistry.getGrounding(place);
     return source ? [source] : [];
   }
-  function timeText(value) { return String(value || "").replace("-", "–"); }
+  function formatClock(hour, minute) {
+    const numericHour = Number(hour);
+    if (!Number.isInteger(numericHour) || numericHour < 0 || numericHour > 23) return "";
+    const suffix = numericHour >= 12 ? "pm" : "am";
+    return `${numericHour % 12 || 12}:${minute}${suffix}`;
+  }
+  function timeText(value) {
+    return String(value || "").replace(/(\d{1,2}):(\d{2})\s*[-–—]\s*(\d{1,2}):(\d{2})/g, (_match, startHour, startMinute, endHour, endMinute) => (
+      `${formatClock(startHour, startMinute)}–${formatClock(endHour, endMinute)}`
+    ));
+  }
+  function scheduleText(schedule, language) {
+    if (!schedule) return "";
+    const days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+    const groups = [];
+    days.forEach(day => {
+      const value = schedule[day];
+      if (!value) return;
+      const last = groups.at(-1);
+      if (last?.value === value) last.end = day;
+      else groups.push({ start: day, end: day, value });
+    });
+    const separator = language === "zh" ? "；" : "; ";
+    return groups.map(group => {
+      const start = window.EchoAI.Language.dayLabel(group.start, language);
+      const end = window.EchoAI.Language.dayLabel(group.end, language);
+      const daysLabel = group.start === group.end ? start : `${start}–${end}`;
+      if (group.value === "closed") {
+        if (language === "ms") return `${daysLabel} ditutup`;
+        if (language === "zh") return `${daysLabel}关闭`;
+        return `${daysLabel} closed`;
+      }
+      return `${daysLabel} ${timeText(group.value)}`;
+    }).join(separator);
+  }
+  function correctionPrefix(language) {
+    if (language === "ms") return "Tidak. ";
+    if (language === "zh") return "不对。";
+    return "No. ";
+  }
 
   function unknownAnswer(language) { return UNKNOWN[language] || UNKNOWN.en; }
   function ambiguousAnswer(language, candidates) {
@@ -39,24 +78,30 @@
     if (language === "zh") return `${title(place)}：${location}`;
     return `${title(place)}: ${location}`;
   }
-  function hoursAnswer(language, place, day) {
+  function hoursAnswer(language, place, day, premiseStatus = "SUPPORTED") {
     const dayValue = day && place.schedule?.[day];
     if (dayValue) {
       const dayName = window.EchoAI.Language.dayLabel(day, language);
+      let answer;
       if (dayValue === "closed") {
-        if (language === "ms") return `${title(place)} ditutup pada hari ${dayName}. ${CURRENT_NOTICE.ms}`;
-        if (language === "zh") return `${title(place)} ${dayName}关闭。${CURRENT_NOTICE.zh}`;
-        return `${title(place)} is closed on ${dayName}. ${CURRENT_NOTICE.en}`;
+        if (language === "ms") answer = `${title(place)} ditutup pada hari ${dayName}. ${CURRENT_NOTICE.ms}`;
+        else if (language === "zh") answer = `${title(place)} ${dayName}关闭。${CURRENT_NOTICE.zh}`;
+        else answer = `${title(place)} is closed on ${dayName}. ${CURRENT_NOTICE.en}`;
+      } else if (language === "ms") {
+        answer = `${title(place)} dibuka ${timeText(dayValue)} pada hari ${dayName}. ${CURRENT_NOTICE.ms}`;
+      } else if (language === "zh") {
+        answer = `${title(place)} ${dayName}开放时间为 ${timeText(dayValue)}。${CURRENT_NOTICE.zh}`;
+      } else {
+        answer = `${title(place)} is open ${timeText(dayValue)} on ${dayName}. ${CURRENT_NOTICE.en}`;
       }
-      if (language === "ms") return `${title(place)} dibuka ${timeText(dayValue)} pada hari ${dayName}. ${CURRENT_NOTICE.ms}`;
-      if (language === "zh") return `${title(place)} ${dayName}开放时间为 ${timeText(dayValue)}。${CURRENT_NOTICE.zh}`;
-      return `${title(place)} is open ${timeText(dayValue)} on ${dayName}. ${CURRENT_NOTICE.en}`;
+      return premiseStatus === "CONTRADICTED" ? `${correctionPrefix(language)}${answer}` : answer;
     }
     const hours = String(place.hours || "");
     if (!hours || /not available/i.test(hours)) return unknownAnswer(language);
-    if (language === "ms") return `Waktu ${title(place)}: ${hours}. ${CURRENT_NOTICE.ms}`;
-    if (language === "zh") return `${title(place)} 的开放时间：${hours}。${CURRENT_NOTICE.zh}`;
-    return `${title(place)} hours: ${hours}. ${CURRENT_NOTICE.en}`;
+    const displayHours = scheduleText(place.schedule, language) || timeText(hours);
+    if (language === "ms") return `Waktu ${title(place)}: ${displayHours}. ${CURRENT_NOTICE.ms}`;
+    if (language === "zh") return `${title(place)} 的开放时间：${displayHours}。${CURRENT_NOTICE.zh}`;
+    return `${title(place)} hours: ${displayHours}. ${CURRENT_NOTICE.en}`;
   }
   function detailsAnswer(language, place, intent) {
     const base = window.EchoAI.Language.field(place, intent === "campus_rules" ? "rules" : "content", language);
@@ -64,15 +109,21 @@
     return intent === "campus_rules" ? `${base} ${CURRENT_NOTICE[language] || CURRENT_NOTICE.en}` : base;
   }
   function nearbyAnswer(language, place) {
-    const nearby = window.EchoAI.PlaceRegistry.getNearby(place);
+    const result = window.EchoAI.PlaceRegistry.getNearbyDetails(place);
+    const nearby = result.places;
     if (!nearby.length) return unknownAnswer(language);
     const names = nearby.map(title).join(", ");
-    if (language === "ms") return `Berdasarkan hubungan lokasi kampus, yang berhampiran ${title(place)} termasuk ${names}.`;
-    if (language === "zh") return `根据校园地点关系，${title(place)} 附近包括 ${names}。`;
-    return `Based on campus location relationships, places near ${title(place)} include ${names}.`;
+    if (result.basis === "explicit") {
+      if (language === "ms") return `Berdasarkan hubungan lokasi dalam sumber kampus, yang berhampiran ${title(place)} termasuk ${names}.`;
+      if (language === "zh") return `根据校园资料中的地点关系，${title(place)} 附近包括 ${names}。`;
+      return `Based on supplied campus location relationships, places near ${title(place)} include ${names}.`;
+    }
+    if (language === "ms") return `Berdasarkan kedudukan koordinat anggaran pada peta, tempat yang kelihatan berhampiran ${title(place)} termasuk ${names}.`;
+    if (language === "zh") return `根据地图坐标的近似排序，${title(place)} 看起来靠近 ${names}。`;
+    return `Based on approximate map-coordinate proximity, places that appear near ${title(place)} include ${names}.`;
   }
   function comparisonAnswer(language, places) {
-    const summaries = places.slice(0, 2).map(place => `${title(place)} — ${place.hours || window.EchoAI.Language.field(place, "content", language) || unknownAnswer(language)}`);
+    const summaries = places.slice(0, 2).map(place => `${title(place)} — ${scheduleText(place.schedule, language) || timeText(place.hours) || window.EchoAI.Language.field(place, "content", language) || unknownAnswer(language)}`);
     return summaries.join(language === "zh" ? "；" : "; ");
   }
   function injectionAnswer(language) {
@@ -117,9 +168,12 @@
     }
 
     const previous = window.EchoAI.ConversationContext.get(sessionId);
-    const allowContext = Boolean(previous && (window.EchoAI.ConversationContext.referencesPrevious(question)
-      || ["campus_hours", "campus_rules", "campus_navigation", "campus_nearby"].includes(intent)));
-    const resolution = window.EchoAI.Retriever.resolve(question, allowContext ? previous.entityId : "");
+    let resolution = window.EchoAI.Retriever.resolve(question);
+    const clearReference = window.EchoAI.ConversationContext.referencesPrevious(question)
+      || window.EchoAI.ConversationContext.isEllipticalFollowUp(question);
+    if (resolution.status === "unknown" && previous && clearReference) {
+      resolution = window.EchoAI.Retriever.resolve(question, previous.entityId);
+    }
 
     if (intent === "campus_comparison") {
       const places = window.EchoAI.Retriever.resolveMany(question);
@@ -159,7 +213,7 @@
     window.EchoAI.ConversationContext.update(sessionId, place.canonicalId, intent);
     const premise = window.EchoAI.PremiseChecker.check(question, place, conflicts);
     let answer;
-    if (intent === "campus_hours") answer = hoursAnswer(language, place, premise.day);
+    if (intent === "campus_hours") answer = hoursAnswer(language, place, premise.day, premise.status);
     else if (intent === "campus_location" || intent === "campus_navigation") answer = locationAnswer(language, place);
     else if (intent === "campus_nearby") answer = nearbyAnswer(language, place);
     else if (intent === "campus_rules" || intent === "campus_services") answer = detailsAnswer(language, place, intent);

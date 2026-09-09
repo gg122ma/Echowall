@@ -50,7 +50,11 @@ const runtimeFiles = [
 ];
 for (const relativePath of runtimeFiles) {
   const source = fs.readFileSync(path.join(ROOT, relativePath), "utf8");
-  check(!/(?:^|[\s"'(=])[A-Za-z]:\\|localhost|(?:src|href)=["']\/(?!\/)/i.test(source), `${relativePath} has no drive, localhost, or site-root resource path`);
+  const hasDrivePath = /(?:^|[\s"'(=])[A-Za-z]:\\/i.test(source);
+  const hasSiteRootResource = /(?:src|href)=["']\/(?!\/)/i.test(source);
+  const hasLoopbackResource = /(?:src|href)=["'](?:https?:)?\/\/(?:localhost|127[.]0[.]0[.]1|\[::1\])(?::\d+)?\//i.test(source)
+    || /\b(?:fetch|importScripts)\s*\(\s*["']https?:\/\/(?:localhost|127[.]0[.]0[.]1|\[::1\])(?::\d+)?\//i.test(source);
+  check(!(hasDrivePath || hasSiteRootResource || hasLoopbackResource), `${relativePath} has no drive, loopback-resource, or site-root resource path`);
   check(!/demoSeedPreview/i.test(source), `${relativePath} does not depend on demoSeedPreview`);
 }
 if (failures.length) {

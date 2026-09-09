@@ -48,7 +48,6 @@
       const form = new FormData();
       form.append("file", file, String(context.filename || "echowall-photo.webp").slice(0, 120));
       form.append("upload_preset", this.config.uploadPreset);
-      form.append("overwrite", "false");
       const endpoint = `https://api.cloudinary.com/v1_1/${encodeURIComponent(this.config.cloudName)}/image/upload`;
       let response;
       try { response = await this.fetch(endpoint, { method: "POST", body: form }); }

@@ -84,6 +84,17 @@ check("awaiting-confirmation registration has no fake verified state", registrat
 await rejects("signup rejects invalid email before Supabase", () => window.SupabaseAuthProvider.signUp({ email: "bad", password: "password123", displayName: "Student" }), /valid email/i);
 await rejects("sign-in rejects invalid email before Supabase", () => window.SupabaseAuthProvider.signInWithPassword({ email: "bad", password: "password123" }), /valid email/i);
 
+authClient = {
+  auth: {
+    signInWithPassword: async () => ({ data: { session: null, user: null }, error: { message: "Email not confirmed" } }),
+  },
+};
+await rejects(
+  "unconfirmed Supabase sign-in remains blocked",
+  () => window.SupabaseAuthProvider.signInWithPassword({ email: "pending@example.com", password: "password123" }),
+  /not confirmed/i,
+);
+
 const migration = read("supabase/migrations/20260909151613_ai_photo_verified_writes.sql");
 check("migration verifies authoritative auth.users confirmation state", /from auth\.users[\s\S]*email_confirmed_at is not null/.test(migration));
 check("migration does not authorize from user_metadata", !/user_metadata|raw_user_meta_data/.test(migration));
@@ -92,6 +103,15 @@ check("post-with-media RPC persists post and metadata atomically", /create_post_
 check("media RPC remains authenticated-only", /grant execute on function api\.create_post_with_media[\s\S]*to authenticated, service_role/.test(migration));
 check("unsigned Cloudinary URL is constrained to the configured cloud", /res\[\.\]cloudinary\[\.\]com\/das8chiyz/.test(migration));
 check("migration contains no browser service-role credential", !/service_role\s*[:=]|SERVICE_ROLE_KEY|api_secret/i.test(migration));
+const mapMediaMigration = read("supabase/migrations/20260909161836_add_atomic_map_photo_publish.sql");
+check("Map-photo RPC independently requires a verified active user", /create_map_post_with_media[\s\S]*private\.require_verified_active_user\(\)/.test(mapMediaMigration));
+check("Map-photo RPC persists the map post and media metadata atomically", /create_map_post_with_media[\s\S]*api\.create_map_post\([\s\S]*insert into app\.media_assets/.test(mapMediaMigration));
+check("Map-photo RPC remains authenticated-only", /grant execute on function api\.create_map_post_with_media[\s\S]*to authenticated, service_role/.test(mapMediaMigration));
+check("Map-photo migration does not authorize from user metadata", !/user_metadata|raw_user_meta_data/.test(mapMediaMigration));
+const productionAuthCheck = read("scripts/check-production-auth-settings.mjs");
+const autoConfirmBranch = productionAuthCheck.match(/if \(result\.mailer_autoconfirm === true\) \{([\s\S]*?)\} else if/);
+check("production auto-confirm is reported as partial instead of mailbox-verified", /PARTIAL \/ BLOCKED BY SUPABASE AUTO-CONFIRM/.test(autoConfirmBranch?.[1] || ""));
+check("accepted auto-confirm limitation does not fail the remaining release gate", !/process\.exitCode/.test(autoConfirmBranch?.[1] || ""));
 const mapOverlay = read("features/map-note-overlay.js");
 check("Map posting applies the same verified-user client gate", /remote && !window\.EmailVerificationService\?\.canPublish/.test(mapOverlay));
 check("Map publishing surfaces a human-readable backend error", /catch \(error\)[\s\S]*setComposeError\(error instanceof Error \? error\.message/.test(mapOverlay));

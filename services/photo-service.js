@@ -83,7 +83,7 @@
   }
 
   function candidateTypes(sourceType) {
-    return sourceType === "image/png" ? ["image/webp", "image/png"] : ["image/webp", "image/jpeg"];
+    return sourceType === "image/jpeg" ? ["image/webp", "image/jpeg"] : ["image/webp", "image/png"];
   }
 
   async function encodeWithFallback(options, encode) {

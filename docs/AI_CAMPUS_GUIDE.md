@@ -46,28 +46,38 @@ The enforced order is:
 5. Generic model knowledge for language/reasoning only.
 
 The source registry retains filename/page metadata. Known Library, Serambi,
-CUBIC, Cafe Admin, KOOP, Cafe A/B, and Dewan Kuliah facts remain grounded in
-the supplied campus source. Unknown places such as “Quantum Tower” are not
-turned into synthetic locations or markers.
+CUBIC, Cafe Admin, KOOP, Cafe A/B/C, and Dewan Kuliah facts remain grounded in
+the supplied campus source. A page is recorded only when owner-provided source
+metadata identifies it; unresolved page metadata is marked for verification,
+not guessed. Unknown places such as “Quantum Tower” are not turned into
+synthetic locations or markers.
 
 ## Reliability behavior
 
 - Premises are classified `SUPPORTED`, `CONTRADICTED`, `UNKNOWN`, or
   `AMBIGUOUS`. A Friday-at-8 premise for the Library is corrected because the
   current source says Friday is closed.
-- Conflicting authoritative structured values are retained as conflict
-  metadata. A clearly newer dated authoritative record may resolve a conflict;
-  otherwise the answer states uncertainty.
+- Conflict detection compares values for the same semantic fact. Different
+  descriptions, services, rules, translations, and complementary subsets do
+  not conflict merely because their text differs. Incompatible same-day hours
+  such as Friday `closed` versus Friday `08:00-16:30` do conflict. A clearly
+  newer dated authoritative record may resolve a real conflict; otherwise the
+  answer states uncertainty.
 - English, Bahasa Melayu, and Chinese are detected from the latest meaningful
   message. Proper campus names remain canonical.
 - Aliases and conservative typo repair support names such as Pustaka,
   Perpustakaan, 图书馆, Koop Mart, Kafe, and common misspellings. Multiple
   plausible matches are not navigated.
 - Short-lived in-session context keeps the latest confidently resolved entity
-  for follow-ups such as “Kalau Jumaat?” or “那里几点关？”. A clear topic
-  change replaces or clears stale context.
-- Nearby answers require an explicit source relation or existing map relation;
-  no made-up meter distances are emitted.
+  only for clear refer-backs and elliptical follow-ups such as “Kalau Jumaat?”
+  or “那里几点关？”. An explicit new place always resolves independently and
+  overrides the prior entity.
+- Nearby answers rank explicit source relations ahead of coordinate fallback.
+  Coordinate fallback is labelled approximate map-coordinate proximity; no
+  meter distances or exact physical-distance claims are emitted.
+- Canonical place IDs are validated against `CAMPUS_BUILDINGS`. A knowledge
+  place with no real Map footprint remains answerable but cannot create a Map
+  action.
 - Prompt-injection wording cannot override campus-source authority.
 
 ## Feature and failure handling
