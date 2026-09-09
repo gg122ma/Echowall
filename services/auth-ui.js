@@ -476,7 +476,13 @@
         const confirmPassword = form.querySelector("#auth-confirm").value;
         if (password !== confirmPassword) throw new Error("Passwords do not match.");
         const input = { email, password, displayName: form.querySelector("#auth-display-name").value };
-        authenticatedUser = authMode === "supabase" ? await provider.signUp(input) : await provider.register(input);
+        const registration = authMode === "supabase" ? await provider.signUp(input) : await provider.register(input);
+        if (registration?.status === "awaiting_verification") {
+          showToast?.("Account created. Check your email to verify it before publishing.");
+          close();
+          return;
+        }
+        authenticatedUser = registration?.user || registration;
         showToast?.(I18n.t("auth.successRegister"));
       } else {
         const input = { email, password };
@@ -521,7 +527,8 @@
   function renderAccountSummary(user) {
     if (user?.provider === "supabase") {
       const label = user.displayName || user.email || "Community user";
-      return `<div class="account-summary"><div class="account-avatar account-avatar-large" aria-hidden="true">${escapeHtml(getUserInitials(label))}</div><div class="account-summary-copy"><strong>${escapeHtml(label)}</strong><span class="account-status">${escapeHtml(user.email || "")}</span></div></div>`;
+      const verification = user.isEmailVerified ? "Verified email" : "Email verification required";
+      return `<div class="account-summary"><div class="account-avatar account-avatar-large" aria-hidden="true">${escapeHtml(getUserInitials(label))}</div><div class="account-summary-copy"><strong>${escapeHtml(label)}</strong><span class="account-status">${escapeHtml(user.email || "")}</span><span class="account-status">${verification}</span></div></div>`;
     }
     const statusKey = {
       current_student: "profile.currentStudent",

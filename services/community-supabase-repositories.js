@@ -135,7 +135,9 @@
 
   function friendlyError(error, fallback) {
     const code = String(error?.code || "");
+    const message = String(error?.message || "");
     if (code === "COMMUNITY_STAGING_NOT_CONFIGURED") return error;
+    if (code === "42501" && /verify your email/i.test(message)) return new Error("Verify your email address before publishing or uploading a photo.");
     if (code === "42501" || Number(error?.status) === 401 || Number(error?.status) === 403) return new Error("Please sign in with an active Community account to continue.");
     if (["22023", "23514"].includes(code)) return new Error("Please check the information you entered and try again.");
     if (code === "23503") return new Error("This Community item is no longer available.");
@@ -148,6 +150,22 @@
     inFlight.add(key);
     try { return await action(); }
     finally { inFlight.delete(key); }
+  }
+
+  function mediaRpcParameters(photo) {
+    if (!photo) return null;
+    const secureUrl = String(photo.secureUrl || photo.url || "");
+    const publicId = String(photo.publicId || "");
+    const bytes = Number(photo.bytes);
+    const width = Number(photo.width);
+    const height = Number(photo.height);
+    const format = String(photo.format || "").toLowerCase();
+    let url;
+    try { url = new URL(secureUrl); } catch { throw new Error("The uploaded photo metadata is invalid."); }
+    if (url.protocol !== "https:" || url.hostname !== "res.cloudinary.com" || !publicId || !Number.isInteger(bytes) || bytes <= 0 || !Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0 || !/^(jpe?g|png|webp)$/.test(format)) {
+      throw new Error("The uploaded photo metadata is invalid.");
+    }
+    return { p_media_public_id: publicId, p_media_secure_url: secureUrl, p_media_bytes: bytes, p_media_width: width, p_media_height: height, p_media_format: format };
   }
 
   function parseScopeKey(key) {
@@ -189,11 +207,11 @@
   }
 
   async function createPost(input) {
-    if (input.imageDataUrl || input.imageUrl || input.photo) throw new Error("Photo posting is not available in Community staging yet. Remove the photo to continue.");
     const scope = parseScopeKey(input.communityKey);
     return once("create-post", async () => {
       const client = await window.CommunitySupabaseClient.getClient();
-      const { error } = await client.rpc("create_post", {
+      const media = mediaRpcParameters(input.photo);
+      const parameters = {
         p_post_type: input.postType === "question" ? "question" : "discussion",
         p_scope_type: rpcScope(scope), p_content: String(input.content || ""),
         p_category: String(input.category || ""), p_shape: String(input.shape || ""),
@@ -202,7 +220,9 @@
         p_jurusan_id: scope.scope === "jurusan" ? scope.majorId : null,
         p_building_id: null, p_rotation: Number(input.rotation || 0),
         p_position_x: Number(input.positionX || 10), p_position_y: Number(input.positionY || 15),
-      });
+        ...(media || {}),
+      };
+      const { error } = await client.rpc(media ? "create_post_with_media" : "create_post", parameters);
       if (error) throw friendlyError(error, "Your note could not be published.");
       await Promise.all([listPosts(input.communityKey), refreshPostCounts({ force: true })]);
     });
@@ -233,12 +253,12 @@
   }
 
   async function createBuildingPost(input) {
-    if (input.imageDataUrl || input.imageUrl || input.photo) throw new Error("Photo posting is not available in Community staging yet. Remove the photo to continue.");
     const collegeId = Number(input.collegeId);
     const buildingId = String(input.buildingId || "");
     return once(`create-building-post:${collegeId}:${buildingId}`, async () => {
       const client = await window.CommunitySupabaseClient.getClient();
-      const { error } = await client.rpc("create_post", {
+      const media = mediaRpcParameters(input.photo);
+      const parameters = {
         p_post_type: input.postType === "question" ? "question" : "discussion",
         p_scope_type: "building", p_content: String(input.content || ""),
         p_category: String(input.category || ""), p_shape: String(input.shape || ""),
@@ -246,7 +266,9 @@
         p_college_id: collegeId, p_jurusan_id: null,
         p_building_id: buildingId, p_rotation: Number(input.rotation || 0),
         p_position_x: Number(input.positionX || 10), p_position_y: Number(input.positionY || 15),
-      });
+        ...(media || {}),
+      };
+      const { error } = await client.rpc(media ? "create_post_with_media" : "create_post", parameters);
       if (error) throw friendlyError(error, "Your note could not be published.");
       await Promise.all([listBuildingPosts(collegeId, buildingId), refreshPostCounts({ force: true })]);
     });

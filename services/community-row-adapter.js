@@ -92,7 +92,7 @@
       upvotes: Number(row.display_score || 0), downvotes: 0, score: Number(row.display_score || 0),
       realVoteScore: Number(row.real_vote_score || 0), userVote: null,
       isSeed: row.is_seed === true, seedSource: row.seed_source || null, seedVersion: row.seed_version || null,
-      imageDataUrl: "", imageUrl: "", imagePublicId: "", imageName: "", imageCropScale: 1, imageFit: "cover",
+      imageDataUrl: "", imageUrl: String(row.image_url || ""), imagePublicId: String(row.image_public_id || ""), imageName: "", imageCropScale: 1, imageFit: "cover",
       isRemote: true,
     });
   }

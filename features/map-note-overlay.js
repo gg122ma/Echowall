@@ -378,6 +378,10 @@
       window.AuthUI?.open?.('login', { provider: isRemoteMap() ? 'supabase' : 'local' });
       return;
     }
+    if (isRemoteMap() && !window.EmailVerificationService?.canPublish?.(user)) {
+      showPluginToast(window.EmailVerificationService?.denialMessage?.(user) || 'Verify your email address before publishing.');
+      return;
+    }
     state.pendingFormOpen = false;
     updateComposeFormCopy();
     state.formOverlay.hidden = false;
@@ -404,6 +408,10 @@
     const user = mapCurrentUser();
     if (!user) {
       window.AuthUI?.open?.('login', { provider: remote ? 'supabase' : 'local' });
+      return;
+    }
+    if (remote && !window.EmailVerificationService?.canPublish?.(user)) {
+      setComposeError(window.EmailVerificationService?.denialMessage?.(user) || 'Verify your email address before publishing.');
       return;
     }
     const form = event.currentTarget;
@@ -440,8 +448,8 @@
         });
         exitPlacementMode();
         showPluginToast(composeText('success'));
-      } catch {
-        setComposeError(composeText('failed'));
+      } catch (error) {
+        setComposeError(error instanceof Error ? error.message : composeText('failed'));
       } finally {
         submit.disabled = false;
       }

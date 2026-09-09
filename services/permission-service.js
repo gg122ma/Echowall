@@ -20,11 +20,11 @@
  */
 (function () {
   function canUserPost(user) {
-    return Boolean(user);
+    return window.EmailVerificationService.canPublish(user);
   }
 
   function canUserComment(user) {
-    return Boolean(user);
+    return Boolean(user) && window.EmailVerificationService.isSessionActive(user);
   }
 
   // Compatibility summary only — prefer AdminPermissionService directly
@@ -76,5 +76,6 @@
     canUserMarkSolved,
     canUserModerateCommunity,
     getUserModerationScope,
+    getPublishingDenialMessage: user => window.EmailVerificationService.denialMessage(user),
   });
 })();

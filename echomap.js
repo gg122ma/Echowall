@@ -870,7 +870,19 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  restoreMapReturnSnapshot();
+  function applyPendingAIMapAction() {
+    const action = window.EchoAI?.MapAction?.readPending?.();
+    window.EchoAI?.MapAction?.clearPending?.();
+    if (!action) return false;
+    const building = getInteractionBuilding(action.buildingId);
+    if (!building) return false;
+    removeMapReturnSnapshot();
+    if (!selectBuildingFootprint(action.buildingId, { scrollPreviewOnMobile:false })) return false;
+    focusBuildingTarget(building);
+    return true;
+  }
+
+  if (!applyPendingAIMapAction()) restoreMapReturnSnapshot();
 
   window.EchoMapNoteOverlay?.init({
     map,

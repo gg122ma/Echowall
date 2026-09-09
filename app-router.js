@@ -444,13 +444,11 @@ function getBuildingNoteDisplayCount(buildingId, localCount = getBuildingNotes(b
 function getHomeNoteDisplayCount(localCount) {
   if (!usesAuthoritativePostCounts()) return localCount;
   const remoteCount = window.CommunityDataProvider?.cachedTotalPostCount?.();
-  return Number.isInteger(remoteCount) && remoteCount >= 0 ? remoteCount : 0;
+  return window.HomeStatsService.getVisibleNotes(remoteCount);
 }
 
-function getHomePhotoNoteDisplayCount(localCount) {
-  if (!usesAuthoritativePostCounts()) return localCount;
-  const remoteCount = window.CommunityDataProvider?.cachedPhotoPostCount?.();
-  return Number.isInteger(remoteCount) && remoteCount >= 0 ? remoteCount : null;
+function getHomePhotoNoteDisplayCount() {
+  return window.HomeStatsService.PHOTO_NOTES;
 }
 
 function formatLatestMemoryDate(createdAt) {
@@ -484,8 +482,8 @@ function refreshAuthoritativePostCountElements() {
       if (Number.isInteger(count) && count >= 0) replaceRenderedLeadingCount(element, count);
     });
     const homeCounts = [
-      ["[data-home-note-count]", window.CommunityDataProvider.cachedTotalPostCount()],
-      ["[data-home-photo-note-count]", window.CommunityDataProvider.cachedPhotoPostCount()],
+      ["[data-home-note-count]", getHomeNoteDisplayCount(window.HomeStatsService.VISIBLE_NOTES_BASELINE)],
+      ["[data-home-photo-note-count]", getHomePhotoNoteDisplayCount()],
     ];
     homeCounts.forEach(([selector, count]) => {
       const element = document.querySelector(selector);
@@ -529,13 +527,11 @@ function getCommunityWallKey(note) {
 }
 
 function renderHome(container) {
-  const homepageVisibleNotesDisplay = getHomeNoteDisplayCount(1017);
-  const homepageCommunitiesDisplay = 12;
-  const homepagePhotoNotesDisplay = getHomePhotoNoteDisplayCount(53);
-  const homepagePhotoNotesTarget = Number.isInteger(homepagePhotoNotesDisplay)
-    ? ` data-count="${homepagePhotoNotesDisplay}"`
-    : "";
-  const homepagePhotoNotesInitial = Number.isInteger(homepagePhotoNotesDisplay) ? "0" : "—";
+  const homepageVisibleNotesDisplay = getHomeNoteDisplayCount(window.HomeStatsService.VISIBLE_NOTES_BASELINE);
+  const homepageCommunitiesDisplay = window.HomeStatsService.COMMUNITIES;
+  const homepagePhotoNotesDisplay = getHomePhotoNoteDisplayCount();
+  const homepagePhotoNotesTarget = ` data-count="${homepagePhotoNotesDisplay}"`;
+  const homepagePhotoNotesInitial = "0";
   const homepageLatestMemoryDisplay = getLatestMemoryDisplay("Aug 25, 2026");
 
   container.innerHTML = `

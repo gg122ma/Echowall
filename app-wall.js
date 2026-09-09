@@ -1,6 +1,3 @@
-const MAX_IMAGE_SOURCE_BYTES = 8 * 1024 * 1024;
-const MAX_STORED_IMAGE_BYTES = 450 * 1024;
-const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const NOTE_COLOR_PRESETS = Object.freeze([
   { value:"#BFDBFE", label:"Soft blue" },
   { value:"#FEF08A", label:"Soft yellow" },
@@ -16,93 +13,18 @@ const NOTE_COLOR_PRESETS = Object.freeze([
 
 let pendingImageDataUrl = "";
 let pendingImageName = "";
+let pendingImageAsset = null;
 let imageProcessing = false;
+let noteSubmitInFlight = false;
 
 function dataUrlByteSize(dataUrl) {
-  const base64 = String(dataUrl || "").split(",")[1] || "";
-  const padding = (base64.match(/=*$/) || [""])[0].length;
-  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
-}
-
-function blobToDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("The selected image could not be read."));
-    reader.readAsDataURL(blob);
-  });
-}
-
-function loadImageFile(file) {
-  return new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file);
-    const image = new Image();
-    image.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(image);
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error("The selected file is not a readable image."));
-    };
-    image.src = objectUrl;
-  });
-}
-
-function canvasToBlob(canvas, type, quality) {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(blob => {
-      if (blob) resolve(blob);
-      else reject(new Error("This browser could not process the selected image."));
-    }, type, quality);
-  });
+  return window.PhotoService.dataUrlByteSize(dataUrl);
 }
 
 async function compressNoteImage(file) {
-  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-    throw new Error("Please choose a JPG, PNG, or WebP image.");
-  }
-  if (file.size > MAX_IMAGE_SOURCE_BYTES) {
-    throw new Error("The original image must be 8 MB or smaller.");
-  }
-
-  const source = await loadImageFile(file);
-  const maxDimension = 1280;
-  const initialScale = Math.min(1, maxDimension / Math.max(source.naturalWidth, source.naturalHeight));
-  let width = Math.max(1, Math.round(source.naturalWidth * initialScale));
-  let height = Math.max(1, Math.round(source.naturalHeight * initialScale));
-  let quality = 0.84;
-  let lastDataUrl = "";
-
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d", { alpha: true });
-    if (!context) throw new Error("Image processing is not available in this browser.");
-
-    context.drawImage(source, 0, 0, width, height);
-    let blob;
-    try {
-      blob = await canvasToBlob(canvas, "image/webp", quality);
-    } catch {
-      blob = await canvasToBlob(canvas, "image/jpeg", quality);
-    }
-
-    lastDataUrl = await blobToDataUrl(blob);
-    if (blob.size <= MAX_STORED_IMAGE_BYTES) return lastDataUrl;
-
-    if (quality > 0.58) {
-      quality -= 0.08;
-    } else {
-      width = Math.max(1, Math.round(width * 0.82));
-      height = Math.max(1, Math.round(height * 0.82));
-      quality = 0.76;
-    }
-  }
-
-  if (dataUrlByteSize(lastDataUrl) <= MAX_STORED_IMAGE_BYTES * 1.15) return lastDataUrl;
-  throw new Error("This image is too detailed to store locally. Please choose a smaller image.");
+  const processed = await window.PhotoService.processImage(file);
+  pendingImageAsset = processed;
+  return processed.dataUrl;
 }
 
 function updateImagePreview() {
@@ -144,13 +66,14 @@ async function handleImageSelection(event) {
   const file = input.files && input.files[0];
   pendingImageDataUrl = "";
   pendingImageName = "";
+  pendingImageAsset = null;
   updateImagePreview();
   setImageStatus("");
 
   if (!file) return;
 
   setImageProcessing(true);
-  setImageStatus("Resizing photo for local storage…");
+  setImageStatus("Optimizing photo for upload…");
   try {
     pendingImageDataUrl = await compressNoteImage(file);
     pendingImageName = String(file.name || "photo").slice(0, 120);
@@ -161,6 +84,7 @@ async function handleImageSelection(event) {
     input.value = "";
     pendingImageDataUrl = "";
     pendingImageName = "";
+    pendingImageAsset = null;
     updateImagePreview();
     setImageStatus(error instanceof Error ? error.message : "The photo could not be processed.", true);
   } finally {
@@ -171,6 +95,7 @@ async function handleImageSelection(event) {
 function removeSelectedImage() {
   pendingImageDataUrl = "";
   pendingImageName = "";
+  pendingImageAsset = null;
   const input = document.getElementById("form-image");
   if (input) input.value = "";
   updateImagePreview();
@@ -230,6 +155,11 @@ function findWallNote(noteId) {
 }
 
 function requireWallAuthentication() {
+  const currentUser = getWallCurrentUser();
+  if (currentUser) {
+    showToast(PermissionService.getPublishingDenialMessage(currentUser));
+    return;
+  }
   showToast(I18n.t("wall.authRequired"));
   AuthUI.open("login", { provider: isRemoteWallContext() ? "supabase" : "local" });
 }
@@ -1180,12 +1110,13 @@ function openDrawer() {
   const displayName = document.getElementById("form-display-name");
   if (displayName) displayName.textContent = currentUser.displayName;
   document.getElementById("char-count").textContent = "0 / 500";
-  pendingImageDataUrl = ""; pendingImageName = ""; setImageProcessing(false); setImageStatus(""); updateImagePreview();
+  pendingImageDataUrl = ""; pendingImageName = ""; pendingImageAsset = null; setImageProcessing(false); setImageStatus(""); updateImagePreview();
   requestAnimationFrame(() => document.getElementById("form-content")?.focus());
 }
 function closeDrawer() { closeNoteSelect(); document.getElementById("drawer-overlay")?.classList.add("hidden"); document.body.classList.remove("overlay-open"); }
 async function handleFormSubmit(event) {
   event.preventDefault();
+  if (noteSubmitInFlight) { showToast("This note is already being submitted."); return; }
   const currentUser = getWallCurrentUser();
   if (!PermissionService.canUserPost(currentUser)) { requireWallAuthentication(); return; }
   if (imageProcessing) { showToast("Please wait for the photo to finish processing."); return; }
@@ -1200,12 +1131,12 @@ async function handleFormSubmit(event) {
   const nickname = String(currentUser.displayName || "").trim();
   if (!content) { showToast("Write a message before pinning the note."); return; }
   if (!anonymous && !nickname) { showToast("Your account needs a display name before publishing."); return; }
+  noteSubmitInFlight = true;
 
   const submitButton = document.getElementById("note-submit");
   if (submitButton) { submitButton.disabled = true; submitButton.textContent = I18n.t("common.loading"); }
   try {
     if (isRemoteCommunityContext()) {
-      if (pendingImageDataUrl) throw new Error("Photo posting is not available in Community staging yet. Remove the photo to continue.");
       await ensureNamedRemoteProfile(anonymous, nickname);
       const remoteScope = wallState.communityScope || "jurusan";
       const remoteOrgId = remoteScope === "global" ? null : wallState.orgId;
@@ -1213,7 +1144,7 @@ async function handleFormSubmit(event) {
       const remoteCommunityKey = CommunityService.isValidCommunityKey(wallState.communityKey)
         ? wallState.communityKey
         : CommunityService.getCommunityKey(remoteScope, remoteOrgId, remoteMajorId);
-      await CommunityDataProvider.createPost({
+      const remotePostInput = {
         communityKey: remoteCommunityKey,
         postType: getComposerPostType(currentForm),
         content,
@@ -1224,9 +1155,15 @@ async function handleFormSubmit(event) {
         positionX: 10,
         positionY: 15,
         isAnonymous: anonymous,
-        imageDataUrl: "",
-        imageUrl: "",
-      });
+      };
+      if (pendingImageAsset) {
+        await PhotoPublishService.publish({
+          asset: pendingImageAsset,
+          filename: pendingImageName,
+          context: { contextType: "community" },
+          persist: photo => CommunityDataProvider.createPost({ ...remotePostInput, photo }),
+        });
+      } else await CommunityDataProvider.createPost(remotePostInput);
       closeDrawer();
       renderWallNotes();
       showToast("Note pinned to the Community wall!");
@@ -1238,9 +1175,8 @@ async function handleFormSubmit(event) {
       // verbatim (wallState.placeId is already the canonical DB key, e.g.
       // "B_PUSTAKA" — see services/community-service.js's Building Scope
       // Key comment on why no case/prefix conversion happens anywhere).
-      if (pendingImageDataUrl) throw new Error("Photo posting is not available in Community staging yet. Remove the photo to continue.");
       await ensureNamedRemoteProfile(anonymous, nickname);
-      await CommunityDataProvider.createBuildingPost({
+      const remoteBuildingPostInput = {
         collegeId: window.KMK_COLLEGE_ID,
         buildingId: wallState.placeId,
         postType: getComposerPostType(currentForm),
@@ -1252,13 +1188,21 @@ async function handleFormSubmit(event) {
         positionX: 10,
         positionY: 15,
         isAnonymous: anonymous,
-      });
+      };
+      if (pendingImageAsset) {
+        await PhotoPublishService.publish({
+          asset: pendingImageAsset,
+          filename: pendingImageName,
+          context: { contextType: "building", buildingId: wallState.placeId },
+          persist: photo => CommunityDataProvider.createBuildingPost({ ...remoteBuildingPostInput, photo }),
+        });
+      } else await CommunityDataProvider.createBuildingPost(remoteBuildingPostInput);
       closeDrawer();
       renderWallNotes();
       showToast("Note pinned to the Building wall!");
       return;
     }
-    const upload = pendingImageDataUrl ? await CloudinaryAdapter.uploadCompressedDataUrl(pendingImageDataUrl, { contextType: wallState.contextType, placeId: wallState.placeId || "" }) : null;
+    const upload = pendingImageAsset ? await CloudinaryAdapter.uploadPhoto(pendingImageAsset.blob, { filename: pendingImageName }) : null;
     const id = nextId++;
     // Community V2 (COM-V2-003, pulled forward from COM-V2-004's flagged
     // technical debt): new community posts are written as V3-compliant from
@@ -1318,6 +1262,7 @@ async function handleFormSubmit(event) {
   } catch (error) {
     showToast(error instanceof Error ? error.message : I18n.t("common.error"));
   } finally {
+    noteSubmitInFlight = false;
     if (submitButton) { submitButton.disabled = false; submitButton.textContent = I18n.t("form.submit"); }
   }
 }

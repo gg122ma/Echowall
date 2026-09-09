@@ -7,10 +7,6 @@
   let messages;
   let form;
 
-  function buildingText(building, field) {
-    return window.getLocalizedBuildingText?.(building, field) || building?.[field]?.en || building?.[field] || "";
-  }
-
   function addMessage(role, text, action) {
     const item = document.createElement("article");
     item.className = `ai-message ai-message-${role}`;
@@ -43,40 +39,12 @@
     return new Promise(resolve => window.setTimeout(resolve, milliseconds));
   }
 
-  function getBuildingMatch(query) {
-    const normalized = query.toLowerCase();
-    return (window.CAMPUS_BUILDINGS || []).find(building => {
-      const searchText = [building.name, building.category, building.zoneId, ...Object.values(building.tags || {}).flat()]
-        .join(" ").toLowerCase();
-      return normalized.split(/\s+/).some(term => term.length > 2 && searchText.includes(term));
-    });
-  }
-
-  function localReply(query) {
-    const normalized = query.toLowerCase().trim();
-    const building = getBuildingMatch(normalized);
-    if (building) {
-      const zone = window.CAMPUS_ZONES?.[building.zoneId]?.en || building.zoneId;
-      const hours = building.hours ? ` Opening hours: ${building.hours}.` : "";
-      return {
-        text: `${building.name} is in the ${zone} area. ${buildingText(building, "description")}${hours}`,
-        action: { label: t("assistant.openBuilding", "Open building profile"), onClick: () => window.navigate?.(`#/place/${encodeURIComponent(building.id)}`) },
-      };
-    }
-    if (/\b(map|direction|where|location|find)\b/.test(normalized)) {
-      return { text: t("assistant.mapReply", "Open the KMK Echo Map to explore building locations and their dedicated walls."), action: { label: t("assistant.openMap", "Open Echo Map"), onClick: () => { window.location.href = "map.html"; } } };
-    }
-    if (/\b(building|place|facility|facilities|campus)\b/.test(normalized)) {
-      const names = (window.CAMPUS_BUILDINGS || []).slice(0, 6).map(item => item.name).join(", ");
-      return { text: `${t("assistant.buildingsReply", "I can help with KMK buildings, including")} ${names}. ${t("assistant.buildingsMore", "Ask for a specific place or open the building directory.")}`, action: { label: t("assistant.openBuildings", "Browse buildings"), onClick: () => window.navigate?.("#/places") } };
-    }
-    if (/\b(note|post|wall|share)\b/.test(normalized)) return { text: t("assistant.notesReply", "You can read public notes without signing in. Sign in to publish a note, vote, or report content.") };
-    return { text: t("assistant.fallback", "I currently answer questions about KMK buildings, campus facilities, or student services. Try asking \"Where is the library?\" or \"Show sports facilities.\"") };
-  }
-
-  function responseText(payload) {
-    if (typeof payload === "string") return payload;
-    return payload?.reply || payload?.answer || payload?.message || payload?.output || "";
+  function displayAction(action) {
+    if (!window.EchoAI?.MapAction?.validate?.(action)) return null;
+    return {
+      label: t("assistant.openMap", "Open Echo Map"),
+      onClick: () => window.EchoAI.MapAction.execute(action),
+    };
   }
 
   async function ask(query) {
@@ -88,43 +56,13 @@
     submit.disabled = true;
     const thinking = addThinkingMessage();
     try {
-      // 1) Free AI adapter (local RAG or Hugging Face) — primary
-      if (window.FreeAIAdapter?.isConfigured?.()) {
-        const [payload] = await Promise.all([
-          window.FreeAIAdapter.sendMessage(question),
-          wait(450),
-        ]);
-        const reply = payload?.reply || payload?.output || payload?.message || "";
-        thinking.remove();
-        if (reply) addMessage("assistant", reply, payload?.action);
-        else {
-          const local = localReply(question);
-          addMessage("assistant", local.text, local.action);
-        }
-      // 2) Bisheng adapter — legacy / enterprise fallback
-      } else if (window.BishengAdapter?.isConfigured?.()) {
-        const [payload] = await Promise.all([
-          window.BishengAdapter.sendMessage(question),
-          wait(450),
-        ]);
-        const reply = responseText(payload);
-        thinking.remove();
-        if (reply) addMessage("assistant", reply);
-        else {
-          const local = localReply(question);
-          addMessage("assistant", local.text, local.action);
-        }
-      // 3) Local keyword fallback — no API at all
-      } else {
-        await wait(450);
-        const local = localReply(question);
-        thinking.remove();
-        addMessage("assistant", local.text, local.action);
-      }
+      if (!window.CampusAI?.ask) throw new Error("Campus assistant is unavailable.");
+      const [payload] = await Promise.all([window.CampusAI.ask(question), wait(250)]);
+      thinking.remove();
+      addMessage("assistant", payload.answer, displayAction(payload.actions[0]));
     } catch {
       thinking.remove();
-      const local = localReply(question);
-      addMessage("assistant", local.text, local.action);
+      addMessage("assistant", t("assistant.fallback", "I can’t complete that request right now. Please try again."));
     } finally {
       submit.disabled = false;
     }

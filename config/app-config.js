@@ -3,6 +3,10 @@
  * Never place private API secrets in this file.
  */
 window.EchoConfig = Object.freeze({
+  features: Object.freeze({
+    campusAssistant: true,
+    photoUploads: true,
+  }),
   community: Object.freeze({
     provider: "supabase-production",
     production: Object.freeze({
@@ -26,11 +30,12 @@ window.EchoConfig = Object.freeze({
     endpoint: "",
     requestHeaders: {},
   },
-  cloudinary: {
-    cloudName: "",
-    signatureEndpoint: "",
-    uploadFolder: "echo-wall",
-  },
+  cloudinary: Object.freeze({
+    cloudName: "das8chiyz",
+    uploadPreset: "EchoWall",
+    mode: "unsigned",
+    overwrite: false,
+  }),
   bisheng: {
     enabled: true,
     endpoint: "",
