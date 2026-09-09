@@ -1,48 +1,24 @@
-# HOME STATS DATA-BASIS DECISION — FINAL (2026-09-09)
+# HOME STATS — AUTHORITATIVE OWNER RULE (2026-09-09)
 
-Owner decision: the historical Home values `1017 Visible Notes` and
-`53 Photo Notes` do NOT have a real legacy dataset behind them.
+This is the single current rule for the four Home statistics. It supersedes the
+earlier 2026-09-08 raw-count/dash decision recorded as historical context below.
 
-They were historical presentation / competition-video values only.
+- **Visible Notes:** presentation-only projection
+  `1017 + max(0, currentPublishedSupabasePostCount - 573)`.
+  The raw published count remains authoritative everywhere else.
+- **Communities:** fixed approved directory value `12`.
+- **Photo Notes:** fixed approved presentation baseline `53` for this release;
+  it is not derived from Cloudinary assets.
+- **Latest Memory:** dynamic newest published Supabase `created_at`, formatted
+  for the existing Home UI.
 
-Therefore they must NOT be reintroduced into canonical production as:
-
-- authoritative post counts
-- authoritative photo-note counts
-- synthetic baseline + live delta counters
-- Supabase targets
-- migration targets
-
-Canonical production remains source-backed:
-
-- Visible Notes → authoritative published Supabase post total
-- Communities → existing static directory inventory
-- Photo Notes → unresolved (`—`) until a real authoritative photo-note source exists
-- Latest Memory → newest published Supabase `created_at`
-
-At the production freeze verified after the Building baseline import:
-
-- Visible Notes: `573`
-- Communities: `12`
-- Photo Notes: `—`
-- Latest Memory: `Sep 8, 2026`
-
-The competition video may contain the historical `1017 / 53` presentation
-values. Any future correction to that mismatch is a video/presentation task,
-not a reason to fabricate production data.
-
-No runtime code change.
-No Supabase mutation.
-No UI change.
-No deployment.
-No architecture change.
-
-Production count-integrity release remains frozen at:
-
-`3600c7b04d732430629e3bb5653f4b8de6b41765`
-
-Do not reopen this decision unless a genuine authoritative photo-note or
-legacy-post dataset is discovered and independently verified.
+The constants live in `services/home-stats-service.js`; Home rendering calls its
+deterministic helper. Community, College, Jurusan, Building, Map, Admin,
+Analytics, and Supabase data remain raw and receive no baseline adjustment.
+The formula floors and clamps invalid/below-baseline counts so Home never shows
+less than 1017. Required examples are covered by
+`scripts/test-authoritative-post-counts.mjs` (`573→1017`, `574→1018`,
+`575→1019`, `580→1024`, `572→1017`, `0→1017`).
 
 # ECHO LIBRARY PUBLIC DETAIL CLEANUP (2026-09-08)
 
@@ -65,12 +41,10 @@ College Landing aggregate College-General plus all Jurusan scopes for that colle
 remain exact scope. It does not read post content or join `post_map_anchors_public`; therefore a
 Map-created Building post contributes one post row and one count.
 
-The Home `Visible notes` statistic uses the total published-row projection, and Latest Memory uses
-the newest published `created_at` formatted in Malaysia time. Photo Notes has no authoritative
-production dimension: the public post view has no media field, remote create paths reject photos,
-all five default Building notes have empty media, and the demo showcase has media plans but no
-payloads. Canonical mode therefore displays an unresolved dash rather than inventing zero or 53;
-the owner must decide the future metric contract.
+Historical note: this stage originally displayed the raw published total on Home and an unresolved
+Photo Notes dash. The later owner rule at the top of this file supersedes that presentation choice:
+Home now applies the centralized 1017/573 projection and shows Photo Notes 53. This does not change
+the raw Supabase count contract described by the rest of this historical section.
 
 The UI markup/classes and all CSS are preserved. Existing numeric elements receive data attributes
 so their text can refresh asynchronously without a component or layout replacement. The generic

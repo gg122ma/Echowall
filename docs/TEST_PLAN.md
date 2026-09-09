@@ -16,6 +16,9 @@
 - Reject short password and mismatched confirmation.
 - Sign in, sign out and reload session.
 - Confirm posting is blocked while signed out.
+- Confirm an unverified Supabase user cannot publish a post or attach a photo.
+- Confirm confirmation-required signup reports success awaiting email rather than failure.
+- Confirm a verified, unexpired Supabase user can publish.
 - Confirm authenticated user may choose anonymous or named posting.
 
 ### Building flow
@@ -50,7 +53,17 @@
 
 ### Integrations
 
-- Cloudinary disabled: image remains local fallback.
-- Cloudinary enabled: secure URL and public ID stored.
+- Photo feature disabled: photo upload fails closed.
+- JPEG, PNG and WebP are re-encoded; unsupported/corrupt files fail clearly.
+- Cloudinary unsigned upload: preset `EchoWall`, overwrite false, validated secure URL/public ID/dimensions/bytes/format.
+- Cloudinary upload failure creates no DB row; DB failure records orphan metadata without retrying the post.
 - BISHENG disabled: launcher explains pending configuration.
 - BISHENG enabled: route and building context included.
+
+### Campus assistant
+
+- Run 30+ deterministic cases across English, Malay and Chinese.
+- Verify known facts, aliases, conservative typos, follow-up context, false-premise correction and source conflicts.
+- Verify location/navigation intent produces only validated existing Map actions.
+- Verify information-only, ambiguous and unknown places never force Map navigation.
+- Verify provider timeout/malformed output and prompt injection remain human-safe.

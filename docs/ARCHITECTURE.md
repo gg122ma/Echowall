@@ -24,11 +24,16 @@ i18n/
   locales/ms.js
   locales/zh.js
 services/
-  auth-service.js             Replaceable auth provider interface
+  ai/                         Source-grounded campus assistant pipeline
+  auth-service.js             Local/prototype auth provider
+  supabase-auth-provider.js   Canonical Community Auth session adapter
+  email-verification-service.js Verified publishing state
   auth-ui.js                  Registration/login UI
   theme-service.js            Light/dark/system preference
   translation-service.js      User-note translation endpoint adapter
-  cloudinary-adapter.js       Signed upload adapter
+  photo-service.js            Browser decode/resize/re-encode boundary
+  cloudinary-adapter.js       Replaceable unsigned upload adapter
+  photo-publish-service.js    Upload/DB ordering and duplicate guard
   bisheng-adapter.js          AI assistant bridge
 app-place.js                  Building directory and profile rendering
 ```
@@ -51,4 +56,8 @@ The building profile is separate from the wall. It shows localized building info
 
 ## Integration rule
 
-No secret is stored in frontend JavaScript. BISHENG, translation, Cloudinary signature generation and production authentication must be reached through approved public endpoints or backend functions.
+No secret is stored in frontend JavaScript. Supabase publishable configuration,
+the Cloudinary cloud name, and the unsigned preset are public by design.
+Privileged Supabase credentials, Cloudinary API secrets, and private model
+credentials must remain in approved backend functions. The current unsigned
+photo endpoint is intentionally replaceable with a future signed adapter.

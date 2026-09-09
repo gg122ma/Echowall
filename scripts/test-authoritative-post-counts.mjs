@@ -120,7 +120,7 @@ check("a second College aggregate adds exact College rows", window.CommunityData
 check("Jurusan Wall remains exact college and Jurusan scope", window.CommunityDataProvider.cachedCommunityPostCount("jurusan:1:10") === 118);
 check("Home visible-note total uses all published remote post rows", window.CommunityDataProvider.cachedTotalPostCount() === 569);
 check("Latest Memory uses the newest published created_at", window.CommunityDataProvider.cachedLatestPostCreatedAt() === "2026-09-08T01:00:00Z");
-check("Photo Notes is unresolved rather than silently invented as zero", window.CommunityDataProvider.cachedPhotoPostCount() === null);
+check("raw provider photo count remains unresolved and separate from Home presentation", window.CommunityDataProvider.cachedPhotoPostCount() === null);
 check("Building count includes the Map-created Building post once", window.CommunityDataProvider.cachedBuildingPostCount(1, "B_PUSTAKA") === 42);
 check("Map anchor metadata is not counted as a second post", window.CommunityDataProvider.cachedBuildingPostCount(1, "B_PUSTAKA") === cloud.posts.filter(row => row.scope_type === "building" && row.building_id === "B_PUSTAKA").length);
 check("count aggregation reads posts_public and never the anchor view", calls.length === 1 && calls[0].table === "posts_public");
@@ -161,11 +161,15 @@ const helperContext = {
 };
 helperWindow.window = helperWindow;
 vm.createContext(helperContext);
+vm.runInContext(read("services/home-stats-service.js"), helperContext, { filename: "services/home-stats-service.js" });
 vm.runInContext(helperSource, helperContext);
 check("Community fixed override cannot replace the production College aggregate", helperContext.getCollegeNoteDisplayCount(1, 999) === 118);
 check("Building fixed override cannot replace production count", helperContext.getBuildingNoteDisplayCount("B_PUSTAKA", 999) === 42);
-check("Home fixed visible-note number cannot replace production total", helperContext.getHomeNoteDisplayCount(1017) === 569);
-check("Home Photo Notes does not invent a canonical numeric count", helperContext.getHomePhotoNoteDisplayCount(53) === null);
+check("Home presentation floor applies below the raw baseline", helperContext.getHomeNoteDisplayCount(1017) === 1017);
+check("Home Photo Notes retains the approved presentation baseline", helperContext.getHomePhotoNoteDisplayCount() === 53);
+for (const [raw, expected] of [[573, 1017], [574, 1018], [575, 1019], [580, 1024], [572, 1017], [0, 1017]]) {
+  check(`Home Visible Notes maps raw ${raw} to ${expected}`, helperWindow.HomeStatsService.getVisibleNotes(raw) === expected);
+}
 check("Home Latest Memory formats the newest canonical timestamp in Malaysia time", helperContext.getLatestMemoryDisplay("Aug 25, 2026") === "Sep 8, 2026");
 helperWindow.CommunityDataProvider.isRemoteRequested = () => false;
 check("non-canonical Local mode retains college compatibility", helperContext.getCollegeNoteDisplayCount(1, 999) === 203);
@@ -184,7 +188,7 @@ check("Map preview uses Building count semantics, not anchored-only count", /get
 check("all production posts still use the same normal wall renderer", /filtered\.forEach\(\(note, index\) => canvas\.appendChild\(buildNoteDOM\(note, index\)\)\)/.test(wallSource) && !/renderSeedPost/.test(wallSource));
 check("no public provenance badge or separate renderer was introduced", !/(seed|demo|sample)-(badge|section|renderer|post)/i.test([communitySource, placeSource, wallSource, mapSource].join("\n")));
 check("fixed display tables are reachable only behind non-remote branches", /if \(!usesAuthoritativePostCounts\(\)\) return getCollegeDisplayCount/.test(routerSource) && /if \(!usesAuthoritativePostCounts\(\)\) return getBuildingDisplayCount/.test(routerSource));
-check("canonical Photo Notes renders an unresolved value rather than a fabricated number", /homepagePhotoNotesInitial[^;]+\? "0" : "—"/.test(routerSource));
+check("canonical Home Photo Notes renders the approved numeric baseline", /const homepagePhotoNotesInitial = "0"/.test(routerSource));
 check("Latest Memory has an async in-place refresh target", /data-home-latest-memory/.test(routerSource) && /cachedLatestPostCreatedAt/.test(routerSource));
 
 console.log(`\n${passed}/${passed} assertions passed.`);

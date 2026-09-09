@@ -1,0 +1,13 @@
+# AI, Photo, and Verified-Email Upgrade Preflight
+
+- Starting `main`: `932c81ef2cc3631532c968919391b854bd9dd075` (matched `origin/main` on 2026-09-09).
+- Recovery reference: `backup/pre-ai-photo-auth-20260909`.
+- Working branch: `feature/ai-photo-auth-upgrade`.
+- AI today: a monolithic UI controller plus a token-matching local adapter, optional browser-side OpenRouter/Bisheng calls, and an existing static KMK knowledge bundle. Campus intent, source policy, context, response validation, and Map actions are not isolated.
+- Map today: the existing Leaflet campus map uses canonical `B_*` building IDs, reusable building interaction configuration, explicit selection/focus behavior, and stored return-state guards. The upgrade will pass only validated canonical targets into this system.
+- Auth today: production uses Supabase Auth, but signup incorrectly requires an immediate session and protected writes do not require `email_confirmed_at`. The public Auth settings endpoint currently reports `mailer_autoconfirm: true`, which is a release blocker until confirmation is enabled externally.
+- Photo today: the composer and local image renderer already exist. Images are re-encoded client-side, but remote Community/Building/Map writes reject them. The existing Cloudinary adapter expects signed uploads even though the approved `EchoWall` preset is unsigned. The reference photo site confirms Cloudinary cloud name `das8chiyz`.
+- Campus source: all 40 pages of `school-environment.pdf.pdf` were extracted and reviewed, including the campus, Kuliah, Langkasuka, and tutorial/lab map pages. Source-backed facts will retain page references and review metadata.
+- Expected implementation surface: `ai/`, photo/auth service modules, the existing AI/composer/map adapters, the Supabase repository/row adapter, configuration, script loading/build manifests, focused tests, a small additive Supabase migration, `HANDOFF.md`, and focused docs. CSS and public component structure are out of scope.
+- Main risks: Map return-state regression, treating community opinion as fact, unsigned-upload abuse/orphans, PostgREST schema drift, and claiming verified-email security while Supabase auto-confirm remains enabled.
+- Minimal strategy: deterministic source-grounded answers first; provider fallback behind an adapter; short-lived chat entity context; validated one-shot Map commands; native browser image validation/re-encoding; unsigned Cloudinary upload followed by one database RPC that creates the post and media relation atomically; frontend verified-email UX plus database-side enforcement; feature flags for rollback.

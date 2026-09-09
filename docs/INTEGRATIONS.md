@@ -26,13 +26,19 @@ Set:
 
 ```js
 EchoConfig.cloudinary = {
-  cloudName: "...",
-  signatureEndpoint: "https://your-backend.example/cloudinary/sign",
-  uploadFolder: "echo-wall"
+  cloudName: "das8chiyz",
+  uploadPreset: "EchoWall",
+  mode: "unsigned",
+  overwrite: false
 };
 ```
 
-The signature endpoint must return `apiKey`, `timestamp`, `signature` and optional `folder`. The API secret must never be placed in the browser. The adapter uploads the already-compressed image and stores the secure URL and public ID.
+This release uses the owner-configured unsigned preset. The adapter uploads the
+already re-encoded image and validates the returned secure URL, public ID,
+dimensions, byte count, and format. The API secret must never be placed in the
+browser. Because an unsigned preset is publicly callable, account verification
+inside EchoWall does not make the Cloudinary endpoint private; see
+`docs/PHOTO_PIPELINE.md`.
 
 ## BISHENG
 
@@ -51,7 +57,10 @@ The bridge sends the message together with route, language, page title and a min
 
 ## Authentication
 
-`AuthService` is intentionally replaceable. The current provider is `local-prototype`. A production provider must keep the same public methods:
+`AuthService` remains the local/prototype adapter. Canonical Community routes
+use `SupabaseAuthProvider`, which retains `email_confirmed_at` and session
+expiry and accepts confirmation-required signup results without an immediate
+session. See `docs/AUTH_VERIFICATION.md`.
 
 ```js
 register({ email, displayName, password })
