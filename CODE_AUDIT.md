@@ -1,5 +1,35 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-11 - STUDY CUSTOM DROPDOWN REVIEW
+
+- Both production-facing Study filter surfaces were traced: the Subject page
+  renders Year/Subtype/Source/Sort, and search results render Year/Source/Sort.
+  Every visible filter select is enhanced through the same helper; no second
+  filter data path or direct filter callback was introduced.
+- The native select remains in the DOM, authoritative and synchronized in both
+  directions. Custom selection dispatches one change only when the value
+  changes; rerender enhancement is idempotent and cleans any portal first.
+- The listbox uses a labelled combobox trigger, `aria-expanded`,
+  `aria-controls`, `aria-activedescendant`, option selected/disabled state,
+  visible focus, full requested keyboard behavior, and non-trapping Tab.
+- Fixed positioning plus computed width/left/top/max-height avoids overflow
+  clipping. The geometry is clamped for a 390px viewport, flips above when
+  required, and long option sets scroll internally with contained overscroll.
+- `2012/2025` was traced to the manifest record titled “Past Year SM015
+  2012-2025 (Question),” rather than a generated adjacent-session typo. The
+  underlying record is unchanged; only multi-year display uses an en dash.
+- Native-control audit: Community and Building use styled search/buttons; Map
+  navigation uses styled controls; Profile/Auth selects, main Admin filters,
+  and composer category/shape/fit choices are already custom. Native Study
+  upload/moderation fields, Admin audit dates, and file/number inputs remain
+  appropriate platform data-entry controls. Native newer Admin dashboard and
+  management selects are reachable but were left for a dedicated Admin
+  consolidation to avoid creating a duplicate control system in this patch.
+- Automated evidence: focused dropdown suite 34/34; all 23 test scripts pass;
+  112 JavaScript/module syntax checks pass; Pages artifact (485 files), static,
+  portable, URL-lock, and seed validators pass. Browser rendering and console
+  inspection are not claimed because no browser backend is available.
+
 ## 2026-09-10 - AI / PHOTO / AUTH CORRECTNESS REVIEW
 
 - Campus records were checked against the owner-provided facility summary:

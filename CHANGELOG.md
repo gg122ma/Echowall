@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-09-11 - ECHO LIBRARY CUSTOM FILTER DROPDOWNS
+
+- Replaced the browser/OS popup used by the Echo Library subject and search
+  filters with one progressively enhanced `EchoDropdown` listbox. The native
+  selects remain the authoritative values and continue to call the existing
+  Study filter/sort handlers exactly once.
+- Added fixed-position, viewport-clamped menus with internal scrolling,
+  upward flipping, EchoWall cream/brown styling, one-open-at-a-time cleanup,
+  and mouse, touch, Escape, Tab, arrow, Home/End, and Enter/Space behavior.
+- Preserved the source record `2012/2025` and its `yearStart`/`yearEnd` fields.
+  Because the resource title explicitly identifies a 2012-2025 multi-year
+  collection, display labels use `2012–2025`; ordinary sessions such as
+  `2024/2025` retain their slash and filter values are unchanged.
+- Audited production-facing Study, Community, Building, Profile/Auth, Admin,
+  Map, and composer controls. Profile, main Admin filters, and composer choices
+  are already custom. Data-entry date/number/file/select controls remain native.
+  Reachable Admin dashboard/management native selects were recorded but not
+  refactored into a second Admin dropdown system in this focused Study patch.
+- All 23 test suites pass, including 34 focused dropdown assertions. All 112
+  JavaScript/module files pass syntax checks; Pages build/artifact, static,
+  portable, URL-lock, and seed validators pass. Interactive desktop/mobile and
+  console QA remain manual because no browser backend is connected.
+
 ## 2026-09-10 - AI / PHOTO / VERIFIED-EMAIL RELEASE CANDIDATE
 
 - Corrected the KMK campus assistant against the owner-provided facility source

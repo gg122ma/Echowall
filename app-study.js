@@ -124,9 +124,20 @@ function studySourceLabel(resource) {
 }
 
 function studyYearLabel(resource) {
+  const yearStart = Number(resource.yearStart);
+  const yearEnd = Number(resource.yearEnd);
+  if (Number.isFinite(yearStart) && Number.isFinite(yearEnd) && yearEnd > yearStart + 1) {
+    return `${yearStart}\u2013${yearEnd}`;
+  }
   if (resource.examSessionLabel) return resource.examSessionLabel;
   if (resource.yearStart) return `${resource.yearStart}/${resource.yearEnd || resource.yearStart}`;
   return I18n.t("study.yearUnspecified");
+}
+
+function studyYearFilterDisplayLabel(value, resources) {
+  const matchingResource = resources.find(resource => resource.examSessionLabel === value
+    || (!resource.examSessionLabel && String(resource.yearStart || "") === value));
+  return matchingResource ? studyYearLabel(matchingResource) : value;
 }
 
 // A single resource row. `showPairedScheme` is only true inside a
@@ -347,23 +358,33 @@ function studySubjectFilterBarHtml(state) {
   const options = StudyResourceService.getFilterOptions(scope);
   if (!options.years.length && !options.subtypes.length && !options.sourceColleges.length) return "";
   const blank = label => `<option value="">${escapeHtml(label)}</option>`;
-  const selectHtml = (key, label, values, labelFor) => `
-    <label class="study-filter-field">${escapeHtml(label)}
-      <select onchange="studySetSubjectFilter('${key}', this.value)">
+  const selectHtml = (key, label, values, labelFor) => {
+    const controlId = `study-subject-filter-${key}`;
+    return `
+    <div class="study-filter-field">
+      <span id="${controlId}-label">${escapeHtml(label)}</span>
+      <div class="echo-select" data-echo-select data-echo-select-labelledby="${controlId}-label">
+      <select id="${controlId}" aria-labelledby="${controlId}-label" onchange="studySetSubjectFilter('${key}', this.value)">
         ${blank(I18n.t("study.filters.allOption"))}
         ${values.map(value => `<option value="${escapeHtml(value)}" ${state.filters[key] === value ? "selected" : ""}>${escapeHtml(labelFor ? labelFor(value) : value)}</option>`).join("")}
       </select>
-    </label>`;
+      </div>
+    </div>`;
+  };
   const parts = [];
-  if (options.years.length) parts.push(selectHtml("year", I18n.t("study.filters.year"), options.years));
+  if (options.years.length) parts.push(selectHtml("year", I18n.t("study.filters.year"), options.years, value => studyYearFilterDisplayLabel(value, scope)));
   if (options.subtypes.length) parts.push(selectHtml("subtype", I18n.t("study.filters.subtype"), options.subtypes, value => I18n.t(`study.subtype.${value}`)));
   if (options.sourceColleges.length) parts.push(selectHtml("sourceCollege", I18n.t("study.filters.source"), options.sourceColleges));
+  const sortControlId = "study-subject-filter-sort";
   const sortSelect = `
-    <label class="study-filter-field">${I18n.t("study.filters.sort")}
-      <select onchange="studySetSubjectSort(this.value)">
+    <div class="study-filter-field">
+      <span id="${sortControlId}-label">${I18n.t("study.filters.sort")}</span>
+      <div class="echo-select" data-echo-select data-echo-select-labelledby="${sortControlId}-label">
+      <select id="${sortControlId}" aria-labelledby="${sortControlId}-label" onchange="studySetSubjectSort(this.value)">
         ${["relevant", "newest", "oldest", "title"].map(mode => `<option value="${mode}" ${state.sort === mode ? "selected" : ""}>${I18n.t(`study.sort.${mode}`)}</option>`).join("")}
       </select>
-    </label>`;
+      </div>
+    </div>`;
   parts.push(sortSelect);
   const hasActiveFilter = state.filters.year || state.filters.subtype || state.filters.sourceCollege || state.sort !== "relevant";
   if (hasActiveFilter) parts.push(`<button class="study-clear-link" onclick="studyResetSubjectFilters()">${I18n.t("study.clearFilters")}</button>`);
@@ -374,7 +395,10 @@ function studyRenderSubjectFiltersAndList() {
   const state = studySubjectViewState;
   if (!state) return;
   const filterElement = document.getElementById("study-subject-filters");
-  if (filterElement) filterElement.innerHTML = studySubjectFilterBarHtml(state);
+  if (filterElement) {
+    filterElement.innerHTML = studySubjectFilterBarHtml(state);
+    window.EchoDropdown?.enhance(filterElement);
+  }
   const listElement = document.getElementById("study-resource-list");
   if (listElement) listElement.innerHTML = studyResourceListHtml();
 }
@@ -496,22 +520,32 @@ function studySearchFilterBarHtml(state) {
   const options = StudyResourceService.getFilterOptions(state.rankedResults);
   if (!options.years.length && !options.sourceColleges.length) return "";
   const blank = label => `<option value="">${escapeHtml(label)}</option>`;
-  const selectHtml = (key, label, values) => `
-    <label class="study-filter-field">${escapeHtml(label)}
-      <select onchange="studySetSearchFilter('${key}', this.value)">
+  const selectHtml = (key, label, values, labelFor) => {
+    const controlId = `study-search-filter-${key}`;
+    return `
+    <div class="study-filter-field">
+      <span id="${controlId}-label">${escapeHtml(label)}</span>
+      <div class="echo-select" data-echo-select data-echo-select-labelledby="${controlId}-label">
+      <select id="${controlId}" aria-labelledby="${controlId}-label" onchange="studySetSearchFilter('${key}', this.value)">
         ${blank(I18n.t("study.filters.allOption"))}
-        ${values.map(value => `<option value="${escapeHtml(value)}" ${state[key] === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}
+        ${values.map(value => `<option value="${escapeHtml(value)}" ${state[key] === value ? "selected" : ""}>${escapeHtml(labelFor ? labelFor(value) : value)}</option>`).join("")}
       </select>
-    </label>`;
+      </div>
+    </div>`;
+  };
   const parts = [];
-  if (options.years.length) parts.push(selectHtml("year", I18n.t("study.filters.year"), options.years));
+  if (options.years.length) parts.push(selectHtml("year", I18n.t("study.filters.year"), options.years, value => studyYearFilterDisplayLabel(value, state.rankedResults)));
   if (options.sourceColleges.length) parts.push(selectHtml("sourceCollege", I18n.t("study.filters.source"), options.sourceColleges));
+  const sortControlId = "study-search-filter-sort";
   const sortSelect = `
-    <label class="study-filter-field">${I18n.t("study.filters.sort")}
-      <select onchange="studySetSearchSort(this.value)">
+    <div class="study-filter-field">
+      <span id="${sortControlId}-label">${I18n.t("study.filters.sort")}</span>
+      <div class="echo-select" data-echo-select data-echo-select-labelledby="${sortControlId}-label">
+      <select id="${sortControlId}" aria-labelledby="${sortControlId}-label" onchange="studySetSearchSort(this.value)">
         ${["relevant", "newest", "oldest", "title"].map(mode => `<option value="${mode}" ${state.sort === mode ? "selected" : ""}>${I18n.t(`study.sort.${mode}`)}</option>`).join("")}
       </select>
-    </label>`;
+      </div>
+    </div>`;
   parts.push(sortSelect);
   const hasActiveFilter = state.year || state.sourceCollege || state.sort !== "relevant";
   if (hasActiveFilter) parts.push(`<button class="study-clear-link" onclick="studyClearSearchFilters()">${I18n.t("study.clearFilters")}</button>`);
@@ -546,7 +580,10 @@ function studySearchPanelHtml() {
 
 function studyRenderSearchPanel() {
   const panelElement = document.getElementById("study-search-panel");
-  if (panelElement) panelElement.innerHTML = studySearchPanelHtml();
+  if (panelElement) {
+    panelElement.innerHTML = studySearchPanelHtml();
+    window.EchoDropdown?.enhance(panelElement);
+  }
   const clearElement = document.getElementById("study-search-clear");
   if (clearElement) clearElement.innerHTML = studySearchViewState && studySearchViewState.query
     ? `<button class="study-clear-link" onclick="studyClearSearchQuery()">${I18n.t("study.clearSearch")}</button>` : "";
@@ -793,6 +830,7 @@ function renderStudySubjectShell(container, jurusanId, semester, subjectCode) {
       </header>
       <section class="selection-shell">${bodyHtml}</section>
     </div>`;
+  window.EchoDropdown?.enhance(container);
 }
 
 // #/study/resource/:resourceId — STUDY-V2-004: real metadata (subject,

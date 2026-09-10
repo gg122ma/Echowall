@@ -1,5 +1,20 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-11 - Echo Library filter popup consistency
+
+- Compared styling the native `<select>` with progressive enhancement over the
+  existing select. Native styling cannot control the OS-owned expanded menu,
+  so the synchronized custom-listbox approach was selected without changing
+  Study state, option generation, or event handlers.
+- One helper serves both subject and search-result filter bars. It portals the
+  active menu to `document.body`, avoiding card/filter container clipping while
+  keeping its z-index below account and modal layers.
+- Menu geometry is calculated only while open and reuses a single active menu;
+  no dependency or framework was added. No performance claim is made without
+  browser measurement.
+- The multi-year label is derived at display time from the existing start/end
+  metadata. Canonical `2012/2025` filter and manifest values are unchanged.
+
 ## 2026-09-10 - AI / PHOTO / AUTH RELEASE-CANDIDATE CORRECTION
 
 - Conflict handling compared two approaches: raw record-field equality and

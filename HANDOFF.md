@@ -1,3 +1,46 @@
+# STUDY CUSTOM DROPDOWN HANDOFF (2026-09-11)
+
+Status: **LOCAL GATES PASS; INTERACTIVE BROWSER QA MANUAL**.
+
+Echo Library subject filters (Academic Year, Subtype, Source, Sort) and the
+search-result filters (Academic Year, Source, Sort) now use the shared
+`services/echo-dropdown.js` progressive-enhancement helper. Each hidden native
+select remains the source of truth. A custom choice updates it and dispatches
+one bubbling `change`; application rerenders rebuild from the selected native
+option, so existing filter data, ordering, counts, and state semantics remain
+unchanged.
+
+The popup is appended to `document.body` and positioned fixed, with viewport
+clamping, upward flipping, 280px maximum height, contained scrolling, and a
+modest z-index below account/modal UI. It closes when another control opens,
+on outside pointer input, Escape, Tab, route hash changes, and Study rerenders.
+Keyboard and ARIA behavior is covered by `scripts/test-echo-dropdown.mjs`.
+
+`study_7afa5acbfbf9ff7759be` remains exactly `yearStart: 2012`, `yearEnd: 2025`,
+and `examSessionLabel: "2012/2025"`; its own title says “Past Year SM015
+2012-2025 (Question).” Only the visible label is `2012–2025`, distinguishing a
+multi-year collection from an adjacent academic session.
+
+Audit result: Community/Building/Map navigation exposes no native filter
+select; Profile, the main Admin module filters, and composer choices are
+already custom. Study upload/moderation form selects, year-number fields,
+native file pickers, Admin audit date inputs, and the compact Map photo picker
+remain native for data-entry/platform behavior. Reachable native selects in
+the newer Admin dashboard and role-management views remain a separately scoped
+Admin consistency task; this patch does not duplicate or refactor the existing
+Admin-specific dropdown system.
+
+Automated gates: 23/23 test scripts, 112/112 syntax checks, Pages build and
+artifact validation (485 files), static/portable/URL-lock validators, and both
+seed validators pass. No browser backend is connected, so desktop/mobile
+appearance and DevTools Console remain manual QA.
+
+Rollback: remove `services/echo-dropdown.js` and its `index.html`/
+`scripts/build-pages.mjs` entries; restore the native Study filter markup and
+the prior `studyYearLabel`; remove the `.echo-select*` rules and focused test.
+No database, manifest, source PDF, resource, Map, Auth, AI, or Photo rollback
+is needed.
+
 # AI / PHOTO / AUTH RELEASE-CANDIDATE HANDOFF (2026-09-10)
 
 Status: **LOCAL GATES PASS; MAP MIGRATION APPLIED; PAGES RELEASE AUTHORIZED**.
