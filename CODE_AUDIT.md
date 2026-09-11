@@ -1,5 +1,30 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-12 - KMK AI PHASE 3 POST-DEPLOY CORRECTNESS
+
+- Verified the deployed baseline and canonical Building registry before
+  editing: KOOP is `B_KOOP`; Pos Mini has no canonical building target.
+- Cafe Admin conflict selection is now intent-scoped. Location answers retain
+  `B_KAFETERIA_PENTADBIRAN`; hours answers retain both conflicting L1 facts;
+  general answers exclude the unresolved hours dimension.
+- `resource-centre.identity` now cites the owner campus facility source. The
+  approved specification gives no reproducible exact page for that identity,
+  so provenance correctly retains `page: null`.
+- The production path is deterministic (`KnowledgeEngine`, `AnswerPlanner`,
+  `AnswerRenderer`, `ResponseValidator`). External-LLM campus rendering is not
+  active, and the provider validator remains a future optional boundary.
+- No Home, Photo, Auth, Community, Study, Supabase, Cloudinary, seeded-content,
+  or visual UI path was changed.
+- Hardening checks cover unique fact IDs, valid fact/entity/status/Map-state
+  references, future and expired dates, entity-scoped semantic conflicts,
+  grounding-to-selected-fact linkage, follow-up exhaustion, and inactive-fact
+  provider rejection.
+- Automated evidence: all 23 test scripts pass (campus AI 163/163; Map actions
+  21/21), all 195 runtime source/artifact scripts pass `node --check`, and all
+  static, portable, seed, Pages build, and artifact validators pass. Browser
+  rendering and console results remain unclaimed because no backend is
+  available.
+
 ## 2026-09-12 - KMK AI PHASE 3 SOURCE AND ACTION BOUNDARY
 
 - The owner-approved Knowledge and Response Structure specifications were read

@@ -3,9 +3,10 @@
 ## Purpose
 
 EchoWall's campus assistant is a source-grounded KMK guide. It answers known
-campus questions deterministically and only uses a configured language model
-for general phrasing or synthesis. Provider output never receives permission
-to navigate the browser directly.
+campus questions through the deterministic `AnswerRenderer`. The configured
+provider is used only for non-campus general requests; external-LLM campus
+rendering is not active. Provider output never receives permission to navigate
+the browser directly.
 
 ## Architecture
 
@@ -19,13 +20,19 @@ Every result is normalized to:
 
 ```js
 {
+  schemaVersion,
   answer,
   intent,
   confidence,
   premise,
   resolvedPlaces,
+  resolution,
+  facts,
+  selectedFactIds,
+  answerPlan,
   grounding,
   conflicts,
+  context,
   actions,
   error
 }
@@ -63,6 +70,9 @@ synthetic locations or markers.
   such as Friday `closed` versus Friday `08:00-16:30` do conflict. A clearly
   newer dated authoritative record may resolve a real conflict; otherwise the
   answer states uncertainty.
+- Atomic conflicts are scoped by entity and by the requested semantic intent.
+  Cafe Admin's hours conflict therefore does not replace its location,
+  identity, or general-service answer.
 - English, Bahasa Melayu, and Chinese are detected from the latest meaningful
   message. Proper campus names remain canonical.
 - Aliases and conservative typo repair support names such as Pustaka,
@@ -76,8 +86,9 @@ synthetic locations or markers.
   Coordinate fallback is labelled approximate map-coordinate proximity; no
   meter distances or exact physical-distance claims are emitted.
 - Canonical place IDs are validated against `CAMPUS_BUILDINGS`. A knowledge
-  place with no real Map footprint remains answerable but cannot create a Map
-  action.
+  place with no validated target remains answerable but cannot create a Map
+  action. KOOP uses its explicit canonical `B_KOOP` building-preview target;
+  Pos Mini remains unmapped and cannot inherit it.
 - Prompt-injection wording cannot override campus-source authority.
 
 ## Feature and failure handling

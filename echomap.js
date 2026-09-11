@@ -474,7 +474,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
 
   function openPlacePreview(building, { scrollOnMobile = true } = {}) {
-    if (!building || !PREVIEW_PLACE_IDS.has(building.id)) return;
+    if (!building || (!PREVIEW_PLACE_IDS.has(building.id) && building.aiMapTarget !== true)) return;
     previewedPlaceId = building.id;
     // This preview enters the Building Wall and has always counted that
     // building's visible notes, not only the subset with Map anchors.
@@ -873,9 +873,15 @@ window.addEventListener("DOMContentLoaded", async () => {
   function applyPendingAIMapAction() {
     const action = window.EchoAI?.MapAction?.consumePending?.();
     if (!action) return false;
-    const building = getInteractionBuilding(action.buildingId);
+    const building = getInteractionBuilding(action.buildingId) || window.getCampusBuilding?.(action.buildingId);
     if (!building) return false;
-    if (!selectBuildingFootprint(action.buildingId, { scrollPreviewOnMobile:false })) return false;
+    const selectedFootprint = selectBuildingFootprint(action.buildingId, { scrollPreviewOnMobile:false });
+    if (!selectedFootprint && building.aiMapTarget !== true) return false;
+    if (!selectedFootprint) {
+      selectedBuildingId = building.id;
+      syncBuildingSelectionState();
+      openPlacePreview(building, { scrollOnMobile:false });
+    }
     focusBuildingTarget(building);
     // The AI focus is now the active Map state. Only after it succeeds is an
     // older return snapshot obsolete; failed actions still fall back to it.

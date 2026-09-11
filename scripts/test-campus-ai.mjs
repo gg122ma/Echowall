@@ -98,7 +98,7 @@ check("Library bag rule is source-grounded", /backpack|outside racks/i.test(repl
 
 reply = await ask("Kat mana Koop?");
 check("Malay KOOP query resolves canonical KOOP", reply.intent === "campus_location" && hasPlace(reply, "koop-mart"));
-check("KOOP gets no fake focus action without a Map target", reply.actions.length === 0);
+check("KOOP uses its canonical Echo Map target", reply.resolvedPlaces[0]?.mapState === "EXACT" && reply.actions[0]?.buildingId === "B_KOOP");
 reply = await ask("Koperassi buka Jumaat pukul berapa?");
 check("KOOP typo and Malay Friday hours resolve", hasPlace(reply, "koop-mart") && /9:00am–5:30pm/.test(reply.answer));
 reply = await ask("What is the minimum QR Pay amount at KOOP?");
@@ -256,15 +256,24 @@ check("Phase 3 canonical entity inventory is exactly 58", inventory.expected ===
 check("four Phase 2 entities are present in the canonical registry", ["hostel-laundry", "hostel-study-room", "hostel-iron-room", "sports-equipment-store"].every(id => window.EchoAI.PlaceRegistry.getById(id)));
 check("atomic facts use the complete required metadata shape", window.KMK_AI_PHASE3.facts.every(fact => fact.factId && fact.entityId && fact.type && fact.value && Array.isArray(fact.provenance) && "effectiveFrom" in fact && "effectiveTo" in fact && typeof fact.timeSensitive === "boolean" && typeof fact.requiresReview === "boolean" && ["high", "medium", "low"].includes(fact.confidence) && fact.status && Array.isArray(fact.conflicts)));
 check("atomic confidence never uses fabricated percentages", window.KMK_AI_PHASE3.facts.every(fact => typeof fact.confidence === "string"));
+check("atomic fact IDs are unique", new Set(window.KMK_AI_PHASE3.facts.map(fact => fact.factId)).size === window.KMK_AI_PHASE3.facts.length);
+check("every atomic fact resolves to a canonical entity", window.KMK_AI_PHASE3.facts.every(fact => window.EchoAI.KnowledgeEngine.getEntity(fact.entityId)));
+check("atomic fact statuses stay inside the approved vocabulary", window.KMK_AI_PHASE3.facts.every(fact => ["SUPPORTED", "PARTIAL", "CONFLICTING", "STALE", "UNSUPPORTED"].includes(fact.status)));
+check("entity Map states stay inside the approved vocabulary", [...window.KMK_AI_PHASE3.entities, ...window.KMK_AI_PHASE3.specialEntities].every(entity => ["EXACT", "PARENT_ONLY", "AMBIGUOUS", "UNMAPPED", "DISABLED"].includes(entity.mapState)));
 const historicalLibrary = window.EchoAI.KnowledgeEngine.getFact("library.hours.exam-2026", { asOf: "2026-09-12" });
 check("expired Library exam exception is marked historical", historicalLibrary.temporalState === "EXPIRED" && historicalLibrary.status === "STALE");
+check("effective-date evaluation does not activate future facts early", window.EchoAI.KnowledgeEngine.effectiveState({ effectiveFrom: "2027-01-01", effectiveTo: null }, "2026-09-12") === "FUTURE");
 check("Library regular hours remain current after the dated exception", window.EchoAI.KnowledgeEngine.getFact("library.hours.regular", { asOf: "2026-09-12" }).temporalState === "CURRENT");
 check("Library L1 hours outrank the retained stale L3 schedule", window.EchoAI.KnowledgeEngine.getFacts("library").some(fact => fact.factId === "library.hours.regular") && !window.EchoAI.KnowledgeEngine.getFacts("library").some(fact => fact.factId === "library.hours.legacy-l3"));
 check("KOOP L1 hours outrank the retained stale L3 schedule", window.EchoAI.KnowledgeEngine.getFacts("koop-mart").some(fact => fact.factId === "koop.hours.regular") && !window.EchoAI.KnowledgeEngine.getFacts("koop-mart").some(fact => fact.factId === "koop.hours.legacy-l3"));
 check("Basketball misread is retained only as unsupported audit metadata", window.EchoAI.KnowledgeEngine.getFact("basketball.hours.phase1-misread").status === "UNSUPPORTED" && window.EchoAI.KnowledgeEngine.getFacts("basketball-court").length === 0);
 check("Cafe Admin atomic conflict remains L1/L1 and unresolved", window.EchoAI.KnowledgeEngine.detectConflicts(window.EchoAI.KnowledgeEngine.getFacts("cafe-admin"))[0]?.type === "L1_L1");
+const cafeAdminFacts = window.EchoAI.KnowledgeEngine.getFacts("cafe-admin");
+check("same semantic key across different entities cannot create a conflict", window.EchoAI.KnowledgeEngine.detectConflicts([cafeAdminFacts[0], { ...cafeAdminFacts[1], entityId: "other-entity" }]).length === 0);
 check("Cafe A hours preserve approximate metadata", window.EchoAI.KnowledgeEngine.getFact("cafe-a.hours.approx").approximate === true);
 check("Serambi supported hours do not invent opening days", !window.EchoAI.KnowledgeEngine.getFact("serambi.hours").value.schedule);
+const resourceCentreIdentity = window.EchoAI.KnowledgeEngine.getFact("resource-centre.identity");
+check("Resource Centre identity uses the owner campus facility source", resourceCentreIdentity.provenance[0]?.sourceId === "school-environment" && resourceCentreIdentity.provenance[0]?.file === "school-environment.pdf.pdf" && resourceCentreIdentity.provenance[0]?.page === null);
 
 reply = await ask("Where is the library?");
 check("Library location is answer-first with useful content before its action", /reading|self-study/i.test(reply.answer) && reply.actions.length === 1 && reply.answerPlan.actionAllowed);
@@ -274,8 +283,18 @@ check("Library current schedule excludes expired exam wording", /4:30pm/.test(re
 check("hours-only Answer Plan forbids Map action", reply.answerPlan.actionAllowed === false && reply.actions.length === 0);
 reply = await ask("Library opens Friday at 8am, right?");
 check("false Library premise selects CORRECTION mode", reply.answerPlan.mode === "CORRECTION" && reply.premise === "CONTRADICTED");
+reply = await ask("Where is Cafe Admin?");
+check("Cafe Admin location is not replaced by its hours conflict", reply.intent === "campus_location" && reply.answerPlan.mode !== "CONFLICT" && /Outside Serambi/i.test(reply.answer));
+check("Cafe Admin location keeps its verified Map action", reply.actions[0]?.buildingId === "B_KAFETERIA_PENTADBIRAN" && reply.actions[0]?.targetType === "EXACT");
 reply = await ask("What time does Cafe Admin close?");
 check("Cafe Admin CONFLICT mode selects both atomic fact IDs", reply.answerPlan.mode === "CONFLICT" && reply.selectedFactIds.includes("cafe-admin.hours.source-a") && reply.selectedFactIds.includes("cafe-admin.hours.source-b"));
+reply = await ask("Tell me about Cafe Admin.");
+check("Cafe Admin general information is not replaced by its hours conflict", reply.answerPlan.mode !== "CONFLICT" && /dining|Serambi/i.test(reply.answer) && !/3:00pm|4:00pm/.test(reply.answer));
+const cafeContext = "cafe-admin-referback";
+await ask("Where is Cafe Admin?", cafeContext);
+reply = await ask("What time does it close?", cafeContext);
+check("Cafe Admin hours refer-back preserves the scoped conflict", reply.answerPlan.mode === "CONFLICT" && hasPlace(reply, "cafe-admin") && /3:00pm/.test(reply.answer) && /4:00pm/.test(reply.answer));
+check("Cafe Admin conflict grounding retains each selected fact ID", reply.grounding.length === 2 && reply.grounding.every(item => reply.selectedFactIds.includes(item.factId)));
 
 reply = await ask("I'm hungry");
 check("hungry utterance routes to campus dining instead of generic fallback", reply.intent === "campus_services" && /Cafe A/.test(reply.answer) && reply.answerPlan.mode === "DIRECT");
@@ -303,10 +322,16 @@ check("Resource Centre is information-only and UNMAPPED", reply.resolvedPlaces[0
 reply = await ask("Reading Room");
 check("Reading Room remains unsupported without substitution", hasPlace(reply, "reading-room") && reply.answerPlan.mode === "UNSUPPORTED" && /won.t substitute/i.test(reply.answer));
 check("Reading Room Map state is DISABLED", reply.resolvedPlaces[0]?.mapState === "DISABLED" && reply.actions.length === 0);
+for (const unsupportedName of ["Court C", "KOWAWA", "Gymnasium", "Pool", "Dewan Seri Melur", "WAIMAU"]) {
+  reply = await ask(unsupportedName);
+  check(`${unsupportedName} remains useful-but-unsupported with no Map action`, reply.answerPlan.mode === "UNSUPPORTED" && reply.actions.length === 0 && /can.t verify|cannot verify/i.test(reply.answer));
+}
 
 reply = await ask("I need to collect a parcel");
 check("parcel collection intent resolves to Pos Mini", hasPlace(reply, "pos-mini") && /Pos Mini/.test(reply.answer));
 check("Pos Mini never inherits the KOOP Map target", reply.resolvedPlaces[0]?.mapState === "UNMAPPED" && !reply.actions.some(action => action.buildingId === "B_KOOP"));
+reply = await ask("Where is Pos Mini?");
+check("explicit Pos Mini location remains unmapped and never opens KOOP", hasPlace(reply, "pos-mini") && reply.resolvedPlaces[0]?.mapState === "UNMAPPED" && reply.actions.length === 0);
 reply = await ask("Court A");
 check("Court A mapping is unsupported and disabled", hasPlace(reply, "court-a") && reply.resolvedPlaces[0]?.mapState === "DISABLED" && reply.actions.length === 0);
 reply = await ask("What time does basketball court close?");
@@ -337,6 +362,8 @@ check("More uses FOLLOW_UP mode for the active Library", moreLibrary.answerPlan.
 check("Chinese follow-up remains on the active Library", chineseMoreLibrary.answerPlan.mode === "FOLLOW_UP" && hasPlace(chineseMoreLibrary, "library"));
 check("servedFactIds prevent immediate fact repetition", firstLibrary.selectedFactIds.every(id => !moreLibrary.selectedFactIds.includes(id)) && moreLibrary.selectedFactIds.every(id => !chineseMoreLibrary.selectedFactIds.includes(id)));
 check("session context exposes active entity, intent, facts, and dimensions", chineseMoreLibrary.context.activeEntityId === "library" && chineseMoreLibrary.context.activeIntent && chineseMoreLibrary.context.servedFactIds.length >= 5 && chineseMoreLibrary.context.servedDimensions.length >= 3);
+const exhaustedLibrary = await ask("apa lagi", followSession);
+check("exhausted follow-up does not recycle already served Library facts", exhaustedLibrary.answerPlan.mode === "FOLLOW_UP" && exhaustedLibrary.selectedFactIds.length === 0 && /telah merangkumi maklumat utama yang disahkan/i.test(exhaustedLibrary.answer));
 reply = await ask("What about KOOP?", followSession);
 check("explicit KOOP mention overrides Library follow-up context", hasPlace(reply, "koop-mart") && reply.context.activeEntityId === "koop-mart" && !hasPlace(reply, "library"));
 
@@ -357,6 +384,10 @@ check("provider validator rejects unselected facts", window.EchoAI.ProviderAdapt
 check("provider validator rejects arbitrary B_* text", window.EchoAI.ProviderAdapter.validateCampusOutput({ answer: "Open B_FAKE", answerMode: "DIRECT", factIds: [] }, { answerMode: "DIRECT", selectedFactIds: [], facts: [] }).reason === "MAP_ID_IN_TEXT");
 check("provider validator rejects a removed conflict", window.EchoAI.ProviderAdapter.validateCampusOutput({ answer: "Cafe Admin closes at 3pm.", answerMode: "CONFLICT", factIds: [] }, { answerMode: "CONFLICT", selectedFactIds: [], facts: [] }).reason === "CONFLICT_REMOVED");
 check("provider validator rejects false precision for approximate facts", window.EchoAI.ProviderAdapter.validateCampusOutput({ answer: "Cafe A is open 7am to 10pm.", answerMode: "DIRECT", factIds: ["cafe-a.hours.approx"] }, { answerMode: "DIRECT", selectedFactIds: ["cafe-a.hours.approx"], facts: [window.EchoAI.KnowledgeEngine.getFact("cafe-a.hours.approx")] }).reason === "APPROXIMATION_REMOVED");
+check("provider validator rejects expired facts even if passed an invalid plan", window.EchoAI.ProviderAdapter.validateCampusOutput({ answer: "Old exam hours apply.", answerMode: "DIRECT", factIds: ["library.hours.exam-2026"] }, { answerMode: "DIRECT", selectedFactIds: ["library.hours.exam-2026"], facts: [historicalLibrary] }).reason === "INACTIVE_FACT");
+
+reply = await ask("Stor Basikal");
+check("Stor Basikal resolves to the existing bicycle service without a duplicate entity", hasPlace(reply, "bicycle-service") && !hasPlace(reply, "sports-equipment-store") && reply.actions.length === 0);
 
 check("AMBIGUOUS Map state cannot create an action", window.EchoAI.MapAction.create(window.EchoAI.PlaceRegistry.getById("hostel-laundry")) === null);
 check("UNMAPPED Map state cannot create an action", window.EchoAI.MapAction.create(window.EchoAI.PlaceRegistry.getById("resource-centre")) === null);

@@ -38,8 +38,9 @@
       || (window.CAMPUS_BUILDINGS || []).find(item => item.id === action.buildingId);
     const latitude = Number(building?.mapTarget?.lat);
     const longitude = Number(building?.mapTarget?.lng);
-    return Boolean(building && Number.isFinite(latitude) && Number.isFinite(longitude)
-      && Array.isArray(building.mapFootprint) && building.mapFootprint.length > 0);
+    const hasGeographicTarget = Number.isFinite(latitude) && Number.isFinite(longitude)
+      && Array.isArray(building?.mapFootprint) && building.mapFootprint.length > 0;
+    return Boolean(building && (hasGeographicTarget || building.aiMapTarget === true));
   }
 
   function execute(action) {

@@ -73,6 +73,9 @@
     } else if (premise?.status === "CONTRADICTED") {
       answerMode = "CORRECTION";
       primary = "FACTS";
+    } else if (!facts.length && isFollowUp) {
+      answerMode = "FOLLOW_UP";
+      primary = "FACTS_EXHAUSTED";
     } else if (!facts.length) {
       answerMode = "UNSUPPORTED";
       primary = intent === "campus_hours" ? "UNSUPPORTED_HOURS" : "UNSUPPORTED_ENTITY_FACT";

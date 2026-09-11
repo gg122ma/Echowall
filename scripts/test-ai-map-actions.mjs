@@ -29,6 +29,9 @@ vm.runInContext(read("services/ai/map-action.js"), context, { filename: "service
 
 const libraryAction = { type: "OPEN_MAP", placeId: "library", buildingId: "B_PUSTAKA" };
 check("known Map building validates in the destination document", window.EchoAI.MapAction.validate(libraryAction));
+const koopAction = { type: "OPEN_MAP", placeId: "koop-mart", buildingId: "B_KOOP", targetType: "EXACT" };
+check("canonical KOOP Map building validates in the destination document", window.EchoAI.MapAction.validate(koopAction));
+check("KOOP is the only explicitly enabled non-GIS AI building target", window.CAMPUS_BUILDINGS.filter(building => building.aiMapTarget === true).map(building => building.id).join(",") === "B_KOOP");
 check("unknown building action is rejected", !window.EchoAI.MapAction.validate({ ...libraryAction, buildingId: "B_UNKNOWN" }));
 check("arbitrary action type is rejected", !window.EchoAI.MapAction.validate({ ...libraryAction, type: "OPEN_URL" }));
 check("missing action fields are rejected", !window.EchoAI.MapAction.validate({ type: "OPEN_MAP" }));
@@ -48,6 +51,7 @@ const mapHtml = read("map.html");
 check("Echo Map loads the shared validated action module", /services\/ai\/map-action\.js/.test(mapHtml));
 check("AI handoff reuses the existing footprint selection", /applyPendingAIMapAction[\s\S]*selectBuildingFootprint\(action\.buildingId/.test(mapSource));
 check("AI handoff reuses existing map focus behavior", /applyPendingAIMapAction[\s\S]*focusBuildingTarget\(building\)/.test(mapSource));
+check("explicit KOOP handoff falls back to the existing building preview", /building\.aiMapTarget !== true[\s\S]*openPlacePreview\(building/.test(mapSource));
 check("AI handoff consumes pending state before restoring old return state", /MapAction\?\.consumePending[\s\S]*if \(!applyPendingAIMapAction\(\)\) restoreMapReturnSnapshot\(\)/.test(mapSource));
 check("failed AI focus does not erase an existing return snapshot", /selectBuildingFootprint\(action\.buildingId[\s\S]*focusBuildingTarget\(building\)[\s\S]*removeMapReturnSnapshot\(\)/.test(mapSource));
 check("existing Building-to-Map return snapshot remains implemented", /saveMapReturnSnapshot[\s\S]*restoreMapReturnSnapshot/.test(mapSource));

@@ -26,6 +26,7 @@
     "cafe-b": Object.freeze(["cafe b", "kafe b", "kafeteria b"]),
     "cafe-c": Object.freeze(["cafe c", "kafe c", "kafeteria c"]),
     "cafe-admin": Object.freeze(["cafe admin", "kafe admin", "admin cafe", "kafeteria pentadbiran"]),
+    "bicycle-service": Object.freeze(["stor basikal", "garaj basikal"]),
   });
 
   const SCHEDULES = Object.freeze({
@@ -125,12 +126,16 @@
     return getPlaces().find(place => place.canonicalId === canonicalId) || null;
   }
 
-  function hasMapTarget(place) {
-    if (!place || !["EXACT", "PARENT_ONLY"].includes(place.mapState || "EXACT")) return false;
+  function hasGeographicMapTarget(place) {
     const latitude = Number(place?.building?.mapTarget?.lat);
     const longitude = Number(place?.building?.mapTarget?.lng);
     return Boolean(place?.buildingId) && Number.isFinite(latitude) && Number.isFinite(longitude)
       && Array.isArray(place?.building?.mapFootprint) && place.building.mapFootprint.length > 0;
+  }
+
+  function hasMapTarget(place) {
+    if (!place || !["EXACT", "PARENT_ONLY"].includes(place.mapState || "EXACT")) return false;
+    return hasGeographicMapTarget(place) || Boolean(place?.buildingId && place?.building?.aiMapTarget === true);
   }
 
   function getNearbyDetails(place) {
@@ -138,10 +143,10 @@
     const explicit = EXPLICIT_RELATIONS[place.canonicalId] || [];
     const explicitPlaces = explicit.map(getById).filter(Boolean);
     if (explicitPlaces.length) return Object.freeze({ places: Object.freeze(explicitPlaces), basis: "explicit" });
-    if (!hasMapTarget(place)) return Object.freeze({ places: Object.freeze([]), basis: "none" });
+    if (!hasGeographicMapTarget(place)) return Object.freeze({ places: Object.freeze([]), basis: "none" });
     const lat = Number(place.building.mapTarget.lat);
     const lng = Number(place.building.mapTarget.lng);
-    const places = getPlaces().filter(candidate => candidate.canonicalId !== place.canonicalId && hasMapTarget(candidate)).map(candidate => ({
+    const places = getPlaces().filter(candidate => candidate.canonicalId !== place.canonicalId && hasGeographicMapTarget(candidate)).map(candidate => ({
       candidate,
       coordinateDelta: Math.hypot(Number(candidate.building.mapTarget.lat) - lat, Number(candidate.building.mapTarget.lng) - lng),
     })).sort((a, b) => a.coordinateDelta - b.coordinateDelta).slice(0, 3).map(item => item.candidate);

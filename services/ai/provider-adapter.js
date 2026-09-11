@@ -25,6 +25,7 @@
     const selected = new Set(plan.selectedFactIds || []);
     const claimed = Array.isArray(payload.factIds) ? payload.factIds : [];
     if (claimed.some(factId => !selected.has(factId))) return Object.freeze({ valid: false, reason: "UNSELECTED_FACT" });
+    if ((plan.facts || []).some(fact => ["EXPIRED", "FUTURE"].includes(fact.temporalState) || ["STALE", "UNSUPPORTED"].includes(fact.status))) return Object.freeze({ valid: false, reason: "INACTIVE_FACT" });
     if (/\bB_[A-Z0-9_]+\b/.test(payload.answer)) return Object.freeze({ valid: false, reason: "MAP_ID_IN_TEXT" });
     if (Array.isArray(payload.actions) && payload.actions.length) return Object.freeze({ valid: false, reason: "PROVIDER_ACTION" });
     if (plan.answerMode === "CONFLICT" && !/conflict|disagree|bercanggah|冲突|不同/i.test(payload.answer)) return Object.freeze({ valid: false, reason: "CONFLICT_REMOVED" });

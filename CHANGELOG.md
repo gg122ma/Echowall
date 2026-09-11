@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-09-12 - KMK AI PHASE 3 POST-DEPLOY CORRECTNESS
+
+- Scoped atomic conflict detection to the requested intent before planning, so
+  Cafe Admin location/general answers are no longer replaced by its hours
+  conflict while hours questions still expose both unresolved L1 sources.
+- Restored KOOP as an `EXACT` canonical `B_KOOP` Map target. Pos Mini remains
+  `UNMAPPED` and cannot inherit the KOOP action.
+- Corrected `resource-centre.identity` provenance to the owner campus facility
+  source. Its page remains `null` because the approved Phase 2 specification
+  does not provide a reproducible exact page; no page number was guessed.
+- The production campus-answer path remains deterministic:
+  KnowledgeEngine -> AnswerPlanner -> AnswerRenderer -> ResponseValidator.
+  External-LLM campus rendering is not active.
+- Hardened entity-scoped conflict grouping, expired/future provider rejection,
+  Stor Basikal compatibility, and non-repeating fact exhaustion. All 23 test
+  scripts pass, including campus AI 163/163 and Map actions 21/21; all 195
+  runtime source/artifact scripts pass syntax checks and all release validators
+  pass.
+
 ## 2026-09-12 - KMK AI PHASE 3 ATOMIC ANSWERS
 
 - Added an owner-source-aware atomic fact registry with L1/L3 authority,

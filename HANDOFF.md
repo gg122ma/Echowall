@@ -1,3 +1,37 @@
+# KMK AI PHASE 3 POST-DEPLOY CORRECTNESS HANDOFF (2026-09-12)
+
+Status: **TARGETED PATCH IMPLEMENTED; ALL LOCAL GATES PASS; BROWSER QA MANUAL**.
+
+`KnowledgeEngine.selectFacts()` now filters facts to the requested semantic
+intent before evaluating conflicts. Cafe Admin location and general questions
+therefore use non-hours information and retain the verified
+`B_KAFETERIA_PENTADBIRAN` location action, while an hours question still
+returns the unresolved 3pm/4pm L1/L1 conflict without an action.
+
+KOOP is `EXACT` at the existing canonical `B_KOOP` building target. That
+explicit target supports the existing Echo Map building-preview handoff even
+though the building registry has no GIS footprint. Pos Mini stays `UNMAPPED`
+with no building ID and cannot emit `B_KOOP`.
+
+`resource-centre.identity` now cites `school-environment.pdf.pdf`, the owner
+campus facility source, instead of the programme rules. The approved Phase 2
+specification does not reproduce an exact source page for this identity, so
+the page is deliberately left `null` rather than guessed.
+
+The active production campus-answer route is deterministic:
+`KnowledgeEngine -> AnswerPlanner -> AnswerRenderer -> ResponseValidator`.
+`ProviderAdapter` remains only a guarded future boundary; external-LLM campus
+rendering is **not active**.
+
+Hardening also prevents cross-entity semantic-key conflicts, rejects inactive
+facts at the future provider boundary, maps Stor Basikal to the retained
+bicycle-service entity, and returns a localized completion message instead of
+repeating facts after follow-up exhaustion. All 23 test scripts pass, including
+campus AI 163/163 and Map actions 21/21; all 195 runtime source/artifact
+JavaScript modules pass syntax checks; static, portable, seed, Pages build, and
+Pages artifact validation pass. The browser backend remains unavailable, so
+desktop/mobile interaction and console QA are manual.
+
 # KMK AI PHASE 3 HANDOFF (2026-09-12)
 
 Status: **IMPLEMENTED; ALL LOCAL GATES PASS; BROWSER QA MANUAL**.

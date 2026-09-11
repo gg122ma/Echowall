@@ -35,23 +35,28 @@
   function detectConflicts(facts) {
     const groups = new Map();
     (facts || []).forEach(item => {
-      if (!groups.has(item.semanticKey)) groups.set(item.semanticKey, []);
-      groups.get(item.semanticKey).push(item);
+      const groupKey = `${item.entityId}::${item.semanticKey}`;
+      if (!groups.has(groupKey)) groups.set(groupKey, []);
+      groups.get(groupKey).push(item);
     });
     const conflicts = [];
-    groups.forEach((group, semanticKey) => {
+    groups.forEach(group => {
       const current = group.filter(item => item.temporalState === "CURRENT");
       if (current.length < 2) return;
       const bestRank = Math.min(...current.map(item => item.authorityRank));
       const authoritative = current.filter(item => item.authorityRank === bestRank);
       const explicitConflict = authoritative.filter(item => item.status === "CONFLICTING");
-      if (explicitConflict.length > 1) conflicts.push(Object.freeze({
-        conflictId: `${semanticKey}.conflict`,
-        semanticKey,
-        type: bestRank === 1 ? "L1_L1" : "SAME_AUTHORITY",
-        status: "UNRESOLVED",
-        factIds: Object.freeze(explicitConflict.map(item => item.factId)),
-      }));
+      if (explicitConflict.length > 1) {
+        const semanticKey = explicitConflict[0].semanticKey;
+        conflicts.push(Object.freeze({
+          conflictId: `${semanticKey}.conflict`,
+          entityId: explicitConflict[0].entityId,
+          semanticKey,
+          type: bestRank === 1 ? "L1_L1" : "SAME_AUTHORITY",
+          status: "UNRESOLVED",
+          factIds: Object.freeze(explicitConflict.map(item => item.factId)),
+        }));
+      }
     });
     return conflicts;
   }
@@ -97,19 +102,30 @@
     return Object.freeze({ ...resolved, resolutionType: resolved.place?.mapState || (resolved.status === "ambiguous" ? "AMBIGUOUS" : "UNMAPPED") });
   }
 
+  function factTypesForIntent(intent) {
+    if (intent === "campus_hours") return ["hours"];
+    if (intent === "campus_rules") return ["rule"];
+    if (intent === "campus_services") return ["service", "purpose", "identity", "fee"];
+    if (intent === "campus_location" || intent === "campus_navigation") return ["purpose", "identity", "service"];
+    return ["purpose", "service", "identity", "hours", "rule", "fee"];
+  }
+
   function selectFacts(entityId, intent, options = {}) {
     const facts = getFacts(entityId, options);
-    const conflicts = detectConflicts(facts);
-    if (conflicts.length) return Object.freeze({ facts: Object.freeze(facts.filter(item => conflicts[0].factIds.includes(item.factId))), conflicts: Object.freeze(conflicts) });
-    const types = intent === "campus_hours" ? ["hours"]
-      : intent === "campus_rules" ? ["rule"]
-        : intent === "campus_services" ? ["service", "purpose", "identity", "fee"]
-          : intent === "campus_location" || intent === "campus_navigation" ? ["purpose", "identity", "service", "hours"]
-            : ["purpose", "service", "identity", "hours", "rule", "fee"];
-    const ordered = facts.filter(item => types.includes(item.type)).sort((a, b) => types.indexOf(a.type) - types.indexOf(b.type) || a.authorityRank - b.authorityRank);
+    const types = factTypesForIntent(intent);
+    const relevantFacts = facts.filter(item => types.includes(item.type));
+    const relevantConflicts = detectConflicts(relevantFacts);
+    if (intent === "campus_hours" && relevantConflicts.length) {
+      const conflictIds = new Set(relevantConflicts.flatMap(item => item.factIds));
+      return Object.freeze({ facts: Object.freeze(relevantFacts.filter(item => conflictIds.has(item.factId))), conflicts: Object.freeze(relevantConflicts) });
+    }
+    const conflictingIds = new Set(relevantConflicts.flatMap(item => item.factIds));
+    const ordered = relevantFacts.filter(item => !conflictingIds.has(item.factId))
+      .sort((a, b) => types.indexOf(a.type) - types.indexOf(b.type) || a.authorityRank - b.authorityRank);
     const served = new Set(options.servedFactIds || []);
     const unserved = ordered.filter(item => !served.has(item.factId));
-    return Object.freeze({ facts: Object.freeze((unserved.length ? unserved : ordered).slice(0, options.limit || 3)), conflicts: Object.freeze([]) });
+    const selected = unserved.length ? unserved : (served.size ? [] : ordered);
+    return Object.freeze({ facts: Object.freeze(selected.slice(0, options.limit || 3)), conflicts: Object.freeze([]) });
   }
 
   function validateInventory() {

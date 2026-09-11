@@ -1,5 +1,15 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-12 - KMK AI intent-scoped conflict selection
+
+- Conflict evaluation now runs after the intent/type filter. Non-hours
+  requests remove unresolved hours facts from their candidate set instead of
+  promoting an unrelated conflict to the entire entity response.
+- KOOP reuses its explicit canonical building target without making non-GIS
+  entities eligible for coordinate-based nearby ranking.
+- No external model call, dependency, UI redesign, or broad knowledge pass was
+  added. The deterministic renderer remains the production path.
+
 ## 2026-09-12 - KMK AI deterministic planning
 
 - Compared replacing the legacy knowledge base with adding an atomic authority

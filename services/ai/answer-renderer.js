@@ -95,6 +95,7 @@
       return language === "ms" ? `${plan.place.title} dikaitkan dengan kawasan kediaman ${parent}. Peta semasa mengesahkan kawasan induk ${parent}, bukan tapak tepat ${plan.place.title}.` : language === "zh" ? `${plan.place.title} 属于 ${parent} 宿舍区域。当前地图确认的是 ${parent} 父级区域，并非 ${plan.place.title} 的精确轮廓。` : `${plan.place.title} belongs to the ${parent} residential area. The current map confirms the ${parent} parent area, not the exact ${plan.place.title} footprint.`;
     }
     if (plan.content.primary === "P5_UNMAPPED") return language === "ms" ? "Blok P5 disebut dalam maklumat asrama, tetapi kompleks induk dan sasaran petanya belum disahkan." : language === "zh" ? "宿舍资料提到 Blok P5，但其父级区域和地图目标尚未核实。" : "Blok P5 is mentioned in the hostel information, but its parent complex and Map target are not verified.";
+    if (plan.content.primary === "FACTS_EXHAUSTED") return language === "ms" ? `Saya telah merangkumi maklumat utama yang disahkan untuk ${plan.place.title}.` : language === "zh" ? `我已经介绍了目前可核实的 ${plan.place.title} 主要信息。` : `I've covered the main verified information I currently have for ${plan.place.title}.`;
     return "";
   }
 

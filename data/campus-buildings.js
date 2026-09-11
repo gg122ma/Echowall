@@ -4246,6 +4246,7 @@ window.CAMPUS_BUILDINGS = [
   {
     "id": "B_KOOP",
     "name": "Koperasi & Pejabat Pos",
+    "aiMapTarget": true,
     "category": "koop",
     "zoneId": "student-life",
     "emoji": "🛒",
