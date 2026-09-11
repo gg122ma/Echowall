@@ -9,17 +9,30 @@
     try { return window.sessionStorage || null; } catch { return null; }
   }
 
-  function create(place) {
+  function actionLabel(place, language) {
+    if (place?.mapState === "PARENT_ONLY") {
+      if (language === "ms") return `Tunjukkan ${place.parentTitle}`;
+      if (language === "zh") return `显示 ${place.parentTitle}`;
+      return `Show ${place.parentTitle}`;
+    }
+    if (language === "ms") return "Tunjukkan pada Echo Map";
+    if (language === "zh") return "在 Echo Map 显示";
+    return "Show on Echo Map";
+  }
+
+  function create(place, language = "en") {
     if (!window.EchoAI.PlaceRegistry?.hasMapTarget?.(place)) return null;
-    return Object.freeze({ type: "OPEN_MAP", placeId: place.canonicalId, buildingId: place.buildingId });
+    return Object.freeze({ type: "OPEN_MAP", placeId: place.canonicalId, buildingId: place.buildingId, targetType: place.mapState || "EXACT", label: actionLabel(place, language) });
   }
 
   function validate(action) {
     if (!action || action.type !== "OPEN_MAP") return false;
     if (typeof action.placeId !== "string" || typeof action.buildingId !== "string") return false;
     if (window.EchoAI.PlaceRegistry) {
-      const place = window.EchoAI.PlaceRegistry.getById(action.placeId);
-      return Boolean(place && place.buildingId === action.buildingId && window.EchoAI.PlaceRegistry.hasMapTarget(place));
+      const place = window.EchoAI.KnowledgeEngine?.getEntity?.(action.placeId) || window.EchoAI.PlaceRegistry.getById(action.placeId);
+      const targetType = action.targetType || place?.mapState || "EXACT";
+      return Boolean(place && ["EXACT", "PARENT_ONLY"].includes(targetType) && targetType === (place.mapState || "EXACT")
+        && place.buildingId === action.buildingId && window.EchoAI.PlaceRegistry.hasMapTarget(place));
     }
     const building = window.getCampusBuilding?.(action.buildingId)
       || (window.CAMPUS_BUILDINGS || []).find(item => item.id === action.buildingId);
@@ -39,6 +52,8 @@
         createdAt: Date.now(),
         placeId: action.placeId,
         buildingId: action.buildingId,
+        targetType: action.targetType || "EXACT",
+        label: action.label || "",
       }));
     } catch {
       return false;
@@ -54,7 +69,7 @@
     if (!parsed || parsed.version !== VERSION) return null;
     const age = Date.now() - Number(parsed.createdAt);
     if (!Number.isFinite(age) || age < 0 || age > TTL_MS) return null;
-    const action = { type: "OPEN_MAP", placeId: parsed.placeId, buildingId: parsed.buildingId };
+    const action = { type: "OPEN_MAP", placeId: parsed.placeId, buildingId: parsed.buildingId, targetType: parsed.targetType, label: parsed.label };
     return validate(action) ? action : null;
   }
 

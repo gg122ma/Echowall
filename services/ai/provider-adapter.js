@@ -19,6 +19,20 @@
     return typeof value === "string" && value.trim() ? value.trim().slice(0, 2000) : "";
   }
 
+  function validateCampusOutput(payload, plan) {
+    if (!payload || typeof payload !== "object" || typeof payload.answer !== "string") return Object.freeze({ valid: false, reason: "INVALID_SHAPE" });
+    if (payload.answerMode !== plan.answerMode) return Object.freeze({ valid: false, reason: "MODE_CHANGED" });
+    const selected = new Set(plan.selectedFactIds || []);
+    const claimed = Array.isArray(payload.factIds) ? payload.factIds : [];
+    if (claimed.some(factId => !selected.has(factId))) return Object.freeze({ valid: false, reason: "UNSELECTED_FACT" });
+    if (/\bB_[A-Z0-9_]+\b/.test(payload.answer)) return Object.freeze({ valid: false, reason: "MAP_ID_IN_TEXT" });
+    if (Array.isArray(payload.actions) && payload.actions.length) return Object.freeze({ valid: false, reason: "PROVIDER_ACTION" });
+    if (plan.answerMode === "CONFLICT" && !/conflict|disagree|bercanggah|冲突|不同/i.test(payload.answer)) return Object.freeze({ valid: false, reason: "CONFLICT_REMOVED" });
+    const approximate = (plan.facts || []).some(fact => fact.approximate);
+    if (approximate && !/around|approximately|sekitar|kira-kira|约|大约/i.test(payload.answer)) return Object.freeze({ valid: false, reason: "APPROXIMATION_REMOVED" });
+    return Object.freeze({ valid: true, answer: payload.answer.trim().slice(0, 2000) });
+  }
+
   async function sendGeneral(message) {
     if (!window.FreeAIAdapter?.isAIModelEnabled?.()) return Object.freeze({ status: "unavailable", answer: "" });
     try {
@@ -31,5 +45,5 @@
     }
   }
 
-  window.EchoAI.ProviderAdapter = Object.freeze({ sendGeneral, extractAnswer });
+  window.EchoAI.ProviderAdapter = Object.freeze({ sendGeneral, extractAnswer, validateCampusOutput });
 }());

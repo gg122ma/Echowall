@@ -13,11 +13,25 @@
     return { ...state };
   }
 
-  function update(sessionId = "default", entityId, intent) {
+  function update(sessionId = "default", entityId, intent, servedFactIds = [], servedDimensions = []) {
     if (!entityId) return get(sessionId);
-    const state = { entityId, intent, updatedAt: Date.now() };
+    const previous = sessions.get(sessionId);
+    const sameEntity = previous?.activeEntityId === entityId || previous?.entityId === entityId;
+    const state = {
+      activeEntityId: entityId,
+      activeIntent: intent,
+      servedFactIds: [...new Set([...(sameEntity ? previous?.servedFactIds || [] : []), ...servedFactIds])],
+      servedDimensions: [...new Set([...(sameEntity ? previous?.servedDimensions || [] : []), ...servedDimensions])],
+      entityId,
+      intent,
+      updatedAt: Date.now(),
+    };
     sessions.set(sessionId, state);
     return { ...state };
+  }
+
+  function markServed(sessionId = "default", entityId, intent, facts = []) {
+    return update(sessionId, entityId, intent, facts.map(item => item.factId).filter(Boolean), facts.map(item => item.dimension).filter(Boolean));
   }
 
   function clear(sessionId = "default") {
@@ -33,10 +47,17 @@
   function isEllipticalFollowUp(message) {
     const normalized = window.EchoAI.Normalizer.normalize(message);
     if (!normalized) return false;
-    return /^(?:what about|how about|kalau)\b/.test(normalized)
+    return /^(?:more|what else|anything else|what about|how about|kalau|apa lagi|lagi)\b/.test(normalized)
+      || /^(?:还有呢|还有吗|还有什么|再说一点|更多)[？?。.!！]?$/.test(String(message || "").trim())
       || /^(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday|ahad|isnin|selasa|rabu|khamis|jumaat|jumat|sabtu)(?:\s+(?:then|pula))?$/.test(normalized)
       || /^(?:那|那么)?(?:星期|周)[一二三四五六日天](?:呢)?$/.test(String(message || "").trim().replace(/[？?。.!！]/g, ""));
   }
 
-  window.EchoAI.ConversationContext = Object.freeze({ get, update, clear, referencesPrevious, isEllipticalFollowUp });
+  function isMoreFollowUp(message) {
+    const normalized = window.EchoAI.Normalizer.normalize(message);
+    return /^(?:more|what else|anything else|apa lagi|lagi)(?:\s+please)?$/.test(normalized)
+      || /^(?:还有呢|还有吗|还有什么|再说一点|更多)[？?。.!！]?$/.test(String(message || "").trim());
+  }
+
+  window.EchoAI.ConversationContext = Object.freeze({ get, update, markServed, clear, referencesPrevious, isEllipticalFollowUp, isMoreFollowUp });
 }());

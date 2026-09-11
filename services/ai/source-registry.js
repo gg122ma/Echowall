@@ -4,7 +4,13 @@
 
   const CANONICAL_EQUIVALENTS = Object.freeze({
     "service-library": "library",
+    "service-holiday": "serambi",
+    "service-parcel": "pos-mini",
+    "service-dorm-discipline": "blok-kediaman",
+    "service-bicycle": "bicycle-service",
   });
+
+  const NON_ENTITY_RECORDS = new Set(["course-info", "service-payment"]);
 
   function parseSource(source) {
     const value = String(source || "").trim();
@@ -30,7 +36,18 @@
 
   function getRecords(additionalRecords = []) {
     const documents = Array.isArray(window.KMK_KNOWLEDGE_BASE?.documents) ? window.KMK_KNOWLEDGE_BASE.documents : [];
-    return [...documents, ...additionalRecords].map(normalizeRecord).filter(record => record.canonicalId);
+    const phase3Entities = Array.isArray(window.KMK_AI_PHASE3?.entities)
+      ? window.KMK_AI_PHASE3.entities.map(entity => ({
+        ...entity,
+        canonicalId: entity.id,
+        source: "KMK AI Knowledge Specification Phase 2 Final",
+        dataStatus: "phase3-atomic-entity",
+        authority: window.EchoAI.Config.sourceAuthority.ownerSource,
+      }))
+      : [];
+    return [...documents, ...phase3Entities, ...additionalRecords]
+      .map(normalizeRecord)
+      .filter(record => record.canonicalId && !NON_ENTITY_RECORDS.has(record.canonicalId));
   }
 
   function getGrounding(record) {

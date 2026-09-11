@@ -1,5 +1,20 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-12 - KMK AI deterministic planning
+
+- Compared replacing the legacy knowledge base with adding an atomic authority
+  layer. The additive adapter was selected to preserve current consumers while
+  preventing L3 display data from overriding L1 truth.
+- Kept language/intent, resolver, context, provider, Map handoff, and UI modules;
+  inserted narrow knowledge, planning, and rendering boundaries instead of a
+  parallel assistant architecture.
+- Map actions carry a verified state and canonical target, reuse the existing
+  one-shot focus flow, and are omitted before rendering for hours/rules/service,
+  ambiguous, unmapped, disabled, conflict, and unsupported responses.
+- Follow-ups retain a compact set of served fact IDs/dimensions and prefer
+  unserved facts. Explicit entities still resolve before context reuse.
+- No runtime performance claim is made without browser measurement.
+
 ## 2026-09-11 - Echo Library filter popup consistency
 
 - Compared styling the native `<select>` with progressive enhancement over the

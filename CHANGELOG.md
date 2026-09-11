@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-09-12 - KMK AI PHASE 3 ATOMIC ANSWERS
+
+- Added an owner-source-aware atomic fact registry with L1/L3 authority,
+  effective dates, time-sensitive/review metadata, unresolved semantic
+  conflicts, descriptive/service aliases, and explicit Map states.
+- Added deterministic knowledge evaluation, Answer Planner, constrained answer
+  rendering, provider-output validation, and the schema-v3 response contract.
+  Ask Echo now answers before offering any action; hours/rules/services do not
+  force Map navigation.
+- Added the four approved Phase 2 entities while preserving a 58-entity
+  canonical inventory and keeping `data/kmk-knowledge-base.js` as a legacy
+  compatibility source.
+- Added `PARENT_ONLY` hostel routing, exact Astaka/Science Block aliases,
+  fail-closed Surau/Reading Room/Court/Pos Mini handling, and served-fact
+  tracking across EN/BM/ZH follow-ups.
+- All 23 test scripts pass, including campus AI 141/141 and Map actions
+  18/18. All 195 runtime JavaScript/modules pass syntax checks; Pages,
+  static, portable, and seed validation pass. Browser QA remains manual because
+  no browser backend was connected.
+
+Rollback: remove the Phase 3 data/engine/planner/renderer files and their
+script/build entries, then restore the prior source/place/context/Map/provider/
+response/index/assistant modules and focused tests. No database, Supabase,
+Cloudinary, Building, Home, Community, Study, or seeded-data rollback is needed.
+
 ## 2026-09-11 - ECHO LIBRARY CUSTOM FILTER DROPDOWNS
 
 - Replaced the browser/OS popup used by the Echo Library subject and search

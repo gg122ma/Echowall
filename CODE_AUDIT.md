@@ -1,5 +1,29 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-12 - KMK AI PHASE 3 SOURCE AND ACTION BOUNDARY
+
+- The owner-approved Knowledge and Response Structure specifications were read
+  in full. Knowledge truth remains deterministic; the renderer receives only
+  planner-selected atomic facts.
+- Authority/effective-date evaluation excludes expired/future facts from
+  current retrieval. Equal-authority explicit Cafe Admin facts form one
+  unresolved semantic conflict; lower-authority legacy schedules do not win.
+- The Map state matrix is fail-closed. Only `EXACT` and `PARENT_ONLY` entities
+  can create actions, the latter only to its verified parent target. Validation
+  re-resolves the canonical entity and rejects changed state/ID pairs.
+- The public response contract exposes answer mode, selected facts, resolution,
+  context, conflicts, and actions separately. The existing assistant appends
+  the action button after the answer paragraph.
+- Compatibility records are collapsed into canonical entities, non-place
+  course/payment guides are excluded from the place inventory, and the four
+  Phase 2 entities produce an exact canonical count of 58 without deleting the
+  legacy knowledge file.
+- Automated evidence is 23/23 test scripts, including 141/141 AI assertions and
+  18/18 Map-action assertions; 195/195 runtime syntax checks; and passing Pages,
+  static, portable, and seed validators. Browser results remain unclaimed
+  because no browser backend was connected; no result is inferred from unit
+  tests.
+
 ## 2026-09-11 - STUDY CUSTOM DROPDOWN REVIEW
 
 - Both production-facing Study filter surfaces were traced: the Subject page

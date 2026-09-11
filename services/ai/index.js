@@ -146,88 +146,112 @@
       resolvedPlaces: base.places || [],
       grounding: base.grounding || [],
       conflicts: base.conflicts || [],
+      facts: base.facts || [],
+      answerPlan: base.answerPlan || { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false },
+      resolution: base.resolution || null,
+      context: base.context || null,
       actions: base.actions || [],
       error: base.error || null,
+    });
+  }
+
+  function atomicGrounding(facts) {
+    return (facts || []).flatMap(fact => (fact.provenance || []).map(ref => Object.freeze({
+      recordId: fact.entityId || "kmk-atomic-fact",
+      factId: fact.factId || "",
+      authority: ref.authority === "L1" ? 1 : ref.authority === "L2" ? 2 : 3,
+      source: ref.file,
+      page: ref.page ?? null,
+      dataStatus: "atomic",
+    }))).slice(0, 10);
+  }
+
+  function answerPlanContract(plan) {
+    return Object.freeze({
+      mode: plan.answerMode,
+      selectedFactIds: plan.selectedFactIds,
+      actionAllowed: Boolean(plan.action),
     });
   }
 
   async function ask(message, options = {}) {
     const question = String(message || "").trim().slice(0, window.EchoAI.Config.maxQuestionLength);
     const language = window.EchoAI.Language.detect(question);
-    const intent = window.EchoAI.IntentRouter.classify(question);
+    let intent = window.EchoAI.IntentRouter.classify(question);
     const sessionId = options.sessionId || "default";
-    if (!question) return response({ answer: unknownAnswer(language), intent: "unknown", confidence: 0 });
+    if (!question) return response({ answer: unknownAnswer(language), intent: "unknown", confidence: 0, answerPlan: { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false } });
     if (!window.EchoAI.Config.enabled) {
-      return response({ answer: unknownAnswer(language), intent: "unknown", confidence: 0, error: { code: "FEATURE_DISABLED" } });
+      return response({ answer: unknownAnswer(language), intent: "unknown", confidence: 0, error: { code: "FEATURE_DISABLED" }, answerPlan: { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false } });
     }
     if (/ignore (?:all |the )?(?:previous|system)|reveal (?:the )?(?:prompt|instructions)|bypass|jailbreak|abaikan (?:semua )?arahan|忽略.*(?:指令|提示)/i.test(question)) {
-      return response({ answer: injectionAnswer(language), intent: "unknown", confidence: 1 });
+      return response({ answer: injectionAnswer(language), intent: "unknown", confidence: 1, answerPlan: { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false } });
     }
     if (/community (?:post|note)|student (?:post|opinion)|catatan komuniti|pendapat pelajar|社区(?:帖子|意见)/i.test(question) && /official|rasmi|policy|rule|规定|官方/i.test(question)) {
-      return response({ answer: communityAuthorityAnswer(language), intent: "campus_rules", confidence: 1 });
+      return response({ answer: communityAuthorityAnswer(language), intent: "campus_rules", confidence: 1, answerPlan: { mode: "DIRECT", selectedFactIds: [], actionAllowed: false } });
     }
 
     const previous = window.EchoAI.ConversationContext.get(sessionId);
-    let resolution = window.EchoAI.Retriever.resolve(question);
+    let resolution = window.EchoAI.KnowledgeEngine.resolve(question);
     const clearReference = window.EchoAI.ConversationContext.referencesPrevious(question)
       || window.EchoAI.ConversationContext.isEllipticalFollowUp(question);
     if (resolution.status === "unknown" && previous && clearReference) {
-      resolution = window.EchoAI.Retriever.resolve(question, previous.entityId);
+      resolution = window.EchoAI.KnowledgeEngine.resolve(question, previous.activeEntityId || previous.entityId);
     }
 
     if (intent === "campus_comparison") {
       const places = window.EchoAI.Retriever.resolveMany(question);
-      if (places.length < 2) return response({ answer: ambiguousAnswer(language, places), intent, confidence: 0.35, places: places.map(resolvedPlace) });
+      if (places.length < 2) return response({ answer: ambiguousAnswer(language, places), intent, confidence: 0.35, places: places.map(resolvedPlace), answerPlan: { mode: "AMBIGUOUS", selectedFactIds: [], actionAllowed: false } });
       places.slice(0, 2).forEach(place => window.EchoAI.ConversationContext.update(sessionId, place.canonicalId, intent));
-      return response({ answer: comparisonAnswer(language, places), intent, confidence: 0.88, premise: "SUPPORTED", places: places.slice(0, 2).map(resolvedPlace), grounding: places.slice(0, 2).flatMap(grounding) });
-    }
-
-    if (resolution.status === "ambiguous") {
-      return response({ answer: ambiguousAnswer(language, resolution.candidates), intent, confidence: resolution.confidence, premise: "AMBIGUOUS", places: resolution.candidates.map(resolvedPlace) });
+      return response({ answer: comparisonAnswer(language, places), intent, confidence: 0.88, premise: "SUPPORTED", places: places.slice(0, 2).map(resolvedPlace), grounding: places.slice(0, 2).flatMap(grounding), answerPlan: { mode: "COMPARISON", selectedFactIds: [], actionAllowed: false } });
     }
 
     const place = resolution.place;
-    if (!place) {
-      if (intent === "general") {
-        window.EchoAI.ConversationContext.clear(sessionId);
-        const provider = await window.EchoAI.ProviderAdapter.sendGeneral(question);
-        if (provider.status === "ok") return response({ answer: provider.answer, intent, confidence: 0.55 });
-        return response({
-          answer: language === "ms" ? "Saya boleh membantu dengan tempat, waktu, peraturan dan perkhidmatan kampus KMK."
-            : language === "zh" ? "我可以协助查询 KMK 校园地点、时间、规定和服务。"
-              : "I can help with KMK campus places, hours, rules, and services.",
-          intent,
-          confidence: 0.5,
-          error: provider.error,
-        });
+    if (resolution.status === "dining") intent = "campus_services";
+    else if (place && intent === "general") intent = window.EchoAI.ConversationContext.isMoreFollowUp(question) && previous
+      ? previous.activeIntent || previous.intent || "campus_info"
+      : "campus_info";
+    if (place && intent === "campus_nearby") {
+      const contextState = window.EchoAI.ConversationContext.update(sessionId, place.canonicalId, intent);
+      return response({
+        answer: nearbyAnswer(language, place), intent, confidence: resolution.confidence || 0.8, premise: "SUPPORTED",
+        places: [resolvedPlace(place)], grounding: grounding(place), context: contextState,
+        answerPlan: { mode: "DIRECT", selectedFactIds: [], actionAllowed: false },
+      });
+    }
+    const premise = place ? window.EchoAI.PremiseChecker.check(question, place, []) : { status: "UNKNOWN", day: "" };
+    let plan = window.EchoAI.AnswerPlanner.plan({ question, language, intent, resolution, previous, premise, asOf: options.asOf });
+    let answer = window.EchoAI.AnswerRenderer.render(plan, language, { day: premise.day });
+    if (place && plan.answerMode === "UNSUPPORTED" && plan.content.primary === "UNSUPPORTED_ENTITY_FACT") {
+      const legacyAnswer = intent === "campus_location" || intent === "campus_navigation" ? locationAnswer(language, place)
+        : intent === "campus_rules" || intent === "campus_services" ? detailsAnswer(language, place, intent)
+          : detailsAnswer(language, place, "campus_info");
+      if (legacyAnswer && legacyAnswer !== unknownAnswer(language)) {
+        const legacyAction = window.EchoAI.IntentRouter.requestsMapAction(intent) ? window.EchoAI.MapAction.create(place, language) : null;
+        plan = Object.freeze({ ...plan, answerMode: "DIRECT", action: legacyAction, premise: "SUPPORTED" });
+        answer = legacyAnswer;
       }
-      window.EchoAI.ConversationContext.clear(sessionId);
-      return response({ answer: unknownAnswer(language), intent, confidence: 0.1, premise: "UNKNOWN" });
     }
+    let contextState = previous;
+    if (place && plan.answerMode !== "UNSUPPORTED") contextState = window.EchoAI.ConversationContext.markServed(sessionId, place.canonicalId, intent, plan.facts);
+    else if (!place && resolution.status !== "dining" && resolution.status !== "ambiguous") window.EchoAI.ConversationContext.clear(sessionId);
 
-    const conflicts = window.EchoAI.ConflictDetector.detect(place.sourceRecords || []).filter(item => item.status === "UNRESOLVED");
-    if (conflicts.length) {
-      return response({ answer: conflictAnswer(language, place), intent, confidence: 0.2, premise: "AMBIGUOUS", places: [resolvedPlace(place)], grounding: grounding(place), conflicts });
-    }
-
-    window.EchoAI.ConversationContext.update(sessionId, place.canonicalId, intent);
-    const premise = window.EchoAI.PremiseChecker.check(question, place, conflicts);
-    let answer;
-    if (intent === "campus_hours") answer = hoursAnswer(language, place, premise.day, premise.status);
-    else if (intent === "campus_location" || intent === "campus_navigation") answer = locationAnswer(language, place);
-    else if (intent === "campus_nearby") answer = nearbyAnswer(language, place);
-    else if (intent === "campus_rules" || intent === "campus_services") answer = detailsAnswer(language, place, intent);
-    else answer = detailsAnswer(language, place, "campus_info");
-
-    const action = window.EchoAI.IntentRouter.requestsMapAction(intent) ? window.EchoAI.MapAction.create(place) : null;
+    const answerPremise = plan.answerMode === "CORRECTION" ? "CONTRADICTED"
+      : plan.answerMode === "CONFLICT" || plan.answerMode === "AMBIGUOUS" ? "AMBIGUOUS"
+        : plan.answerMode === "UNSUPPORTED" ? "UNKNOWN" : "SUPPORTED";
     return response({
       answer,
       intent,
-      confidence: Math.min(resolution.confidence, premise.status === "CONTRADICTED" ? 0.96 : 0.98),
-      premise: premise.status,
-      places: [resolvedPlace(place)],
-      grounding: grounding(place),
-      actions: action ? [action] : [],
+      confidence: resolution.confidence || (place ? 0.9 : 0.2),
+      premise: answerPremise,
+      places: place ? [Object.freeze({ ...resolvedPlace(place), mapState: place.mapState || "UNMAPPED", parentTitle: place.parentTitle || "" })]
+        : (resolution.candidates || []).filter(candidate => candidate && typeof candidate === "object").map(resolvedPlace),
+      grounding: atomicGrounding(plan.facts),
+      conflicts: plan.conflicts,
+      facts: plan.facts,
+      answerPlan: answerPlanContract(plan),
+      resolution: place ? { entityId: place.canonicalId, canonicalName: title(place), resolutionType: place.mapState || resolution.resolutionType || "UNMAPPED", confidence: resolution.confidence >= 0.95 ? "high" : resolution.confidence >= 0.7 ? "medium" : "low" } : null,
+      context: contextState,
+      actions: plan.action ? [plan.action] : [],
     });
   }
 

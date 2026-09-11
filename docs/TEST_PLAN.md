@@ -10,7 +10,7 @@
 - HTTP 200 smoke check for `index.html` and `map.html`.
 - `node scripts/validate-static.mjs` for duplicate IDs, local assets, and CSS
   structure.
-- `node scripts/test-campus-ai.mjs` (minimum 30 cases; current suite: 73).
+- `node scripts/test-campus-ai.mjs` (minimum 90 meaningful assertions; current suite: 141).
 - `node scripts/test-ai-map-actions.mjs`.
 - `node scripts/test-photo-pipeline.mjs`.
 - `node scripts/test-auth-verification.mjs`.

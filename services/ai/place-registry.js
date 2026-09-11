@@ -12,6 +12,8 @@
     "cafe-c": "B_KAFETERIA_C",
     "dewan-kuliah": "B_DEWAN_KULIAH",
     masjid: "B_MASJID",
+    astaka: "B_ASTAKA",
+    "blok-tutorial-makmal-sains": "B_BLOK_TUTORAN_MAKMAL",
   });
 
   const EXTRA_ALIASES = Object.freeze({
@@ -54,6 +56,10 @@
     return groups;
   }
 
+  function phase3Profile(canonicalId) {
+    return (window.KMK_AI_PHASE3?.entities || []).find(entity => entity.id === canonicalId) || null;
+  }
+
   function getPlaces() {
     const buildings = Array.isArray(window.CAMPUS_BUILDINGS) ? window.CAMPUS_BUILDINGS : [];
     const buildingById = new Map(buildings.map(building => [building.id, building]));
@@ -63,11 +69,13 @@
     groupedKnowledgeRecords().forEach((records, canonicalId) => {
       const sorted = [...records].sort((a, b) => a.authority - b.authority);
       const primary = sorted[0];
-      const requestedBuildingId = primary.buildingId || BUILDING_LINKS[canonicalId] || "";
+      const profile = phase3Profile(canonicalId);
+      const requestedBuildingId = profile?.buildingId || primary.buildingId || BUILDING_LINKS[canonicalId] || "";
       const building = buildingById.get(requestedBuildingId) || null;
       const buildingId = building?.id || "";
       if (building) usedBuildings.add(building.id);
       const aliases = unique([
+        ...(profile?.aliases || []),
         primary.title,
         primary.id,
         ...records.flatMap(record => record.aliases || []),
@@ -77,10 +85,12 @@
       ]);
       places.push(Object.freeze({
         ...primary,
+        ...(profile || {}),
         canonicalId,
         buildingId,
         building,
         aliases: Object.freeze(aliases),
+        mapState: profile?.mapState || (buildingId ? "EXACT" : "UNMAPPED"),
         schedule: SCHEDULES[canonicalId] || null,
         sourceRecords: Object.freeze(records),
       }));
@@ -105,6 +115,7 @@
         authority: window.EchoAI.Config.sourceAuthority.mapData,
         sourceRecords: Object.freeze([]),
         schedule: null,
+        mapState: "EXACT",
       }));
     });
     return places;
@@ -115,6 +126,7 @@
   }
 
   function hasMapTarget(place) {
+    if (!place || !["EXACT", "PARENT_ONLY"].includes(place.mapState || "EXACT")) return false;
     const latitude = Number(place?.building?.mapTarget?.lat);
     const longitude = Number(place?.building?.mapTarget?.lng);
     return Boolean(place?.buildingId) && Number.isFinite(latitude) && Number.isFinite(longitude)
@@ -140,5 +152,9 @@
     return getNearbyDetails(place).places;
   }
 
-  window.EchoAI.PlaceRegistry = Object.freeze({ getPlaces, getById, hasMapTarget, getNearby, getNearbyDetails });
+  function getMasterEntityCount() {
+    return getPlaces().length;
+  }
+
+  window.EchoAI.PlaceRegistry = Object.freeze({ getPlaces, getById, hasMapTarget, getNearby, getNearbyDetails, getMasterEntityCount });
 }());

@@ -1,3 +1,38 @@
+# KMK AI PHASE 3 HANDOFF (2026-09-12)
+
+Status: **IMPLEMENTED; ALL LOCAL GATES PASS; BROWSER QA MANUAL**.
+
+Ask Echo now uses `data/kmk-ai-phase3-knowledge.js` as an additive atomic
+knowledge layer above the retained legacy knowledge base. Deterministic code
+owns authority, dates, conflict state, selected fact IDs, canonical entities,
+Map state/target, and action validity. `knowledge-engine.js` evaluates facts;
+`answer-planner.js` selects a response mode/facts/action; `answer-renderer.js`
+produces concise EN/BM/ZH wording; `response-validator.js` emits schema v3 and
+revalidates the action boundary. Provider output cannot supply actions or
+unselected facts, remove conflicts, expose arbitrary `B_*` IDs, or sharpen an
+approximate fact.
+
+The canonical entity count is 58. The four new source-backed concepts are
+hostel laundry/Dobby, hostel Study Room, hostel Iron Room, and Stor Sukan.
+Library and KOOP use current L1 schedules; the expired April-May 2026 Library
+exception cannot win. Cafe Admin remains an unresolved L1/L1 conflict.
+Basketball has no verified hours. Pavilion aliases Astaka; Surau is not Masjid;
+Resource Centre and Pos Mini are information-only; Reading Room/Court A/C are
+disabled; A1/A2, B1/B2, and C2 navigate only to verified parent areas.
+
+Automated evidence: all 23 test scripts pass, including
+`scripts/test-campus-ai.mjs` 141/141 and
+`scripts/test-ai-map-actions.mjs` 18/18; 195 runtime JavaScript/module files
+pass syntax checks; Pages build/artifact, static, portable, and both seed
+validators pass. No browser backend was connected, so desktop/mobile rendering,
+Map focus/back interaction, and console QA remain manual. No UI redesign, Building schedule
+mutation, database write, Supabase mutation, Cloudinary mutation, or seeded
+content was introduced.
+
+Rollback: revert the Phase 3 files and loader/build/test entries listed in the
+matching Changelog entry. The change is frontend-only and needs no data
+rollback.
+
 # STUDY CUSTOM DROPDOWN HANDOFF (2026-09-11)
 
 Status: **LOCAL GATES PASS; INTERACTIVE BROWSER QA MANUAL**.

@@ -42,7 +42,7 @@
   function displayAction(action) {
     if (!window.EchoAI?.MapAction?.validate?.(action)) return null;
     return {
-      label: t("assistant.openMap", "Open Echo Map"),
+      label: action.label || t("assistant.openMap", "Show on Echo Map"),
       onClick: () => window.EchoAI.MapAction.execute(action),
     };
   }
