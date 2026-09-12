@@ -488,6 +488,16 @@
   }
 
   /**
+   * Send a caller-supplied OpenAI-compatible messages array straight to the
+   * configured model with no retrieval/boundary logic of its own. Used only
+   * by callers (e.g. the campus fact-locked renderer) that already built
+   * their own constrained prompt and validate the raw text themselves.
+   */
+  async function sendStructuredPrompt(messages) {
+    return callOpenRouter(messages);
+  }
+
+  /**
    * Expose the adapter on the global scope.
    */
   window.FreeAIAdapter = {
@@ -496,5 +506,6 @@
     sendMessage,
     retrieveDocuments,
     checkBoundaries,
+    sendStructuredPrompt,
   };
 })();

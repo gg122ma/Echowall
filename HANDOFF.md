@@ -1,3 +1,201 @@
+# KMK AI PHASE 4 FACT-LOCKED RENDERING HANDOFF (2026-09-12)
+
+Status: **IMPLEMENTED; ALL LOCAL GATES PASS; BROWSER QA PERFORMED (see below)**.
+
+Starting `origin/main` SHA: `8fbc1207df3caae3b9e36ba043949173459f32c1` (branch
+`feature/kmk-ai-phase4-fact-locked-rendering`, created off that commit with no
+prior Phase 4 implementation — this session is the first Phase 4 work).
+
+## What Phase 4 is
+
+Phase 3's route is `KnowledgeEngine -> AnswerPlanner -> AnswerRenderer ->
+ResponseValidator`, fully deterministic; `ProviderAdapter` existed only as an
+inert future boundary (`validateCampusOutput`, `sendGeneral`), never called
+for campus answers. Phase 4 adds exactly one new narrow module,
+`services/ai/fact-locked-renderer.js`, between `AnswerPlanner` and the
+visible answer, and wires it into `services/ai/index.js` in place of the old
+direct `AnswerRenderer.render()` call. The LLM provider is now reachable for
+campus answers, but only as an optional connective-language chooser over
+pre-approved clauses — never as a fact source.
+
+## The fact-lock mechanism (why semantic drift is impossible, not just screened)
+
+1. `FactLockedRenderer.isEligible(plan)` allows only `DIRECT`, `FOLLOW_UP`,
+   `CORRECTION`, and `PARTIAL` plans whose `content.primary === "FACTS"` and
+   `facts.length > 0`. Every other mode — `CONFLICT`, `AMBIGUOUS`,
+   `COMPARISON`, `UNSUPPORTED`, discovery/category (`DINING_DISCOVERY`,
+   `SPORTS_DISCOVERY`, `DINING_OPTIONS`), no-fact `PARTIAL`
+   (`PARENT_ONLY`, `P5_UNMAPPED`), and `FOLLOW_UP` exhaustion
+   (`FACTS_EXHAUSTED`) — is never eligible and renders exactly as in Phase 3.
+2. `buildClausePlan()` builds the **exact same sentences** the old
+   `AnswerRenderer.render()` already produced (same `factText()` calls, same
+   correction-prefix, same Map-caveat sentence, same 3-clause cap) and
+   freezes each one as an opaque `{ clauseId, factId, exactText }` — the
+   clause text is fixed before any provider is ever consulted, so the
+   provider never sees a "blank" to fill with free text.
+3. The provider (`ProviderAdapter.renderCampusSequence`, which calls
+   `FreeAIAdapter.sendStructuredPrompt`, a new one-line additive wrapper
+   around the adapter's existing `callOpenRouter`) is asked only to return a
+   JSON `sequence` referencing clause IDs plus a transition ID
+   (`NONE`/`ALSO`/`AND`) between each pair. `validateSequence()` accepts the
+   response only if: `answerMode` and `language` are echoed back unchanged;
+   `sequence.length === clauses.length * 2 - 1`; every even-indexed entry is
+   `{type:"clause", id: <the exact expected clause id in order>}` (no
+   reordering, dropping, duplicating, or inventing a clause is possible —
+   the expected ID at each position is fixed by the plan, not by the
+   provider); every odd-indexed entry is `{type:"transition", id: <one of
+   the 3 allowed ids>}`; and there is no `actions` field. Anything else is
+   rejected.
+4. `assembleFromSequence()` builds the final string **only** from
+   `clausePlan.clauses[i].exactText` and a fixed per-language transition
+   string table — it never reads any text field from the provider's
+   response. A test proves this directly: a payload with an injected
+   `sequence[0].text = "FABRICATED UNSUPPORTED FACT"` is accepted (the
+   sequence shape is otherwise valid) but the fabricated text never appears
+   in the assembled answer.
+5. Net effect: the provider's only real degree of freedom is choosing among
+   3 fixed, factless connector strings at each gap between pre-approved
+   clauses. It cannot rewrite a fact, invent one, drop the Cafe Admin
+   conflict wording (CONFLICT mode is never eligible in the first place),
+   sharpen an approximate hour, or leak a `B_*` Map ID in free text, because
+   no free text from the provider is ever read.
+
+## Provider-enabled vs. deterministic-only modes
+
+- **Provider-eligible** (may reach `ProviderAdapter.renderCampusSequence`
+  when both gates below are open): `DIRECT`, `FOLLOW_UP`, `CORRECTION`, and
+  fact-bearing `PARTIAL` (e.g. `DIY Laundry` → hostel-laundry, `AMBIGUOUS`
+  map state, real identity/service/fee facts).
+- **Always deterministic** (never call the provider): `CONFLICT` (Cafe
+  Admin hours), `AMBIGUOUS`/`COMPARISON`, discovery/category answers,
+  `UNSUPPORTED` (Basketball hours, Surau, Reading Room, Court A/C, generic
+  unknown places — including the legacy `UNSUPPORTED_ENTITY_FACT` →
+  `detailsAnswer()`/`locationAnswer()` override in `index.js`, which is
+  untouched), and no-fact `PARTIAL` (`PARENT_ONLY` hostel blocks A1/A2,
+  B1/B2, C2; `P5_UNMAPPED`).
+
+## Fallback mechanism
+
+`FactLockedRenderer.render(plan, language, options)` always computes the
+deterministic `AnswerRenderer.render()` text first. It returns that
+unchanged text whenever: the plan isn't eligible; the config flag
+`EchoAI.Config.campusProviderRenderingEnabled` is off (`EchoConfig.freeAI
+.campusRendering === false`); `FreeAIAdapter.isAIModelEnabled()` is false
+(true today in production — no OpenRouter token is configured); the
+provider call throws or times out; the response is not parseable JSON;
+`validateSequence()` rejects it for any reason (see above); or the
+assembled text somehow comes out empty. Only a fully validated sequence
+replaces the deterministic text — and even then only the fixed clause text
+plus fixed transition strings, never provider prose.
+
+## Observability (internal only — never shown to students)
+
+`render()` returns `{ text, route }` where `route` is `"deterministic"`
+(not attempted, or config/adapter unavailable), `"provider_rejected_fallback"`
+(a call was made but rejected/failed), or `"provider_accepted"`. This is
+read only by module-level tests calling `FactLockedRenderer.render()`/
+`buildClausePlan()`/`validateSequence()` directly; `CampusAI.ask()`'s public
+response schema (`ResponseValidator`) has no field for it and never exposes
+it, matching the "no internal labels in the UI" requirement.
+
+## Security boundaries preserved/added
+
+- Provider output can never carry an `actions` array (rejected outright),
+  never references an unselected fact (impossible — clause IDs are the only
+  handle, and they're fixed per plan), never contains free text of any kind
+  (never read), and can never smuggle a `B_*` Map ID (only 3 enum transition
+  IDs are ever accepted; a "transition" of `"B_FAKE"` is rejected as an
+  illegal structure, same as any other unknown ID).
+- `services/free-ai-adapter.js` gained exactly one new additive export,
+  `sendStructuredPrompt(messages)` (a thin wrapper reusing the file's
+  existing `callOpenRouter`) — `isConfigured`, `isAIModelEnabled`,
+  `sendMessage`, `retrieveDocuments`, and `checkBoundaries` are byte-for-byte
+  unchanged, so the general/non-campus RAG chat path is untouched.
+- No Supabase, auth, database, or seed-data changes of any kind.
+
+## Files changed
+
+```text
+services/ai/fact-locked-renderer.js   NEW — the fact-lock module (see above)
+services/ai/index.js                  awaits FactLockedRenderer.render() instead of AnswerRenderer.render()
+services/ai/provider-adapter.js       + buildCampusRenderingPrompt/renderCampusSequence (additive)
+services/ai/answer-renderer.js        extracted correctionPrefix/mapCaveatText as exports (no behavior change)
+services/ai/config.js                 + campusProviderRenderingEnabled (default on; EchoConfig.freeAI.campusRendering)
+services/free-ai-adapter.js           + sendStructuredPrompt (additive; all existing exports unchanged)
+index.html                            + <script src="services/ai/fact-locked-renderer.js"> (after provider-adapter.js, before index.js)
+scripts/build-pages.mjs               + services/ai/fact-locked-renderer.js in RUNTIME_FILES
+scripts/test-campus-ai.mjs            + services/ai/fact-locked-renderer.js in the VM load list (still 199/199)
+scripts/test-kmk-ai-phase4-fact-locked-rendering.mjs   NEW — 59 focused Phase 4 assertions
+CHANGELOG.md / HANDOFF.md / CODE_AUDIT.md / OPTIMIZATION_LOG.md   this documentation pass
+```
+
+## Tests run (exact results)
+
+- `node scripts/test-campus-ai.mjs` → **199/199 pass** (unchanged from before
+  Phase 4 — proves zero regression).
+- `node scripts/test-ai-map-actions.mjs` → **21/21 pass**.
+- `node scripts/test-kmk-ai-phase4-fact-locked-rendering.mjs` (new) →
+  **59/59 pass**.
+- All 25 `scripts/test-*.mjs` files run individually → **0 failures**.
+- Full repository syntax check (`node --check` over every top-level `.js`
+  plus everything under `config/data/i18n/services/features/scripts`) →
+  **pass**.
+- `node scripts/build-pages.mjs` → builds `dist/pages` (490 files); `node
+  scripts/validate-pages-artifact.mjs` → **PASS**; `node
+  scripts/test-production-url-lock.mjs` → **PASS**.
+- `node scripts/validate-static.mjs`, `node scripts/validate-portable-demo.mjs`,
+  `node scripts/validate-demo-seed-pustaka.mjs`, `node
+  scripts/validate-demo-seed-showcase.mjs` → all **PASS**.
+
+## Browser QA — performed (Chrome automation, `python -m http.server` on
+`localhost:8123`, provider left at its real default: no OpenRouter token, so
+every answer below is the deterministic route)
+
+- DIRECT: "Where is the library?" → correct answer + working "Show on Echo
+  Map" button; clicking it navigated to `map.html` and correctly focused the
+  Pustaka (Library) footprint with its info panel.
+- CORRECTION: "Library opens Friday at 8am, right?" → "No. It is closed on
+  Friday." (contradiction prefix intact).
+- CONFLICT: "When does Cafe Admin close?" → unresolved 3:00pm/4:00pm
+  conflict wording, no Map action.
+- UNSUPPORTED: "What time does basketball court close?" → "Verified current
+  hours for Basketball Court are unavailable."
+- Bahasa Melayu: "Kat mana Koop?" → correct KOOP answer + "Tunjukkan pada
+  Echo Map" button.
+- Chinese: "图书馆在哪里？" → correct answer + "在 Echo Map 显示" button.
+- Console: read after the full sequence above — **no errors or exceptions**.
+- Not performed: a live OpenRouter-backed `provider_accepted`/
+  `provider_rejected_fallback` run in an actual browser (production has no
+  token configured, so this path is exercised only by the automated test
+  suite's mocked `FreeAIAdapter`, which covers it exhaustively — disabled,
+  unavailable, timeout, throws, malformed, wrong mode/language, unknown/
+  duplicated/dropped clause, provider action, and valid EN/BM/ZH acceptance).
+
+## Known limitations
+
+- The provider path has never been exercised against the real OpenRouter API
+  (no token is configured anywhere in this repository); only the adapter
+  contract is tested, via a hand-rolled stub matching
+  `{isAIModelEnabled, sendStructuredPrompt}`.
+- The transition vocabulary is intentionally small (`NONE`/`ALSO`/`AND`, 3
+  languages) — sufficient to demonstrate the mechanism, not an exhaustive
+  style set. Widening it only means adding fixed, factless entries to
+  `TRANSITION_TEXT`/`ALLOWED_TRANSITION_IDS` in
+  `services/ai/fact-locked-renderer.js`; the validation contract does not
+  change.
+
+## Rollback
+
+Revert this handoff's five source files
+(`services/ai/index.js`, `services/ai/provider-adapter.js`,
+`services/ai/answer-renderer.js`, `services/ai/config.js`,
+`services/free-ai-adapter.js`) to their Phase 3 hunks, delete
+`services/ai/fact-locked-renderer.js`, remove its `<script>` tag from
+`index.html` and its entry from `scripts/build-pages.mjs`/
+`scripts/test-campus-ai.mjs`, and delete
+`scripts/test-kmk-ai-phase4-fact-locked-rendering.mjs`. No data, Supabase,
+or auth rollback is needed — nothing in that layer was touched.
+
 # KMK AI DISCOVERY ANSWER PRESENTATION HANDOFF (2026-09-12)
 
 Status: **TARGETED PRESENTATION HOTFIX; ALL LOCAL GATES PASS; BROWSER QA MANUAL**.

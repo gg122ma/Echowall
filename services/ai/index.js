@@ -221,7 +221,8 @@
     }
     const premise = place ? window.EchoAI.PremiseChecker.check(question, place, []) : { status: "UNKNOWN", day: "" };
     let plan = window.EchoAI.AnswerPlanner.plan({ question, language, intent, resolution, previous, premise, asOf: options.asOf });
-    let answer = window.EchoAI.AnswerRenderer.render(plan, language, { day: premise.day });
+    const rendered = await window.EchoAI.FactLockedRenderer.render(plan, language, { day: premise.day });
+    let answer = rendered.text;
     if (place && plan.answerMode === "UNSUPPORTED" && plan.content.primary === "UNSUPPORTED_ENTITY_FACT") {
       const legacyAnswer = intent === "campus_location" || intent === "campus_navigation" ? locationAnswer(language, place)
         : intent === "campus_rules" || intent === "campus_services" ? detailsAnswer(language, place, intent)

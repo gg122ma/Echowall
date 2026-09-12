@@ -34,6 +34,31 @@
     return Object.freeze({ valid: true, answer: payload.answer.trim().slice(0, 2000) });
   }
 
+  function buildCampusRenderingPrompt(clausePlan) {
+    const instructions = "You render connective language for a campus assistant. You do not know and must not supply any campus facts. "
+      + "You are given fixed clauses (already exact and approved) and a fixed set of transition tokens. "
+      + 'Return ONLY compact JSON of the form {"answerMode":"...","language":"...","sequence":[{"type":"clause","id":"C1"},{"type":"transition","id":"NONE"},{"type":"clause","id":"C2"}]}. '
+      + "The sequence must list every given clause id exactly once, in the exact order given, with exactly one transition between each consecutive pair of clauses and no transition before the first or after the last clause. "
+      + `Each transition id must be one of: ${clausePlan.allowedTransitionIds.join(", ")}. `
+      + "Echo back the given answerMode and language unchanged. Never invent, omit, or reorder a clause id. Never include clause text, actions, or any other field.";
+    const payload = {
+      answerMode: clausePlan.answerMode,
+      language: clausePlan.language,
+      entityTitle: clausePlan.entityTitle,
+      clauses: clausePlan.clauses.map(clause => ({ id: clause.clauseId, text: clause.exactText })),
+      allowedTransitionIds: clausePlan.allowedTransitionIds,
+    };
+    return [
+      { role: "system", content: instructions },
+      { role: "user", content: JSON.stringify(payload) },
+    ];
+  }
+
+  async function renderCampusSequence(clausePlan) {
+    const messages = buildCampusRenderingPrompt(clausePlan);
+    return withTimeout(window.FreeAIAdapter.sendStructuredPrompt(messages), window.EchoAI.Config.providerTimeoutMs);
+  }
+
   async function sendGeneral(message) {
     if (!window.FreeAIAdapter?.isAIModelEnabled?.()) return Object.freeze({ status: "unavailable", answer: "" });
     try {
@@ -46,5 +71,5 @@
     }
   }
 
-  window.EchoAI.ProviderAdapter = Object.freeze({ sendGeneral, extractAnswer, validateCampusOutput });
+  window.EchoAI.ProviderAdapter = Object.freeze({ sendGeneral, extractAnswer, validateCampusOutput, renderCampusSequence });
 }());

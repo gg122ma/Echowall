@@ -1,5 +1,32 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-12 - KMK AI Phase 4 fact-lock: ID-only provider contract over free-text validation
+
+- Compared two designs for letting an optional provider touch campus
+  wording: (a) generalize the existing `ProviderAdapter.validateCampusOutput`
+  free-text validator with more regex/keyword screens (B_* pattern, conflict
+  keyword, approximation keyword, etc.), or (b) never let the provider
+  return free text at all — only an ordering of pre-approved, opaque clause
+  IDs plus a fixed transition-ID enum. Option (a) is an ever-growing
+  denylist that a sufficiently different phrasing can slip past; option (b)
+  has no phrasing to slip past, since no provider string is ever read into
+  the answer. Chose (b): `services/ai/fact-locked-renderer.js` builds the
+  deterministic clause text first and validates only structure (ID
+  membership, order, count), which is a fixed, closed check rather than an
+  open-ended content filter.
+- Reused the deterministic renderer's own sentence text as the clause
+  source (via two small extracted exports, `AnswerRenderer.correctionPrefix`
+  and `AnswerRenderer.mapCaveatText`) instead of re-deriving or duplicating
+  the EN/BM/ZH strings a second time in the new module.
+- No new dependency, network client, or UI surface was added;
+  `services/free-ai-adapter.js` gained a single one-line wrapper
+  (`sendStructuredPrompt`) around its existing `callOpenRouter`, reusing its
+  current timeout/error handling rather than writing a second HTTP client.
+- The provider path stays fully inert in production (no OpenRouter token
+  configured), so this is a zero-runtime-cost addition today: every campus
+  answer takes the same deterministic path measured in Phase 3 unless a
+  future deployment explicitly configures a token.
+
 ## 2026-09-12 - KMK AI intent-scoped conflict selection
 
 - Conflict evaluation now runs after the intent/type filter. Non-hours
