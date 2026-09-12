@@ -1,5 +1,19 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-12 - KMK AI DISCOVERY ANSWER PRESENTATION
+
+- Replaced only the deterministic `DINING_DISCOVERY` and `SPORTS_DISCOVERY`
+  public copy with concise EN/BM/ZH campus-guide language and natural choice
+  prompts.
+- Added existing category terms to Malay detection so public BM category
+  prompts do not fall back to English rendering.
+- Regression coverage blocks internal discovery leakage (`L1`, `L3`, atomic
+  fact, semantic key, approved records, source-status/Map-status exposition)
+  while retaining all existing routing, candidate, and no-action assertions.
+- No UI, Map policy, knowledge authority, or unrelated system changed. All 23
+  suites pass (campus AI 199/199; Map 21/21), with 195/195 runtime checks and
+  all release validators passing.
+
 ## 2026-09-12 - KMK AI CATEGORY DISCOVERY HOTFIX
 
 - Added one fail-closed discovery branch after high-confidence exact entity

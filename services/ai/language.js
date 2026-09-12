@@ -4,8 +4,9 @@
 
   const MALAY_WORDS = new Set([
     "apa", "bila", "boleh", "buka", "dekat", "dengan", "di", "hari", "jam",
-    "jumaat", "kalau", "kat", "mana", "paling", "peraturan", "pukul", "sabtu",
-    "saya", "tutup", "waktu", "yang",
+    "jumaat", "kafe", "kafeteria", "kalau", "kat", "kemudahan", "lapar", "makan",
+    "mana", "paling", "peraturan", "pukul", "sabtu", "saya", "sukan", "tempat",
+    "tunjukkan", "tutup", "waktu", "yang", "bersukan",
   ]);
 
   function detect(message) {

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-12 - KMK AI DISCOVERY ANSWER PRESENTATION
+
+- Reworded dining and sports discovery as concise student-facing guidance in
+  English, Bahasa Melayu, and Chinese. Normal discovery answers no longer
+  expose source-governance or internal Map-status terminology.
+- Added the approved dining/sports vocabulary to Malay language detection so
+  bare prompts such as `kemudahan sukan` render in Bahasa Melayu.
+- Preserved candidate selection, `AMBIGUOUS` planning, source authority, and
+  the no-automatic-Map rule. All 23 test scripts pass, including campus AI
+  199/199 and Map actions 21/21; Pages, static, portable, seed, and 195/195
+  runtime syntax checks pass.
+
 ## 2026-09-12 - KMK AI CATEGORY DISCOVERY HOTFIX
 
 - Added deterministic dining and sports discovery when no specific canonical

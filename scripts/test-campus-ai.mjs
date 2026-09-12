@@ -301,21 +301,38 @@ check("hungry utterance routes to campus dining instead of generic fallback", re
 check("dining answer does not fabricate live status or force a Map", /can.t verify live|cannot verify live/i.test(reply.answer) && reply.actions.length === 0);
 
 const genericUnsupported = /can.t verify that from the current KMK campus sources|tidak dapat mengesahkannya daripada sumber kampus KMK|current KMK campus sources/i;
+const internalDiscoveryLeakage = /\b(?:L1|L3|semanticKey|atomic fact|approved records?|approved sources?|supported status|partial status|verified sources?|provenance|current registry|knowledge layer)\b|rekod yang diluluskan|sumber yang diluluskan|status disokong|status separa|provenans|lapisan pengetahuan|sasaran tepat Echo Map belum disahkan|获批资料|已批准的资料|支持状态|部分状态|来源验证|原子事实|语义键|知识层|准确的 Echo Map 目标尚未核实/i;
+const discoveryAnswers = [];
 for (const question of ["Where is the cafeteria?", "cafeteria", "Where can I eat?"]) {
   reply = await ask(question);
+  discoveryAnswers.push(reply.answer);
   check(`${question} routes to dining discovery`, reply.intent === "campus_discovery" && reply.answerPlan.mode === "AMBIGUOUS" && !genericUnsupported.test(reply.answer));
   check(`${question} preserves all approved dining candidates without a Map action`, ["cafe-a", "cafe-b", "cafe-c", "cafe-admin"].every(id => hasPlace(reply, id)) && reply.actions.length === 0);
 }
+reply = await ask("Where is the cafeteria?");
+check("English dining discovery uses a natural choice prompt", /Which cafe would you like me to show\?/i.test(reply.answer) && !/source|records?|status/i.test(reply.answer));
 reply = await ask("Di mana kafeteria?");
+discoveryAnswers.push(reply.answer);
 check("Malay cafeteria query has dining discovery parity", reply.intent === "campus_discovery" && /Cafe A/.test(reply.answer) && /yang mana satu/i.test(reply.answer) && reply.actions.length === 0);
+check("Malay dining discovery uses student-facing wording", /Kafe yang mana satu anda mahu saya tunjukkan\?/i.test(reply.answer) && !internalDiscoveryLeakage.test(reply.answer));
 reply = await ask("\u54ea\u91cc\u53ef\u4ee5\u5403\u996d\uff1f");
-check("Chinese dining query has discovery parity", reply.intent === "campus_discovery" && /Cafe A/.test(reply.answer) && /Echo Map/.test(reply.answer) && reply.actions.length === 0);
+discoveryAnswers.push(reply.answer);
+check("Chinese dining query has discovery parity", reply.intent === "campus_discovery" && /Cafe A/.test(reply.answer) && /Cafe Admin/.test(reply.answer) && reply.actions.length === 0);
+check("Chinese dining discovery uses a natural choice prompt", /\u4f60\u60f3\u8ba9\u6211\u663e\u793a\u54ea\u4e00\u5bb6\uff1f/.test(reply.answer) && !internalDiscoveryLeakage.test(reply.answer));
 
 for (const question of ["Show sports facilities", "What sports facilities are there?", "kemudahan sukan", "\u4f53\u80b2\u8bbe\u65bd\u6709\u54ea\u4e9b\uff1f"]) {
   reply = await ask(question);
+  discoveryAnswers.push(reply.answer);
   check(`${question} routes to safe sports discovery`, reply.intent === "campus_discovery" && reply.answerPlan.mode === "AMBIGUOUS" && /Astaka/.test(reply.answer) && reply.actions.length === 0 && !genericUnsupported.test(reply.answer));
   check(`${question} excludes unsupported sports candidates`, !["court-a", "court-c", "gymnasium", "pool"].some(id => hasPlace(reply, id)) && !/Court A|Court C|Gymnasium|Pool/.test(reply.answer));
 }
+reply = await ask("Show sports facilities");
+check("English sports discovery is useful without Map-status exposition", /Astaka/.test(reply.answer) && /Basketball Court/.test(reply.answer) && /Stor Sukan/.test(reply.answer) && /Which one would you like to know more about\?/i.test(reply.answer) && !/current approved records|approved records support|exact Echo Map target is not verified/i.test(reply.answer));
+reply = await ask("kemudahan sukan");
+check("Malay sports discovery uses a natural follow-up", /Anda mahu tahu yang mana satu\?/i.test(reply.answer) && !internalDiscoveryLeakage.test(reply.answer));
+reply = await ask("\u4f53\u80b2\u8bbe\u65bd\u6709\u54ea\u4e9b\uff1f");
+check("Chinese sports discovery uses a natural follow-up", /\u4f60\u60f3\u4e86\u89e3\u54ea\u4e00\u4e2a\uff1f/.test(reply.answer) && !internalDiscoveryLeakage.test(reply.answer));
+check("standard discovery answers do not leak internal implementation or status terms", discoveryAnswers.every(answer => !internalDiscoveryLeakage.test(answer)));
 
 const discoverySession = "category-selection";
 await ask("Where is the cafeteria?", discoverySession);

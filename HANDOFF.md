@@ -1,3 +1,18 @@
+# KMK AI DISCOVERY ANSWER PRESENTATION HANDOFF (2026-09-12)
+
+Status: **TARGETED PRESENTATION HOTFIX; ALL LOCAL GATES PASS; BROWSER QA MANUAL**.
+
+Dining and sports discovery now use short student-facing EN/BM/ZH wording and
+natural choice prompts. Internal phrases such as approved records, atomic
+facts, semantic keys, and exact Map-target verification no longer appear in
+standard discovery responses. Malay category vocabulary now detects bare
+phrases such as `kemudahan sukan` correctly. No routing, candidate, knowledge,
+planner, Map, or UI behavior changed.
+
+All 23 test scripts pass, including campus AI 199/199 and Map actions 21/21;
+all 195 runtime source/artifact files pass syntax checks, and Pages, static,
+portable, and seed validators pass.
+
 # KMK AI CATEGORY DISCOVERY HOTFIX HANDOFF (2026-09-12)
 
 Status: **TARGETED HOTFIX IMPLEMENTED; ALL LOCAL GATES PASS; BROWSER QA MANUAL**.

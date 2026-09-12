@@ -77,7 +77,8 @@ synthetic locations or markers.
   return a concise, structured candidate list. The planner asks the user to
   choose and emits no Map action; an explicit follow-up place then uses the
   normal exact-entity path. Unsupported legacy candidates are not promoted by
-  category discovery.
+  category discovery. Public discovery wording leads with student needs and
+  does not expose internal source/status terminology.
 - English, Bahasa Melayu, and Chinese are detected from the latest meaningful
   message. Proper campus names remain canonical.
 - Aliases and conservative typo repair support names such as Pustaka,
@@ -103,5 +104,5 @@ offline/rate-limit responses, malformed JSON, invalid actions, and source
 conflicts are converted to safe structured responses. Stack traces, raw
 provider payloads, and credentials are never displayed.
 
-Focused regression coverage is in `scripts/test-campus-ai.mjs` (192 assertions) and
+Focused regression coverage is in `scripts/test-campus-ai.mjs` (199 assertions) and
 `scripts/test-ai-map-actions.mjs`.
