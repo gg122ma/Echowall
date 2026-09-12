@@ -207,6 +207,7 @@
 
     const place = resolution.place;
     if (resolution.status === "dining") intent = "campus_services";
+    else if (resolution.status === "discovery") intent = "campus_discovery";
     else if (place && intent === "general") intent = window.EchoAI.ConversationContext.isMoreFollowUp(question) && previous
       ? previous.activeIntent || previous.intent || "campus_info"
       : "campus_info";
@@ -233,7 +234,10 @@
     }
     let contextState = previous;
     if (place && plan.answerMode !== "UNSUPPORTED") contextState = window.EchoAI.ConversationContext.markServed(sessionId, place.canonicalId, intent, plan.facts);
-    else if (!place && resolution.status !== "dining" && resolution.status !== "ambiguous") window.EchoAI.ConversationContext.clear(sessionId);
+    else if (!place && ["dining", "discovery"].includes(resolution.status)) {
+      window.EchoAI.ConversationContext.clear(sessionId);
+      contextState = null;
+    } else if (!place && resolution.status !== "ambiguous") window.EchoAI.ConversationContext.clear(sessionId);
 
     const answerPremise = plan.answerMode === "CORRECTION" ? "CONTRADICTED"
       : plan.answerMode === "CONFLICT" || plan.answerMode === "AMBIGUOUS" ? "AMBIGUOUS"

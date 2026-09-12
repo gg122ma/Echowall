@@ -10,7 +10,7 @@
     supportedLanguages: Object.freeze(["en", "ms", "zh"]),
     supportedIntents: Object.freeze([
       "campus_info", "campus_hours", "campus_rules", "campus_services",
-      "campus_location", "campus_navigation", "campus_nearby",
+      "campus_location", "campus_navigation", "campus_nearby", "campus_discovery",
       "campus_comparison", "general", "unknown",
     ]),
   });

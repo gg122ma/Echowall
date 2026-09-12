@@ -92,13 +92,36 @@
     return new RegExp(`(?:^|\\s)${escaped}(?=$|\\s)`, "i").test(normalizedQuery);
   }
 
+  const DISCOVERY_CATEGORIES = Object.freeze({
+    dining: Object.freeze(["cafe-a", "cafe-b", "cafe-c", "cafe-admin"]),
+    sports: Object.freeze(["astaka", "basketball-court", "sports-equipment-store"]),
+  });
+
+  function discoveryCategory(message) {
+    const text = String(message || "");
+    const dining = /\b(?:cafeterias?|cafes?|dining|food|where (?:can|could) i eat|where to eat|places? to eat|kafeteria|kafe|tempat makan|mana boleh makan|makan)\b|食堂|餐厅|咖啡厅|哪里可以吃饭|哪(?:里|儿)能吃饭|吃东西/i;
+    if (dining.test(text)) return "dining";
+    const sports = /\b(?:sports?|sport facilities|sports facilities|places? to exercise|where (?:can|could) i (?:play sports|exercise)|kemudahan sukan|tempat sukan|bersukan|mana boleh bersukan)\b|体育设施|运动设施|哪里可以运动|运动场地/i;
+    return sports.test(text) ? "sports" : "";
+  }
+
+  function discoveryCandidates(category) {
+    const approvedIds = DISCOVERY_CATEGORIES[category] || [];
+    return approvedIds.map(getEntity).filter(place => place && place.status !== "UNSUPPORTED");
+  }
+
   function resolve(message, contextEntityId = "") {
     const normalized = window.EchoAI.Normalizer.normalize(message);
     const special = (window.KMK_AI_PHASE3?.specialEntities || []).find(entity => entity.aliases.some(alias => aliasMatches(normalized, alias)));
     if (special) return Object.freeze({ status: "resolved", place: entityFromDefinition(special), candidates: Object.freeze([]), confidence: 0.99, resolutionType: special.mapState });
-    const dining = /\b(?:i(?:'m| am)? hungry|hungry|food|eat|makan|lapar)\b|饿|吃饭|食物/i.test(String(message || ""));
-    if (dining) return Object.freeze({ status: "dining", place: null, candidates: Object.freeze(["cafe-a", "cafe-b", "cafe-c", "cafe-admin"].map(getEntity).filter(Boolean)), confidence: 0.94, resolutionType: "MULTIPLE" });
     const resolved = window.EchoAI.Retriever.resolve(message, contextEntityId);
+    if (resolved.status === "resolved" && resolved.confidence >= 0.95) {
+      return Object.freeze({ ...resolved, resolutionType: resolved.place?.mapState || "UNMAPPED" });
+    }
+    const diningNeed = /\b(?:i(?:'m| am)? hungry|hungry|saya lapar|lapar)\b|我饿了|饿了/i.test(String(message || ""));
+    if (diningNeed) return Object.freeze({ status: "dining", category: "dining", place: null, candidates: Object.freeze(discoveryCandidates("dining")), confidence: 0.94, resolutionType: "MULTIPLE" });
+    const category = discoveryCategory(message);
+    if (category) return Object.freeze({ status: "discovery", category, place: null, candidates: Object.freeze(discoveryCandidates(category)), confidence: 0.94, resolutionType: "MULTIPLE" });
     return Object.freeze({ ...resolved, resolutionType: resolved.place?.mapState || (resolved.status === "ambiguous" ? "AMBIGUOUS" : "UNMAPPED") });
   }
 
@@ -140,6 +163,7 @@
     detectConflicts,
     getEntity,
     getSpecialEntity,
+    discoveryCategory,
     resolve,
     selectFacts,
     validateInventory,

@@ -16,6 +16,17 @@
     const place = resolution.place;
     const isFollowUp = Boolean(previous && window.EchoAI.ConversationContext.isMoreFollowUp(question));
 
+    if (resolution.status === "discovery") return Object.freeze({
+      answerMode: "AMBIGUOUS", language, intent,
+      content: Object.freeze({ primary: resolution.category === "sports" ? "SPORTS_DISCOVERY" : "DINING_DISCOVERY", secondary: Object.freeze([]), caveat: "CHOOSE_CANDIDATE" }),
+      selectedFactIds: Object.freeze([]),
+      facts: Object.freeze([]),
+      conflicts: Object.freeze([]),
+      action: null,
+      place: null,
+      candidates: resolution.candidates,
+    });
+
     if (resolution.status === "dining") return Object.freeze({
       answerMode: "DIRECT", language, intent,
       content: Object.freeze({ primary: "DINING_OPTIONS", secondary: Object.freeze([]), caveat: "NO_LIVE_STATUS" }),

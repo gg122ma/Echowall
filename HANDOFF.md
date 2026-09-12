@@ -1,3 +1,22 @@
+# KMK AI CATEGORY DISCOVERY HOTFIX HANDOFF (2026-09-12)
+
+Status: **TARGETED HOTFIX IMPLEMENTED; ALL LOCAL GATES PASS; BROWSER QA MANUAL**.
+
+Ask Echo now distinguishes exact entities from deterministic category
+discovery. Generic cafeteria/eating prompts return the four approved cafe
+candidates; sports prompts return Astaka, Basketball Court, and the partial
+Stor Sukan service without promoting Court A, Court C, Gymnasium, or Pool.
+Multiple-candidate responses use `AMBIGUOUS`, emit no Map action, and clear
+stale entity context. A subsequent Cafe B or Astaka selection follows the
+existing exact-entity and safe Map-action path.
+
+The visible quick-prompt text and UI were not changed. All nine EN/BM/ZH
+rendered variants of the three public prompts are covered. All 23 test scripts
+pass, including campus AI 192/192 and Map actions 21/21; all 195 runtime
+source/artifact modules pass syntax checks, and Pages, static, portable, and
+seed validation pass. Interactive browser QA remains manual because no browser
+backend is available.
+
 # KMK AI PHASE 3 POST-DEPLOY CORRECTNESS HANDOFF (2026-09-12)
 
 Status: **TARGETED PATCH IMPLEMENTED; ALL LOCAL GATES PASS; BROWSER QA MANUAL**.

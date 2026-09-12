@@ -1,5 +1,21 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-12 - KMK AI CATEGORY DISCOVERY HOTFIX
+
+- Added one fail-closed discovery branch after high-confidence exact entity
+  resolution. Dining and sports candidate IDs are explicitly drawn from the
+  approved Phase 3 registry; legacy category tags cannot add candidates.
+- Dining discovery exposes Cafe A/B/C/Admin. Sports discovery exposes Astaka,
+  Basketball Court, and partial Stor Sukan information while excluding known
+  unsupported Court A/C, Gymnasium, and Pool candidates.
+- Category answers retain structured candidates, use the existing `AMBIGUOUS`
+  mode, and cannot create a Map action. Exact Cafe B and Astaka queries still
+  resolve through the existing deterministic entity/action path.
+- No UI, Building data, Home, Photo, Auth, Community, Study, Supabase,
+  Cloudinary, or production-data path changed. Automated evidence is 23/23
+  test scripts (campus AI 192/192; Map 21/21), 195/195 runtime checks, and
+  passing Pages/static/portable/seed validators.
+
 ## 2026-09-12 - KMK AI PHASE 3 POST-DEPLOY CORRECTNESS
 
 - Verified the deployed baseline and canonical Building registry before

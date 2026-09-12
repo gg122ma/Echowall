@@ -299,6 +299,42 @@ check("Cafe Admin conflict grounding retains each selected fact ID", reply.groun
 reply = await ask("I'm hungry");
 check("hungry utterance routes to campus dining instead of generic fallback", reply.intent === "campus_services" && /Cafe A/.test(reply.answer) && reply.answerPlan.mode === "DIRECT");
 check("dining answer does not fabricate live status or force a Map", /can.t verify live|cannot verify live/i.test(reply.answer) && reply.actions.length === 0);
+
+const genericUnsupported = /can.t verify that from the current KMK campus sources|tidak dapat mengesahkannya daripada sumber kampus KMK|current KMK campus sources/i;
+for (const question of ["Where is the cafeteria?", "cafeteria", "Where can I eat?"]) {
+  reply = await ask(question);
+  check(`${question} routes to dining discovery`, reply.intent === "campus_discovery" && reply.answerPlan.mode === "AMBIGUOUS" && !genericUnsupported.test(reply.answer));
+  check(`${question} preserves all approved dining candidates without a Map action`, ["cafe-a", "cafe-b", "cafe-c", "cafe-admin"].every(id => hasPlace(reply, id)) && reply.actions.length === 0);
+}
+reply = await ask("Di mana kafeteria?");
+check("Malay cafeteria query has dining discovery parity", reply.intent === "campus_discovery" && /Cafe A/.test(reply.answer) && /yang mana satu/i.test(reply.answer) && reply.actions.length === 0);
+reply = await ask("\u54ea\u91cc\u53ef\u4ee5\u5403\u996d\uff1f");
+check("Chinese dining query has discovery parity", reply.intent === "campus_discovery" && /Cafe A/.test(reply.answer) && /Echo Map/.test(reply.answer) && reply.actions.length === 0);
+
+for (const question of ["Show sports facilities", "What sports facilities are there?", "kemudahan sukan", "\u4f53\u80b2\u8bbe\u65bd\u6709\u54ea\u4e9b\uff1f"]) {
+  reply = await ask(question);
+  check(`${question} routes to safe sports discovery`, reply.intent === "campus_discovery" && reply.answerPlan.mode === "AMBIGUOUS" && /Astaka/.test(reply.answer) && reply.actions.length === 0 && !genericUnsupported.test(reply.answer));
+  check(`${question} excludes unsupported sports candidates`, !["court-a", "court-c", "gymnasium", "pool"].some(id => hasPlace(reply, id)) && !/Court A|Court C|Gymnasium|Pool/.test(reply.answer));
+}
+
+const discoverySession = "category-selection";
+await ask("Where is the cafeteria?", discoverySession);
+reply = await ask("Cafe B", discoverySession);
+check("specific Cafe B selection overrides dining discovery", hasPlace(reply, "cafe-b") && reply.actions[0]?.buildingId === "B_KAFETERIA_B" && reply.actions[0]?.targetType === "EXACT");
+reply = await ask("Where is it?", discoverySession);
+check("Cafe B becomes the active refer-back after category selection", hasPlace(reply, "cafe-b") && reply.context?.activeEntityId === "cafe-b" && reply.actions[0]?.buildingId === "B_KAFETERIA_B");
+reply = await ask("Where is Astaka?");
+check("explicit Astaka overrides sports category routing", reply.intent === "campus_location" && hasPlace(reply, "astaka") && reply.actions[0]?.buildingId === "B_ASTAKA");
+
+const assistantQuickPromptDefaults = [...read("services/ai-assistant.js").matchAll(/t\("assistant\.prompt(?:Library|Sports|Cafeteria)",\s*"([^"]+)"\)/g)].map(match => match[1].trim());
+const localizedQuickPrompts = ["i18n/locales/ms.js", "i18n/locales/zh.js"].flatMap(file => [...read(file).matchAll(/'assistant\.prompt(?:Library|Sports|Cafeteria)'\s*:\s*'([^']+)'/g)].map(match => match[1].trim()));
+const publicQuickPrompts = [...assistantQuickPromptDefaults, ...localizedQuickPrompts];
+check("all three built-in Ask Echo prompts exist in every public locale", publicQuickPrompts.length === 9);
+for (const [index, question] of publicQuickPrompts.entries()) {
+  reply = await ask(question, `quick-prompt-${index}`);
+  check(`public quick prompt ${index + 1} avoids generic unsupported`, reply.answerPlan.mode !== "UNSUPPORTED" && !genericUnsupported.test(reply.answer));
+}
+
 reply = await ask("Where can I wash my clothes?");
 check("laundry intent resolves the source-backed Dobby concept", hasPlace(reply, "hostel-laundry") && /Dobby|washing machines/i.test(reply.answer));
 check("ambiguous hostel laundry has no invented Map action", reply.resolvedPlaces[0]?.mapState === "AMBIGUOUS" && reply.actions.length === 0);

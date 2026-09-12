@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-09-12 - KMK AI CATEGORY DISCOVERY HOTFIX
+
+- Added deterministic dining and sports discovery when no specific canonical
+  entity is named. Generic cafeteria/eating queries return Cafe A, Cafe B,
+  Cafe C, and Cafe Admin; sports discovery returns only the approved Astaka,
+  Basketball Court, and partial Stor Sukan options.
+- Multiple-candidate results use the existing `AMBIGUOUS` Answer Planner mode
+  and never emit an arbitrary Map action. A subsequent specific choice, such
+  as Cafe B, resolves normally and becomes the active conversation entity.
+- Exact entities continue to take precedence, and known unsupported Court A,
+  Court C, Gymnasium, and Pool records remain excluded from sports discovery.
+- All nine rendered EN/BM/ZH variants of the three public Ask Echo quick
+  prompts are regression-tested against generic unsupported fallback. All 23
+  test scripts pass, including campus AI 192/192 and Map actions 21/21; Pages,
+  static, portable, seed, and 195/195 runtime syntax checks pass.
+
 ## 2026-09-12 - KMK AI PHASE 3 POST-DEPLOY CORRECTNESS
 
 - Scoped atomic conflict detection to the requested intent before planning, so
