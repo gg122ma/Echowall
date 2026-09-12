@@ -164,6 +164,7 @@
   });
 
   let activeProvider = LocalRoleAssignmentProvider;
+  let lastProviderError = null;
 
   // Swap in a future backend-backed provider (e.g. Supabase `user_roles`)
   // without touching any caller of this service. provider must expose
@@ -173,6 +174,7 @@
       throw new Error("A RoleAssignment provider must implement list() and save().");
     }
     activeProvider = provider;
+    lastProviderError = null;
   }
 
   function makeVirtualAssignment(user, role, scopeType, scopeId, grantedBy) {
@@ -193,7 +195,16 @@
 
   function getStoredAssignmentsForUser(userId) {
     if (!userId) return [];
-    return activeProvider.list().filter(assignment => assignment && String(assignment.userId) === String(userId));
+    try {
+      const assignments = activeProvider.list();
+      lastProviderError = null;
+      return (Array.isArray(assignments) ? assignments : []).filter(assignment => assignment && String(assignment.userId) === String(userId));
+    } catch (error) {
+      // Authorization lookup failure is a deny-safe result, not a reason to
+      // destroy the caller's otherwise valid authenticated session.
+      lastProviderError = error instanceof Error ? error : new Error("Role assignments are temporarily unavailable.");
+      return [];
+    }
   }
 
   // Returns every ACTIVE RoleAssignment this user currently holds --
@@ -527,6 +538,7 @@
     setAssignmentStatus,
     revokeRoleAssignment,
     listAllRoleAssignments,
+    getLastProviderError: () => lastProviderError,
     useProvider,
   });
 })();

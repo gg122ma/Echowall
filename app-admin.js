@@ -8,6 +8,21 @@ function clearLegacyAdminSession() {
 }
 clearLegacyAdminSession();
 
+function adminAuthProvider() {
+  if (window.CommunityDataProvider?.isRemoteRequested?.() === true) return window.SupabaseAuthProvider;
+  return window.AuthService;
+}
+
+function adminCurrentUser() {
+  return adminAuthProvider()?.getCurrentUser?.() || null;
+}
+
+function adminAuthIsLoading() {
+  if (adminAuthProvider() !== window.SupabaseAuthProvider) return false;
+  const status = window.SupabaseAuthProvider?.getStatus?.().status || "idle";
+  return status === "idle" || status === "loading";
+}
+
 let adminState = {
   search: "",
   category: "all",
@@ -104,7 +119,7 @@ let adminMapNotesUnsubscribe = null;
 // requireCommunityModerationAccess()/requireStudyModerationAccess() below),
 // not this generic function.
 function isCurrentUserAdmin() {
-  const user = window.AuthService?.getCurrentUser?.();
+  const user = adminCurrentUser();
   return Boolean(window.AdminPermissionService?.canAccessAdminPanel?.(user));
 }
 
@@ -140,7 +155,7 @@ function adminUserCollegeOrgIds(user) {
 // Global-scoped notes — reaching the tab is not the same as seeing every
 // college once inside (that conflation was ADMIN-V2-FINAL-CORRECTION's bug).
 function canAccessCommunityModeration() {
-  const user = window.AuthService?.getCurrentUser?.();
+  const user = adminCurrentUser();
   const aps = window.AdminPermissionService;
   if (!aps || !user) return false;
   if (aps.canModerateGlobalCommunity(user)) return true;
@@ -171,7 +186,7 @@ function adminResolveKmkOrgId() {
 }
 
 function canAccessMapModeration() {
-  const user = window.AuthService?.getCurrentUser?.();
+  const user = adminCurrentUser();
   const aps = window.AdminPermissionService;
   if (!aps || !user || typeof aps.canModerateMap !== "function") return false;
   return aps.canModerateMap(user, adminResolveKmkOrgId());
@@ -214,7 +229,7 @@ function adminCanModerateNote(user, note) {
 // reach the admin shell (they hold SOME active RoleAssignment) still
 // cannot open or act on the Study tab.
 function canAccessStudyModeration() {
-  const user = window.AuthService?.getCurrentUser?.();
+  const user = adminCurrentUser();
   return Boolean(window.AdminPermissionService?.canModerateStudy?.(user));
 }
 
@@ -269,7 +284,11 @@ function adminSidebarNavHtml(user) {
 }
 
 function renderAdmin(container) {
-  const user = window.AuthService?.getCurrentUser?.() || null;
+  if (adminAuthIsLoading()) {
+    renderAdminAuthLoadingState(container);
+    return;
+  }
+  const user = adminCurrentUser();
   if (!user || !isCurrentUserAdmin()) {
     renderAdminAccessState(container, user);
     return;
@@ -403,6 +422,16 @@ function renderAdmin(container) {
   initializeAdminMapNotes(activeIsMap);
 }
 
+function renderAdminAuthLoadingState(container) {
+  container.innerHTML =
+    '<div class="admin-login-page page-reveal">' +
+      '<section class="admin-login-panel"><div class="admin-login-card">' +
+        '<div class="admin-login-mark">A</div><p class="eyebrow">' + I18n.t("admin.dashboard") + '</p>' +
+        '<h2>' + I18n.t("common.loading") + '</h2>' +
+      '</div></section>' +
+    '</div>';
+}
+
 function renderAdminAccessState(container, user) {
   const signedIn = Boolean(user);
   const title = I18n.t(signedIn ? "admin.accessDenied" : "admin.signInRequired");
@@ -514,7 +543,7 @@ function initializeAdminAnimations() {
 // global-scoped notes; a real COLLEGE_ADMIN -> only their own college's.
 function getAdminCommunityNotes() {
   const all = Array.isArray(notes) ? notes.filter(note => note?.contextType === "community" || note?.contextType === "building") : [];
-  const user = window.AuthService?.getCurrentUser?.();
+  const user = adminCurrentUser();
   const aps = window.AdminPermissionService;
   if (!aps || !user || typeof aps.canModerateCommunityContent !== "function") return [];
   return all.filter(note => {
@@ -579,7 +608,7 @@ function getAdminFilterDefinitions(activeIsMap) {
   // they could pick a KMPP filter out of just to look, even though
   // getAdminCommunityNotes()/adminCanModerateNote() would deny the actual
   // data/write either way. This keeps the UI honest about what's reachable.
-  const communityUser = window.AuthService?.getCurrentUser?.();
+  const communityUser = adminCurrentUser();
   const communityAps = window.AdminPermissionService;
   // ADMIN-V2-FINAL-CORRECTION: was canModerateGlobalCommunity(user) (also
   // true for a real GLOBAL_MODERATOR, who must NOT see any college's name
@@ -755,9 +784,13 @@ function closeAdminFilterMenu(returnFocus) {
   if (returnFocus && trigger?.isConnected) trigger.focus();
 }
 
-function adminLogout() {
+async function adminLogout() {
   clearLegacyAdminSession();
-  AuthService.signOut();
+  try {
+    await adminAuthProvider()?.signOut?.();
+  } catch (error) {
+    if (typeof showToast === "function") showToast(error instanceof Error ? error.message : I18n.t("common.error"));
+  }
 }
 
 function adminSetTab(tab) {
@@ -765,7 +798,7 @@ function adminSetTab(tab) {
 }
 
 function requireAdminManagementAccess() {
-  if (window.AdminPermissionService?.isSuperAdmin?.(window.AuthService?.getCurrentUser?.())) return true;
+  if (window.AdminPermissionService?.isSuperAdmin?.(adminCurrentUser())) return true;
   if (typeof showToast === "function") showToast(I18n.t("admin.accessDenied"));
   if (typeof getRoute === "function" && getRoute().page === "admin") render();
   return false;
@@ -915,7 +948,7 @@ function getAdminFilteredMapNotes() {
 // failed/missing audit leaves the note/pin unchanged instead of silently
 // succeeding with no audit trail.
 function adminLogAuditAction({ action, targetType, targetId, scopeType, scopeId, beforeSnapshot, afterSnapshot, reason }) {
-  const user = window.AuthService?.getCurrentUser?.();
+  const user = adminCurrentUser();
   if (!window.AdminAuditService || typeof window.AdminAuditService.createAuditAction !== "function") {
     throw new Error("AdminAuditService is required to perform this action.");
   }
@@ -977,7 +1010,7 @@ function adminToggleHidden(id) {
   // global-tier moderator and any real COLLEGE_ADMIN); this is what stops a
   // KMK-only College Admin from hiding a KMPP note by calling
   // adminToggleHidden(<kmpp id>) directly, bypassing the filtered list.
-  const user = window.AuthService?.getCurrentUser?.();
+  const user = adminCurrentUser();
   if (!adminCanModerateNote(user, note)) {
     if (typeof showToast === "function") showToast(I18n.t("admin.accessDenied"));
     return;
@@ -1070,7 +1103,7 @@ function adminDeleteNote(id) {
   if (!requireCommunityModerationAccess() || adminState.sourceType !== "community") return;
   const target = notes.find(note => note.id === id && (note.contextType === "community" || note.contextType === "building"));
   if (!target) return;
-  const user = window.AuthService?.getCurrentUser?.();
+  const user = adminCurrentUser();
   if (!adminCanModerateNote(user, target)) {
     if (typeof showToast === "function") showToast(I18n.t("admin.accessDenied"));
     return;
@@ -1161,7 +1194,7 @@ async function adminDeleteMapNote(recordKey) {
 // (Global-scope-only) GLOBAL_MODERATOR may ever reach it; either would let a
 // role destroy college data it cannot even see.
 function adminResetNotes() {
-  const user = window.AuthService?.getCurrentUser?.();
+  const user = adminCurrentUser();
   const aps = window.AdminPermissionService;
   const isLegacyTier = Boolean(aps?.isSuperAdmin?.(user) || aps?.isLegacyAdmin?.(user));
   if (!isLegacyTier || adminState.sourceType !== "community") {

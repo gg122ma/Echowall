@@ -13,15 +13,12 @@
   let activeProfileSelect = null;
   let activeProfileOptionIndex = -1;
 
-  function isSupabaseCommunityRoute() {
-    if (window.CommunityDataProvider?.isRemoteRequested() !== true) return false;
-    // The standalone canonical Map page now owns shared Supabase posts too,
-    // so its navbar must reflect and sign out the same remote session used by
-    // Post Directly. Exact-path production activation is enforced by
-    // CommunitySupabaseClient before this branch can be reached.
-    if (String(window.location?.pathname || "").endsWith("/map.html")) return true;
-    if (typeof window.getRoute !== "function") return false;
-    return ["community-hub", "community-college", "community-global", "community-college-general", "wall"].includes(getRoute().page);
+  function isSupabaseAuthActive() {
+    // Auth is browser-wide for the active EchoWall deployment, not scoped to
+    // whichever hash route happens to be visible. CommunityDataProvider keeps
+    // local demo mode intact while canonical production uses one persisted
+    // Supabase session on Home, Community, Building, Map, Study, and Admin.
+    return window.CommunityDataProvider?.isRemoteRequested() === true;
   }
 
   function selectedAuthProvider() {
@@ -29,7 +26,7 @@
   }
 
   function navbarAuthProvider() {
-    return isSupabaseCommunityRoute() ? window.SupabaseAuthProvider : window.AuthService;
+    return isSupabaseAuthActive() ? window.SupabaseAuthProvider : window.AuthService;
   }
 
   function ensureDialog() {
@@ -500,7 +497,7 @@
 
   function open(nextMode = "login", options = {}) {
     const overlay = ensureDialog();
-    authMode = options?.provider === "supabase" || (!options?.provider && isSupabaseCommunityRoute()) ? "supabase" : "local";
+    authMode = options?.provider === "supabase" || (!options?.provider && isSupabaseAuthActive()) ? "supabase" : "local";
     lastFocusedElement = document.activeElement;
     setMode(nextMode);
     overlay.classList.remove("hidden");
@@ -702,7 +699,8 @@
       // any active RoleAssignment (Super Admin, legacy prototype admin, or
       // a real Global Moderator/College Admin/Study Moderator/Content
       // Reviewer grant) — not just the legacy binary admin whitelist.
-      const canSeeAdminLink = user.provider === "supabase" ? false : Boolean(window.AdminPermissionService?.canAccessAdminPanel?.(user)) || AuthService.isCurrentUserAdmin();
+      const canSeeAdminLink = Boolean(window.AdminPermissionService?.canAccessAdminPanel?.(user))
+        || (provider === window.AuthService && AuthService.isCurrentUserAdmin());
       ensureAccountPopover(user, canSeeAdminLink);
       bindAccountPopover(target);
     }
@@ -719,7 +717,14 @@
     }
   }
 
-  window.AuthUI = { open, close, openProfileEditor, closeProfileEditor, signOut, renderNavbar };
+  async function ready() {
+    const provider = navbarAuthProvider();
+    if (typeof provider?.ready === "function") await provider.ready();
+    renderNavbar();
+    return provider?.getCurrentUser?.() || null;
+  }
+
+  window.AuthUI = { open, close, openProfileEditor, closeProfileEditor, signOut, renderNavbar, ready };
   window.addEventListener("echo:authchange", () => { renderNavbar(); if (!AuthService.getCurrentUser()) closeProfileEditor(true); });
   window.addEventListener("echo:communityauthchange", renderNavbar);
   window.addEventListener("echo:languagechange", () => { renderNavbar(); setMode(mode); translateProfileDialog(); });
@@ -754,5 +759,13 @@
       closeAccountPopover();
     }
   });
-  window.addEventListener("DOMContentLoaded", renderNavbar);
+  window.addEventListener("DOMContentLoaded", () => {
+    if (isSupabaseAuthActive()) {
+      // Keep the initially empty account slot neutral until persisted auth has
+      // resolved; do not flash a finalized signed-out UI during restoration.
+      void ready().catch(() => renderNavbar());
+      return;
+    }
+    renderNavbar();
+  });
 })();

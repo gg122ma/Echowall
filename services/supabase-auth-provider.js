@@ -2,6 +2,10 @@
 (function () {
   let currentUser = null;
   let readyPromise = null;
+  let authSubscription = null;
+  let authEventSequence = 0;
+  let status = "idle";
+  let lastError = null;
 
   function toDomainUser(user, session = null) {
     if (!user) return null;
@@ -26,16 +30,53 @@
     return currentUser;
   }
 
+  function publishStatus(nextStatus, error = null) {
+    status = nextStatus;
+    lastError = error instanceof Error ? error : null;
+    window.dispatchEvent?.(new CustomEvent("echo:communityauthstate", {
+      detail: { status, error: lastError },
+    }));
+  }
+
+  function applyAuthEvent(event, session) {
+    authEventSequence += 1;
+    if (event === "SIGNED_OUT") return publishUser(null);
+    if (session?.user) return publishUser(toDomainUser(session.user, session));
+    // INITIAL_SESSION with no session is the one authoritative bootstrap
+    // event for an unauthenticated browser. Other session-less events must
+    // not erase a valid user because of a transient refresh/provider event.
+    if (event === "INITIAL_SESSION") return publishUser(null);
+    return currentUser;
+  }
+
+  function ensureAuthListener(client) {
+    if (authSubscription) return;
+    const result = client.auth.onAuthStateChange((event, session) => {
+      applyAuthEvent(event, session);
+    });
+    authSubscription = result?.data?.subscription || result || true;
+  }
+
   function ready() {
     if (!readyPromise) {
+      publishStatus("loading");
       readyPromise = window.CommunitySupabaseClient.getClient().then(async client => {
+        ensureAuthListener(client);
+        const sequenceBeforeSessionRead = authEventSequence;
         const { data, error } = await client.auth.getSession();
         if (error) throw new Error("Your Community session could not be restored.");
-        publishUser(toDomainUser(data?.session?.user, data?.session));
-        client.auth.onAuthStateChange((_event, session) => {
-          publishUser(toDomainUser(session?.user, session));
-        });
+        // If an auth event arrived while getSession() was in flight, that
+        // event represents the newer state and must not be overwritten by a
+        // stale session read.
+        if (authEventSequence === sequenceBeforeSessionRead) {
+          publishUser(toDomainUser(data?.session?.user, data?.session));
+        }
+        publishStatus("ready");
         return currentUser;
+      }).catch(error => {
+        readyPromise = null;
+        publishStatus("error", error);
+        throw error;
       });
     }
     return readyPromise;
@@ -117,6 +158,7 @@
     upsertProfile,
     signOut,
     toDomainUser,
+    getStatus: () => Object.freeze({ status, error: lastError }),
     getCurrentUser: () => window.EmailVerificationService.isSessionActive(currentUser) ? currentUser : null,
     isAuthenticated: () => window.EmailVerificationService.isSessionActive(currentUser),
   });

@@ -310,7 +310,7 @@ function renderAdminDashboardShell(container, bodyHtml, user, title, description
 }
 
 function renderAdminOverview(container) {
-  const user = window.AuthService.getCurrentUser();
+  const user = adminCurrentUser();
   const ms = window.ModerationService;
   const filters = { scope: adminState.dashboardScope };
   const items = ms ? adminDashboardFilterItems(ms.listModerationItems({}, user), { scope: filters.scope }) : [];
@@ -378,7 +378,7 @@ function adminDashboardSetFilter(key, value) {
 function adminDashboardQueueRowHtml(item) {
   const preview = adminDashboardContentPreview(item);
   const module = adminDashboardModuleForContentType(item.contentType) || "other";
-  const reportCount = window.ModerationService ? window.ModerationService.listReports({ contentType: item.contentType, contentId: item.contentId }, window.AuthService.getCurrentUser()).length : 0;
+  const reportCount = window.ModerationService ? window.ModerationService.listReports({ contentType: item.contentType, contentId: item.contentId }, adminCurrentUser()).length : 0;
   const statusClass = { pending: "admin-status-pending", escalated: "admin-status-hidden", approved: "admin-status-visible", rejected: "admin-status-hidden", hidden: "admin-status-hidden" }[item.status] || "admin-status-pending";
   const scopeLabel = adminDashboardScopeLabel(item.scopeType, item.scopeId);
   return `
@@ -411,7 +411,7 @@ function adminDashboardQueueRowHtml(item) {
 // this stage's job (that's closer to ADMIN-V2-007's Admin Management).
 function adminDashboardAssignControlHtml(item) {
   const aps = window.AdminPermissionService;
-  const user = window.AuthService.getCurrentUser();
+  const user = adminCurrentUser();
   if (!aps || !aps.isSuperAdmin(user)) return "";
   return `
     <div class="admin-assign-control">
@@ -423,7 +423,7 @@ function adminDashboardAssignControlHtml(item) {
 
 function adminDashboardAssign(itemId) {
   if (!requireAdminAccess()) return;
-  const user = window.AuthService.getCurrentUser();
+  const user = adminCurrentUser();
   const input = document.getElementById(`admin-assign-input-${itemId}`);
   const value = input ? input.value.trim() : "";
   if (!value) return;
@@ -437,7 +437,7 @@ function adminDashboardAssign(itemId) {
 
 function adminDashboardUnassign(itemId) {
   if (!requireAdminAccess()) return;
-  const user = window.AuthService.getCurrentUser();
+  const user = adminCurrentUser();
   try {
     window.ModerationService.assignModerationItem(itemId, null, user);
   } catch (error) {
@@ -471,7 +471,7 @@ function adminDashboardReview(module) {
 // reports/REPORT_ADMIN-V2-004.md.
 function adminDashboardEscalate(itemId) {
   if (!requireAdminAccess()) return;
-  const user = window.AuthService.getCurrentUser();
+  const user = adminCurrentUser();
   adminOpenReasonPrompt({
     title: I18n.t("admin.reason.escalateTitle"),
     actionLabel: I18n.t("admin.reason.escalateAction"),
@@ -489,7 +489,7 @@ function adminDashboardEscalate(itemId) {
 }
 
 function renderAdminQueueView(container) {
-  const user = window.AuthService.getCurrentUser();
+  const user = adminCurrentUser();
   const ms = window.ModerationService;
   const rawItems = ms ? ms.listModerationItems({}, user) : [];
   const filtered = adminDashboardFilterItems(rawItems, {
@@ -532,7 +532,7 @@ function adminDashboardReportGroupRowHtml(group) {
 }
 
 function renderAdminReportsView(container) {
-  const user = window.AuthService.getCurrentUser();
+  const user = adminCurrentUser();
   const ms = window.ModerationService;
   const rawReports = ms ? ms.listReports({}, user) : [];
   const scopeFiltered = adminState.dashboardScope && adminState.dashboardScope !== "all"
@@ -578,7 +578,7 @@ function adminDashboardHistoryRowHtml(item) {
 }
 
 function renderAdminHistoryView(container) {
-  const user = window.AuthService.getCurrentUser();
+  const user = adminCurrentUser();
   const ms = window.ModerationService;
   const rawItems = ms ? ms.listModerationItems({}, user) : [];
   const scoped = adminDashboardFilterItems(rawItems, { scope: adminState.dashboardScope });
@@ -723,7 +723,7 @@ function adminAuditRowHtml(record) {
 }
 
 function renderAdminAuditView(container) {
-  const user = window.AuthService.getCurrentUser();
+  const user = adminCurrentUser();
   const service = window.AdminAuditService;
   const scopeFilter = adminState.auditScope && adminState.auditScope !== "all" ? adminState.auditScope.split(":") : null;
   const rawRecords = service ? service.listAuditActions({

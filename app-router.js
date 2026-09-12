@@ -725,6 +725,13 @@ if (document.getElementById("app")) {
     const page = getRoute().page;
     if (page === "admin" || page === "study-upload") render();
   });
+  window.addEventListener("echo:communityauthchange", () => {
+    const page = getRoute().page;
+    if (page === "admin" || page === "study-upload") render();
+  });
+  window.addEventListener("echo:communityauthstate", () => {
+    if (getRoute().page === "admin") render();
+  });
   window.addEventListener("echo:languagechange", () => { I18n.apply(); render(); AuthUI?.renderNavbar?.(); });
   window.addEventListener("echo:runtimenoteschange", event => {
     const page = getRoute().page;

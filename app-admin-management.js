@@ -27,7 +27,7 @@ const ADMIN_MGMT_ROLE_SCOPE_TYPE = Object.freeze({
 });
 
 function requireSuperAdminAccess() {
-  const user = window.AuthService?.getCurrentUser?.();
+  const user = adminCurrentUser();
   if (window.AdminPermissionService?.isSuperAdmin?.(user)) return true;
   if (typeof showToast === "function") showToast(I18n.t("admin.accessDenied"));
   if (typeof getRoute === "function" && getRoute().page === "admin") render();
@@ -112,7 +112,7 @@ function adminMgmtBootstrapInfoHtml() {
 }
 
 function renderAdminManagementView(container) {
-  const user = window.AuthService.getCurrentUser();
+  const user = adminCurrentUser();
   const aps = window.AdminPermissionService;
   const assignments = aps ? aps.listAllRoleAssignments() : [];
   const body = `
@@ -132,7 +132,7 @@ function renderAdminManagementView(container) {
 
 function adminMgmtGrant() {
   if (!requireSuperAdminAccess()) return;
-  const user = window.AuthService.getCurrentUser();
+  const user = adminCurrentUser();
   const userId = document.getElementById("admin-mgmt-userid")?.value?.trim();
   const role = document.getElementById("admin-mgmt-role")?.value;
   const scopeType = ADMIN_MGMT_ROLE_SCOPE_TYPE[role];
@@ -159,7 +159,7 @@ function adminMgmtGrant() {
 
 function adminMgmtSetStatus(id, status) {
   if (!requireSuperAdminAccess()) return;
-  const user = window.AuthService.getCurrentUser();
+  const user = adminCurrentUser();
   try {
     window.AdminPermissionService.setAssignmentStatus(id, status, user);
     if (typeof showToast === "function") showToast(status === "disabled" ? I18n.t("admin.mgmt.disabled") : I18n.t("admin.mgmt.reEnabled"));
@@ -171,7 +171,7 @@ function adminMgmtSetStatus(id, status) {
 
 function adminMgmtRevoke(id) {
   if (!requireSuperAdminAccess()) return;
-  const user = window.AuthService.getCurrentUser();
+  const user = adminCurrentUser();
   adminOpenReasonPrompt({
     title: I18n.t("admin.mgmt.revokeTitle"),
     actionLabel: I18n.t("admin.mgmt.revoke"),

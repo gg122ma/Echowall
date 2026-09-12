@@ -238,7 +238,7 @@ function adminStudyEnsureReconciled() {
 function renderAdminStudyPanel(container) {
   adminStudyEnsureReconciled();
   const queue = adminStudyQueue();
-  const user = window.AuthService?.getCurrentUser?.();
+  const user = adminCurrentUser();
   container.innerHTML = `
     <div class="admin-shell page-reveal">
       <aside class="admin-sidebar">

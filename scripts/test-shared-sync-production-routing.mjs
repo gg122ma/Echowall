@@ -220,7 +220,7 @@ check("remote Building Wall reads and writes use the shared provider", /refreshB
 check("remote Map reads and writes use the shared provider", /refreshMapAnchors/.test(mapSource) && /createMapPost/.test(mapSource));
 check("remote Map branch returns before local MapNoteService.create", mapSource.indexOf("createMapPost") < mapSource.indexOf("MapNoteService.create"));
 check("map.html loads the shared Supabase stack without a realtime service", /community-supabase-client\.js/.test(mapHtml) && /community-data-provider\.js/.test(mapHtml) && !/community-realtime-service\.js/.test(mapHtml));
-check("canonical Map navbar uses the same Supabase auth session as Post Directly", /pathname[\s\S]*endsWith\("\/map\.html"\)[\s\S]*return true/.test(authUiSource));
+check("canonical Map navbar uses the same deployment-wide Supabase auth session as Post Directly", /function isSupabaseAuthActive\(\)[\s\S]*CommunityDataProvider\?\.isRemoteRequested\(\) === true[\s\S]*function navbarAuthProvider\(\)[\s\S]*isSupabaseAuthActive\(\) \? window\.SupabaseAuthProvider/.test(authUiSource));
 check("shared repositories do not persist post content to localStorage", !/localStorage/.test(read("services/community-supabase-repositories.js")));
 
 console.log(`\n${passed}/${passed} assertions passed.`);
