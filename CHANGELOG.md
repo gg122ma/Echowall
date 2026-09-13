@@ -1,5 +1,100 @@
 # Changelog
 
+## 2026-09-14 - KMK AI PHASE 4 PRE-MERGE HARDENING
+
+- Added a per-session latest-started request-generation guard to
+  `CampusAI.ask()`. Older provider completions can still return answers but can
+  no longer call `ConversationContext.update()`, `markServed()`, or `clear()`
+  after a newer request starts. Different session IDs remain independent and
+  provider calls are not serialized.
+- Added Ask Echo single-flight defense: submit and suggestion buttons disable
+  together during a request, rapid repeated clicks are ignored, and controls
+  restore after success or failure.
+- Changed campus provider rendering to explicit opt-in through
+  `EchoConfig.freeAI.campusRendering === true`; general/non-campus adapter
+  behavior and production configuration remain unchanged.
+- Removed redundant `entityTitle` from the provider payload, leaving only the
+  constrained mode/language, approved clause text under opaque IDs, and fixed
+  transition allowlist.
+- Strengthened Phase 4 coverage to **89/89** assertions with a genuine
+  multi-clause validator matrix, a real controlled timeout and late-resolution
+  checks, same-session races in both completion orders, cross-session
+  isolation, provider-payload minimization, explicit opt-in, complete
+  A1/A2/B1/B2/C2 parent-only regressions, and UI single-flight restoration.
+- Validation passes: campus AI **199/199**, Map actions **21/21**, all **25/25**
+  test scripts, **115/115** syntax checks, Pages build/artifact (490 files),
+  production URL lock, static, portable, and both seed validators. Browser QA
+  was not rerun because browser tooling was unavailable.
+- No Supabase, auth, database, production-data, campus-data, or UI redesign
+  changes.
+
+## 2026-09-12 - KMK AI PHASE 4: FACT-LOCKED CONSTRAINED LLM RENDERING
+
+- Added `services/ai/fact-locked-renderer.js`, a new deterministic-first
+  rendering boundary between `AnswerPlanner` and the visible answer. For
+  `DIRECT`, `FOLLOW_UP`, `CORRECTION`, and safe fact-bearing `PARTIAL`
+  answers, it freezes the exact, already-rendered clause text (identity,
+  service, fee, rule, hours, correction-prefix, and Map-caveat sentences —
+  byte-identical to the existing `AnswerRenderer` output) into opaque,
+  ID-addressed clauses before any optional provider is ever consulted.
+- An optional external provider (`services/ai/provider-adapter.js`'s new
+  `renderCampusSequence`, reachable only through `FreeAIAdapter`'s new
+  additive `sendStructuredPrompt`) may choose only which fixed transition
+  token (`NONE`/`ALSO`/`AND`) sits between consecutive clauses; it is never
+  shown, and cannot supply, clause text, actions, facts, or Map IDs. The
+  response is accepted only if it echoes back the same `answerMode`/
+  `language` and lists every given clause ID exactly once in the given
+  order with exactly one approved transition between each pair — any other
+  shape (malformed, wrong mode/language, unknown/dropped/duplicated/
+  reordered clause, unapproved transition, or an included `actions` field)
+  is rejected and falls back to the unchanged deterministic answer. No
+  provider free text is ever read into the assembled answer, so semantic
+  drift, fact fabrication, conflict manipulation, approximation-sharpening,
+  and `B_*` Map-ID leakage are impossible by construction rather than
+  merely screened for.
+- `CONFLICT`, `AMBIGUOUS`, `COMPARISON`, `UNSUPPORTED`, discovery/category
+  answers, and no-fact `PARTIAL` answers (Cafe Admin conflict, Surau,
+  Reading Room, Court A/C, Basketball, dining/sports discovery, PARENT_ONLY
+  hostel blocks, etc.) never reach the provider path and stay fully
+  deterministic, unchanged from Phase 3.
+- The provider path is optional end-to-end: a new
+  `EchoAI.Config.campusProviderRenderingEnabled` flag (from
+  `EchoConfig.freeAI.campusRendering`, default on) plus the existing
+  `FreeAIAdapter.isAIModelEnabled()` check (false without an OpenRouter
+  token, which production does not set) mean campus answers render exactly
+  as before unless both are explicitly enabled. Disablement, unavailability,
+  timeout, a thrown error, or any validation failure all fall back to the
+  unchanged deterministic `AnswerRenderer` text; an internal-only
+  `deterministic` / `provider_accepted` / `provider_rejected_fallback` route
+  label is available to module-level callers for tests/debugging and is
+  never surfaced in the response schema or the UI.
+- `services/ai/index.js` now awaits `FactLockedRenderer.render()` in place
+  of the direct synchronous `AnswerRenderer.render()` call; the legacy
+  `UNSUPPORTED_ENTITY_FACT` fallback branch is untouched and stays fully
+  deterministic. `services/ai/answer-renderer.js` had its correction-prefix
+  and Map-caveat string logic extracted into two exported pure functions
+  (`correctionPrefix`, `mapCaveatText`) with no behavior change, so the new
+  module reuses the exact same approved text instead of duplicating it.
+- Added `scripts/test-kmk-ai-phase4-fact-locked-rendering.mjs` (59
+  assertions): eligibility boundaries for every answer mode, provider
+  disabled/unavailable/timeout/throw/malformed/wrong-mode/wrong-language/
+  unknown-clause/dropped-clause/duplicated-clause/provider-action rejection,
+  safe EN/BM/ZH provider-accepted rendering with injected free text proven
+  to be ignored, approximate-hours and correction-prefix wording proven
+  fixed inside the clause, two full `CampusAI.ask()` end-to-end checks
+  (provider unavailable and provider accepted), and the required regression
+  set (Cafe Admin conflict, Library schedule, KOOP schedule, Basketball
+  unsupported hours, Blok A1/B2/C2 parent-only targets, Surau, Reading
+  Room, Court A/C).
+- All 25 test scripts pass (199/199 campus AI, 21/21 Map actions, 59/59
+  Phase 4), zero regressions; full repository syntax check, Pages build and
+  artifact validation, production-URL lock, and the static/portable/seed
+  validators all pass. Manual browser QA performed: DIRECT (Library
+  location + Map action), CORRECTION (false Friday premise), CONFLICT
+  (Cafe Admin), UNSUPPORTED (Basketball hours), Map focus handoff, and
+  EN/BM/ZH campus queries all render correctly with a clean console — see
+  `HANDOFF.md` for the exact steps. No UI, Supabase, auth, or data changes.
+
 ## 2026-09-12 - KMK AI DISCOVERY ANSWER PRESENTATION
 
 - Reworded dining and sports discovery as concise student-facing guidance in

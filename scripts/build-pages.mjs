@@ -68,6 +68,7 @@ const RUNTIME_FILES = [
   "services/ai/answer-renderer.js",
   "services/ai/response-validator.js",
   "services/ai/provider-adapter.js",
+  "services/ai/fact-locked-renderer.js",
   "services/ai/index.js",
   "services/auth-service.js",
   "services/auth-ui.js",

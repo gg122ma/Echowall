@@ -6,6 +6,7 @@
   let panel;
   let messages;
   let form;
+  let requestInFlight = false;
 
   function addMessage(role, text, action) {
     const item = document.createElement("article");
@@ -49,11 +50,14 @@
 
   async function ask(query) {
     const question = query.trim();
-    if (!question) return;
+    if (!question || requestInFlight) return;
+    requestInFlight = true;
     addMessage("user", question);
     form.reset();
     const submit = form.querySelector("button[type=submit]");
+    const suggestionButtons = [...panel.querySelectorAll(".ai-suggestions button")];
     submit.disabled = true;
+    suggestionButtons.forEach(button => { button.disabled = true; });
     const thinking = addThinkingMessage();
     try {
       if (!window.CampusAI?.ask) throw new Error("Campus assistant is unavailable.");
@@ -65,6 +69,8 @@
       addMessage("assistant", t("assistant.fallback", "I can’t complete that request right now. Please try again."));
     } finally {
       submit.disabled = false;
+      suggestionButtons.forEach(button => { button.disabled = false; });
+      requestInFlight = false;
     }
   }
 

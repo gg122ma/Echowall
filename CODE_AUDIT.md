@@ -1,5 +1,109 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-14 - KMK AI PHASE 4 PRE-MERGE HARDENING
+
+- Reproduced and fixed the Phase 4 out-of-order session mutation: the new
+  provider `await` could allow an older Library request to call `markServed()`
+  after a newer KOOP request. `CampusAI.ask()` now records a per-session request
+  generation at start and guards every context `update`, `markServed`, and
+  `clear`; latest-started owns future writes regardless of completion order.
+  Sessions have independent counters and provider calls remain parallel.
+- Added UI single-flight defense without redesign: the submit and suggestion
+  controls disable together while `ask()` is pending, repeated fast clicks are
+  ignored, and the controls restore in `finally` after both success and failure.
+- Changed campus provider rendering from opt-out to explicit opt-in
+  (`campusRendering === true`). General `FreeAIAdapter.sendMessage()` behavior
+  is unchanged, the production config remains deterministic, and no token was
+  added.
+- Removed redundant `entityTitle` from the external payload. Direct prompt
+  inspection tests confirm that clause entries contain only opaque `id` plus
+  exact approved `text`; fact/provenance/Map/action/grounding identifiers and
+  the user query are absent.
+- Replaced the single-clause structural fixture with a genuine multi-clause
+  plan. Reorder and duplication retain the expected sequence length and reach
+  clause-position validation; transition failures independently exercise
+  missing, duplicate, illegal, leading, and trailing shapes.
+- Added a real short-timeout test using a pending provider promise. It verifies
+  the call is unresolved before timeout, the actual timer produces the frozen
+  deterministic fallback with `provider_rejected_fallback`, and late provider
+  resolution cannot mutate answer text or session context.
+- Added end-to-end same-session races in both completion orders plus
+  cross-session isolation. The newer KOOP request remains authoritative and
+  the complete newer context stays byte-identical after the stale Library
+  completion.
+- Fact-lock review remains clean: provider free text is still ignored; clause
+  IDs cannot be dropped/reordered/duplicated; deterministic-only modes and Map
+  actions remain provider-inaccessible.
+- Validation: campus AI **199/199**, Map actions **21/21**, Phase 4 **89/89**,
+  all **25/25** test scripts, **115/115** syntax checks, Pages build/artifact
+  (490 files), production URL lock, static, portable, and both seed validators
+  pass. Browser QA was **not rerun** because tooling was unavailable.
+- No Supabase, auth, database, production-data, campus-data, or UI redesign
+  change was made.
+
+## 2026-09-12 - KMK AI PHASE 4: FACT-LOCKED CONSTRAINED LLM RENDERING
+
+- **Invariant audited: the provider can never be a fact source.** Verified
+  that `FactLockedRenderer.buildClausePlan()` freezes every clause's
+  `exactText` from the existing deterministic `AnswerRenderer.factText()` /
+  correction-prefix / Map-caveat output *before* any provider call is made,
+  and that `assembleFromSequence()` reads only `clauseId`/`transitionId`
+  fields back from the provider response — no provider-authored string ever
+  reaches the assembled answer. Directly tested with an injected
+  `sequence[0].text = "FABRICATED UNSUPPORTED FACT"` payload: the sequence
+  validated (shape was otherwise legal) but the fabricated string never
+  appeared in the output.
+- **Invariant audited: mode/entity/authority/conflict ownership stays
+  deterministic.** `isEligible()` excludes `CONFLICT`, `AMBIGUOUS`,
+  `COMPARISON`, `UNSUPPORTED`, and no-fact `PARTIAL` by construction
+  (`content.primary !== "FACTS"` or `facts.length === 0`), so Cafe Admin's
+  conflict, Basketball/Surau/Reading Room/Court A/C's unsupported status,
+  and PARENT_ONLY hostel-block targeting can never reach the provider path
+  regardless of what a provider might return.
+- **Invariant audited: Map/action authority is untouched.** A payload
+  carrying any `actions` array is rejected outright (`PROVIDER_ACTION`); the
+  provider's only accepted vocabulary (3 transition IDs) cannot encode a
+  `B_*` building ID, and clause `exactText` — the only place a Map ID could
+  ever have appeared — is fixed before the provider is consulted. Tested
+  directly with a transition id of `"B_FAKE"`, correctly rejected as an
+  illegal structure (not a special case — just an unrecognized enum value).
+- **Invariant audited: structural tampering is rejected, not merely
+  detected late.** `validateSequence()` requires the exact expected clause
+  ID at each even position (order fixed by the plan, not the provider) and
+  an exact odd/even alternation of length `2n-1` for `n` clauses — dropping,
+  duplicating, or reordering a clause, or omitting/doubling a transition,
+  all fail the length or per-position check before any content is read.
+- **Data safety / Storage / Auth:** No change. `services/free-ai-adapter.js`
+  gained one additive export (`sendStructuredPrompt`, a thin wrapper over
+  its existing `callOpenRouter`); `isConfigured`, `isAIModelEnabled`,
+  `sendMessage`, `retrieveDocuments`, `checkBoundaries` are byte-identical.
+  No Supabase, auth, session, database, or seed-data file was touched.
+- **Router / DOM / rendering:** No change. `services/ai-assistant.js` (the
+  only DOM-facing caller of `CampusAI.ask()`) is untouched; the response
+  shape it consumes (`payload.answer`, `payload.actions[0]`) is unchanged.
+- **i18n / Theme / compatibility:** No change. The new clause/transition
+  text reuses the existing EN/BM/ZH strings already in `answer-renderer.js`
+  (now exported as `correctionPrefix`/`mapCaveatText` rather than duplicated
+  inline); the fixed transition phrases added in
+  `fact-locked-renderer.js` are the only new user-facing strings, and they
+  are provably never used unless a provider is both configured and returns
+  a fully valid sequence (default production config: never).
+- **Known technical debt:** The provider path has zero real-network test
+  coverage (no OpenRouter token exists in this repository); it is fully
+  covered at the contract/adapter level via a hand-rolled `FreeAIAdapter`
+  stub in `scripts/test-kmk-ai-phase4-fact-locked-rendering.mjs`, but an
+  actual OpenRouter response's JSON fidelity (e.g. code-fence wrapping,
+  trailing commentary) has only been exercised through the `parseProviderPayload()`
+  fence-stripping logic in isolation, not against a live model.
+- Regression coverage confirmed unchanged: Cafe Admin conflict, Library/KOOP
+  schedules, Basketball unsupported hours, Blok A1/B2/C2 parent-only
+  targets, Surau, Reading Room, Court A/C. All 25 test scripts pass
+  (campus AI 199/199, Map actions 21/21, new Phase 4 suite 59/59); full
+  syntax check, Pages build/artifact validation, production-URL lock, and
+  static/portable/seed validators all pass. Manual browser QA performed for
+  DIRECT/CORRECTION/CONFLICT/UNSUPPORTED/Map-action/EN/BM/ZH with a clean
+  console (see `HANDOFF.md`).
+
 ## 2026-09-12 - KMK AI DISCOVERY ANSWER PRESENTATION
 
 - Replaced only the deterministic `DINING_DISCOVERY` and `SPORTS_DISCOVERY`

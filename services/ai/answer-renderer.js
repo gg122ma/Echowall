@@ -72,6 +72,12 @@
     return language === "ms" ? "Tidak. " : language === "zh" ? "不对。" : "No. ";
   }
 
+  function mapCaveatText(mapState, language) {
+    if (mapState === "UNMAPPED") return language === "ms" ? "Sasaran tepat Echo Map belum disahkan." : language === "zh" ? "其准确的 Echo Map 目标尚未核实。" : "Its exact Echo Map target has not been verified.";
+    if (mapState === "AMBIGUOUS") return language === "ms" ? "Sumber tidak mengesahkan satu lokasi peta yang unik." : language === "zh" ? "资料未确认唯一的地图位置。" : "The sources do not confirm one unique Map location.";
+    return "";
+  }
+
   function conflictText(language) {
     if (language === "ms") return "Sumber semasa yang dibekalkan bercanggah tentang waktu Cafe Admin. Satu menyenaraikan 3:00pm, manakala satu lagi menyenaraikan 4:00pm pada hari bekerja dan ditutup pada hujung minggu. Semak notis terkini atau maklumat di lokasi.";
     if (language === "zh") return "现有资料对 Cafe Admin 的营业时间有冲突。一份列为下午3:00，另一份列为工作日下午4:00关闭、周末休息。前往前请查看最新通知或现场信息。";
@@ -111,13 +117,11 @@
     const renderPlan = { ...plan, premiseDay: day };
     let sentences = plan.facts.map(item => factText(item, language, renderPlan)).filter(Boolean);
     if (plan.answerMode === "CORRECTION" && sentences.length) sentences[0] = `${correctionPrefix(language)}${sentences[0]}`;
-    if (plan.place?.mapState === "UNMAPPED" && window.EchoAI.IntentRouter.requestsMapAction(plan.intent)) {
-      sentences.push(language === "ms" ? "Sasaran tepat Echo Map belum disahkan." : language === "zh" ? "其准确的 Echo Map 目标尚未核实。" : "Its exact Echo Map target has not been verified.");
-    } else if (plan.place?.mapState === "AMBIGUOUS" && window.EchoAI.IntentRouter.requestsMapAction(plan.intent)) {
-      sentences.push(language === "ms" ? "Sumber tidak mengesahkan satu lokasi peta yang unik." : language === "zh" ? "资料未确认唯一的地图位置。" : "The sources do not confirm one unique Map location.");
+    if (["UNMAPPED", "AMBIGUOUS"].includes(plan.place?.mapState) && window.EchoAI.IntentRouter.requestsMapAction(plan.intent)) {
+      sentences.push(mapCaveatText(plan.place.mapState, language));
     }
     return sentences.slice(0, 3).join(" ").trim() || unsupportedText(plan, language);
   }
 
-  window.EchoAI.AnswerRenderer = Object.freeze({ render, factText, scheduleText, rangeText });
+  window.EchoAI.AnswerRenderer = Object.freeze({ render, factText, scheduleText, rangeText, correctionPrefix, mapCaveatText });
 }());

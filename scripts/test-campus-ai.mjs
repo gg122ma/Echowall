@@ -64,6 +64,7 @@ for (const file of [
   "services/ai/answer-renderer.js",
   "services/ai/response-validator.js",
   "services/ai/provider-adapter.js",
+  "services/ai/fact-locked-renderer.js",
   "services/ai/index.js",
 ]) vm.runInContext(read(file), context, { filename: file });
 
