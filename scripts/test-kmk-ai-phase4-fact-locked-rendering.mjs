@@ -43,22 +43,25 @@ const AI_FILES = [
 // real RAG adapter's behavior, only on the {isAIModelEnabled, sendStructuredPrompt}
 // shape ProviderAdapter/FactLockedRenderer consume.
 function makeFreeAIAdapterStub() {
-  const state = { available: false, next: { text: "" } };
+  const state = { available: false, next: { text: "" }, handler: null, calls: 0, lastMessages: null };
   return {
     state,
     adapter: {
       isAIModelEnabled: () => state.available,
-      sendStructuredPrompt: async () => {
+      sendStructuredPrompt: async messages => {
+        state.calls += 1;
+        state.lastMessages = messages;
+        if (typeof state.handler === "function") return state.handler(messages, state.calls);
         const next = state.next;
         if (next && next.throw) throw next.throw;
-        if (typeof next.text === "function") return next.text();
+        if (typeof next.text === "function") return next.text(messages);
         return next.text;
       },
     },
   };
 }
 
-function buildSandbox({ campusRendering } = { campusRendering: true }) {
+function buildSandbox({ campusRendering = true, providerTimeoutMs } = {}) {
   const storageValues = new Map();
   const { state: providerState, adapter: freeAIAdapter } = makeFreeAIAdapterStub();
   const window = {
@@ -78,7 +81,12 @@ function buildSandbox({ campusRendering } = { campusRendering: true }) {
     Promise, setTimeout, clearTimeout,
   };
   vm.createContext(context);
-  for (const file of AI_FILES) vm.runInContext(read(file), context, { filename: file });
+  for (const file of AI_FILES) {
+    vm.runInContext(read(file), context, { filename: file });
+    if (file === "services/ai/config.js" && Number.isFinite(providerTimeoutMs)) {
+      window.EchoAI.Config = Object.freeze({ ...window.EchoAI.Config, providerTimeoutMs });
+    }
+  }
   return { context, window, providerState };
 }
 
@@ -93,12 +101,19 @@ function buildSandbox({ campusRendering } = { campusRendering: true }) {
   vm.runInContext(read("services/ai/config.js"), offContext, { filename: "services/ai/config.js" });
   check("campusRendering:false disables the provider-rendering config flag", offContext.window.EchoAI.Config.campusProviderRenderingEnabled === false);
 
-  const onWindow = { EchoConfig: { freeAI: {} } };
+  const defaultWindow = { EchoConfig: { freeAI: {} } };
+  defaultWindow.window = defaultWindow;
+  const defaultContext = { window: defaultWindow, Object };
+  vm.createContext(defaultContext);
+  vm.runInContext(read("services/ai/config.js"), defaultContext, { filename: "services/ai/config.js" });
+  check("provider-rendering config flag defaults off without explicit opt-in", defaultContext.window.EchoAI.Config.campusProviderRenderingEnabled === false);
+
+  const onWindow = { EchoConfig: { freeAI: { campusRendering: true } } };
   onWindow.window = onWindow;
   const onContext = { window: onWindow, Object };
   vm.createContext(onContext);
   vm.runInContext(read("services/ai/config.js"), onContext, { filename: "services/ai/config.js" });
-  check("provider-rendering config flag defaults on (opt-out, like other Config switches)", onContext.window.EchoAI.Config.campusProviderRenderingEnabled === true);
+  check("campusRendering:true explicitly enables provider rendering", onContext.window.EchoAI.Config.campusProviderRenderingEnabled === true);
 }
 
 // ---------------------------------------------------------------------------
@@ -107,14 +122,24 @@ function buildSandbox({ campusRendering } = { campusRendering: true }) {
 // ---------------------------------------------------------------------------
 const { window, providerState } = buildSandbox({ campusRendering: true });
 
-function buildPlan(question, language = "en") {
-  const intent = window.EchoAI.IntentRouter.classify(question);
-  const resolution = window.EchoAI.KnowledgeEngine.resolve(question);
+{
+  const { window: optOutWindow, providerState: optOutProvider } = buildSandbox({ campusRendering: false });
+  optOutProvider.available = true;
+  optOutProvider.next = { text: "provider must not be called" };
+  const reply = await optOutWindow.CampusAI.ask("What time does the library close?", { sessionId: "explicit-opt-out" });
+  check("campus provider remains unused unless explicitly opted in", optOutProvider.calls === 0 && /4:30pm/.test(reply.answer));
+}
+
+function buildPlanFor(targetWindow, question, language = "en") {
+  const intent = targetWindow.EchoAI.IntentRouter.classify(question);
+  const resolution = targetWindow.EchoAI.KnowledgeEngine.resolve(question);
   const place = resolution.place;
-  const premise = place ? window.EchoAI.PremiseChecker.check(question, place, []) : { status: "UNKNOWN", day: "" };
-  const plan = window.EchoAI.AnswerPlanner.plan({ question, language, intent, resolution, previous: null, premise, asOf: undefined });
+  const premise = place ? targetWindow.EchoAI.PremiseChecker.check(question, place, []) : { status: "UNKNOWN", day: "" };
+  const plan = targetWindow.EchoAI.AnswerPlanner.plan({ question, language, intent, resolution, previous: null, premise, asOf: undefined });
   return { plan, options: { day: premise.day } };
 }
+
+const buildPlan = (question, language = "en") => buildPlanFor(window, question, language);
 
 function validSequenceFor(clausePlan, transitionId = "NONE") {
   const sequence = [];
@@ -123,6 +148,105 @@ function validSequenceFor(clausePlan, transitionId = "NONE") {
     sequence.push({ type: "clause", id: clause.clauseId });
   });
   return { answerMode: clausePlan.answerMode, language: clausePlan.language, sequence };
+}
+
+function validSequenceFromMessages(messages, transitionId = "NONE") {
+  const input = JSON.parse(messages[1].content);
+  const sequence = [];
+  input.clauses.forEach((clause, index) => {
+    if (index > 0) sequence.push({ type: "transition", id: transitionId });
+    sequence.push({ type: "clause", id: clause.id });
+  });
+  return JSON.stringify({ answerMode: input.answerMode, language: input.language, sequence });
+}
+
+const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+
+// --- Ask Echo UI defense-in-depth: repeated suggestion clicks stay single-flight ---
+{
+  const windowListeners = {};
+  let mountedPanel = null;
+  let campusCalls = 0;
+  let settleCampusAsk;
+  let rejectNextAsk = false;
+  const makeElement = tagName => ({
+    tagName,
+    children: [],
+    className: "",
+    textContent: "",
+    disabled: false,
+    hidden: false,
+    classList: { add() {}, remove() {} },
+    setAttribute() {},
+    appendChild(child) { this.children.push(child); return child; },
+    addEventListener(type, handler) { this[`on${type}`] = handler; },
+    remove() { this.removed = true; },
+    querySelector() { return null; },
+    querySelectorAll() { return []; },
+  });
+  const messages = makeElement("div");
+  messages.scrollHeight = 0;
+  messages.querySelector = () => null;
+  const submitButton = makeElement("button");
+  const input = { value: "" };
+  const form = makeElement("form");
+  form.elements = [input];
+  form.reset = () => { input.value = ""; };
+  form.querySelector = selector => selector === "button[type=submit]" ? submitButton : null;
+  const suggestionButtons = ["Where is the library?", "Show sports facilities", "Where is the cafeteria?"].map(label => {
+    const button = makeElement("button");
+    button.textContent = label;
+    return button;
+  });
+  const closeButton = makeElement("button");
+  const panel = makeElement("section");
+  panel.querySelector = selector => selector === ".ai-messages" ? messages
+    : selector === "form" ? form
+      : selector === ".ai-assistant-close" ? closeButton
+        : null;
+  panel.querySelectorAll = selector => selector === ".ai-suggestions button" ? suggestionButtons : [];
+  const document = {
+    body: { appendChild(element) { mountedPanel = element; } },
+    createElement: tagName => tagName === "section" ? panel : makeElement(tagName),
+    getElementById: id => id === "ai-assistant" ? mountedPanel : null,
+    addEventListener() {},
+  };
+  const immediateTimeout = callback => { callback(); return 0; };
+  const uiWindow = {
+    window: null,
+    document,
+    setTimeout: immediateTimeout,
+    requestAnimationFrame: callback => callback(),
+    addEventListener(type, handler) { windowListeners[type] = handler; },
+    CampusAI: {
+      ask: () => {
+        campusCalls += 1;
+        if (rejectNextAsk) return Promise.reject(new Error("expected UI test failure"));
+        return new Promise(resolve => { settleCampusAsk = resolve; });
+      },
+    },
+    EchoAI: { MapAction: { validate: () => false } },
+  };
+  uiWindow.window = uiWindow;
+  const uiContext = { window: uiWindow, document, console, setTimeout: immediateTimeout, requestAnimationFrame: uiWindow.requestAnimationFrame };
+  vm.createContext(uiContext);
+  vm.runInContext(read("services/ai-assistant.js"), uiContext, { filename: "services/ai-assistant.js" });
+  windowListeners.DOMContentLoaded();
+
+  suggestionButtons[0].onclick();
+  input.value = "What time does KOOP close?";
+  form.onsubmit({ preventDefault() {} });
+  suggestionButtons[1].onclick();
+  check("rapid submit and suggestion events start only one CampusAI request", campusCalls === 1);
+  check("submit and every suggestion control are disabled while Ask Echo is pending", submitButton.disabled && suggestionButtons.every(button => button.disabled));
+  settleCampusAsk({ answer: "Library answer", actions: [] });
+  await wait(0);
+  check("Ask Echo controls restore after a successful request", !submitButton.disabled && suggestionButtons.every(button => !button.disabled));
+
+  rejectNextAsk = true;
+  suggestionButtons[1].onclick();
+  await wait(0);
+  check("Ask Echo controls restore after a failed request", campusCalls === 2 && !submitButton.disabled && suggestionButtons.every(button => !button.disabled));
 }
 
 providerState.available = false;
@@ -194,30 +318,46 @@ for (const [label, text] of malformedCases) {
   check(`${label} is reported as provider_rejected_fallback`, rendered.route === "provider_rejected_fallback");
 }
 
-// --- Structural attacks against a real clause plan are all rejected ---
+// --- Structural attacks against a genuine multi-clause plan are rejected for the intended reason ---
 {
-  const clausePlan = window.EchoAI.FactLockedRenderer.buildClausePlan(libraryHoursPlan, "en", libraryHoursOptions);
-  check("Library hours clause plan has at least one clause", clausePlan.clauses.length >= 1);
-
-  const unknownClause = { answerMode: "DIRECT", language: "en", sequence: [{ type: "clause", id: "C_FAKE" }] };
-  check("unknown clause id is rejected", window.EchoAI.FactLockedRenderer.validateSequence(unknownClause, clausePlan).reason === "UNKNOWN_CLAUSE");
-
-  const droppedClause = { answerMode: "DIRECT", language: "en", sequence: validSequenceFor(clausePlan).sequence.slice(0, -1) };
-  if (clausePlan.clauses.length > 1) {
-    check("dropping a clause is rejected as an illegal structure", window.EchoAI.FactLockedRenderer.validateSequence(droppedClause, clausePlan).reason === "ILLEGAL_STRUCTURE");
-  }
-
-  const illegalTransition = { answerMode: "DIRECT", language: "en", sequence: [{ type: "clause", id: clausePlan.clauses[0].clauseId }, { type: "transition", id: "B_FAKE" }, { type: "clause", id: clausePlan.clauses[0].clauseId }] };
-  check("an unapproved transition id (attempted B_* leakage vector) is rejected", window.EchoAI.FactLockedRenderer.validateSequence(illegalTransition, clausePlan).reason === "ILLEGAL_STRUCTURE");
-
-  const withAction = { ...validSequenceFor(clausePlan), actions: [{ type: "OPEN_MAP", placeId: "library", buildingId: "B_PUSTAKA" }] };
-  check("a provider-generated action is rejected", window.EchoAI.FactLockedRenderer.validateSequence(withAction, clausePlan).reason === "PROVIDER_ACTION");
-
-  const duplicateClause = { answerMode: "DIRECT", language: "en", sequence: [{ type: "clause", id: clausePlan.clauses[0].clauseId }, { type: "clause", id: clausePlan.clauses[0].clauseId }] };
-  check("a duplicated clause is rejected as an illegal structure", window.EchoAI.FactLockedRenderer.validateSequence(duplicateClause, clausePlan).reason !== undefined && !window.EchoAI.FactLockedRenderer.validateSequence(duplicateClause, clausePlan).valid);
+  const { plan, options } = buildPlan("Library");
+  const clausePlan = window.EchoAI.FactLockedRenderer.buildClausePlan(plan, "en", options);
+  check("Library information fixture is provider-eligible with at least two clauses", clausePlan.clauses.length >= 2);
 
   const valid = validSequenceFor(clausePlan);
-  check("a fully compliant sequence validates", window.EchoAI.FactLockedRenderer.validateSequence(valid, clausePlan).valid === true);
+  const validate = payload => window.EchoAI.FactLockedRenderer.validateSequence(payload, clausePlan);
+  check("a fully compliant multi-clause sequence validates", validate(valid).valid === true);
+
+  const droppedClause = { ...valid, sequence: valid.sequence.slice(0, -1) };
+  check("dropping a clause is rejected as an illegal structure", validate(droppedClause).reason === "ILLEGAL_STRUCTURE");
+
+  const duplicateClause = { ...valid, sequence: valid.sequence.map((item, index) => index === 2 ? { type: "clause", id: clausePlan.clauses[0].clauseId } : item) };
+  check("duplicating a clause at the expected length reaches clause-order validation", validate(duplicateClause).reason === "UNKNOWN_CLAUSE");
+
+  const reorderedSequence = valid.sequence.map(item => ({ ...item }));
+  [reorderedSequence[0], reorderedSequence[2]] = [reorderedSequence[2], reorderedSequence[0]];
+  check("reordering clauses at the expected length reaches clause-order validation", validate({ ...valid, sequence: reorderedSequence }).reason === "UNKNOWN_CLAUSE");
+
+  const unknownClauseSequence = valid.sequence.map((item, index) => index === 2 ? { type: "clause", id: "C_FAKE" } : item);
+  check("an unknown clause at the expected length is rejected", validate({ ...valid, sequence: unknownClauseSequence }).reason === "UNKNOWN_CLAUSE");
+
+  const missingTransition = { ...valid, sequence: valid.sequence.filter((_, index) => index !== 1) };
+  check("a missing transition is rejected as an illegal structure", validate(missingTransition).reason === "ILLEGAL_STRUCTURE");
+
+  const duplicateTransition = { ...valid, sequence: [...valid.sequence.slice(0, 2), { ...valid.sequence[1] }, ...valid.sequence.slice(2)] };
+  check("a duplicate transition is rejected as an illegal structure", validate(duplicateTransition).reason === "ILLEGAL_STRUCTURE");
+
+  const illegalTransitionSequence = valid.sequence.map((item, index) => index === 1 ? { type: "transition", id: "B_FAKE" } : item);
+  check("an illegal transition id reaches transition validation", validate({ ...valid, sequence: illegalTransitionSequence }).reason === "ILLEGAL_STRUCTURE");
+
+  const transitionBeforeFirst = valid.sequence.map((item, index) => index === 0 ? { type: "transition", id: "NONE" } : item);
+  check("a transition before the first clause is rejected", validate({ ...valid, sequence: transitionBeforeFirst }).reason === "UNKNOWN_CLAUSE");
+
+  const transitionAfterLast = valid.sequence.map((item, index) => index === valid.sequence.length - 1 ? { type: "transition", id: "NONE" } : item);
+  check("a transition after the last clause is rejected", validate({ ...valid, sequence: transitionAfterLast }).reason === "UNKNOWN_CLAUSE");
+
+  const withAction = { ...valid, actions: [{ type: "OPEN_MAP", placeId: "library", buildingId: "B_PUSTAKA" }] };
+  check("a provider-generated actions field is rejected", validate(withAction).reason === "PROVIDER_ACTION");
 }
 
 // --- A valid provider sequence is accepted, but content stays fact-locked: ---
@@ -235,6 +375,8 @@ for (const [language, question] of [["en", "What time does the library close?"],
   check(`${language} safe rendering accepts a valid provider sequence`, rendered.route === "provider_accepted");
   check(`${language} assembled answer ignores provider-injected free text`, !rendered.text.includes("FABRICATED"));
   check(`${language} assembled answer contains only the pre-approved clause text`, clausePlan.clauses.every(clause => rendered.text.includes(clause.exactText)));
+  const providerPayload = JSON.parse(providerState.lastMessages[1].content);
+  check(`${language} provider payload excludes entity, fact, provenance, and Map identifiers`, Object.keys(providerPayload).sort().join(",") === "allowedTransitionIds,answerMode,clauses,language" && providerPayload.clauses.every(clause => Object.keys(clause).sort().join(",") === "id,text"));
 }
 
 // --- Approximate facts and correction prefixes remain fixed inside the clause, never provider-editable ---
@@ -266,6 +408,107 @@ providerState.available = true;
 }
 providerState.available = false;
 
+// --- Actual timeout: a pending provider loses the real ProviderAdapter timer race ---
+{
+  const { window: timeoutWindow, providerState: timeoutProvider } = buildSandbox({ campusRendering: true, providerTimeoutMs: 25 });
+  const { plan, options } = buildPlanFor(timeoutWindow, "What time does the library close?");
+  const deterministic = timeoutWindow.EchoAI.AnswerRenderer.render(plan, "en", options);
+  let releaseProvider;
+  let providerStarted = false;
+  let renderSettled = false;
+  let providerMessages;
+  timeoutProvider.available = true;
+  timeoutProvider.handler = messages => {
+    providerStarted = true;
+    providerMessages = messages;
+    return new Promise(resolve => { releaseProvider = resolve; });
+  };
+
+  const renderPromise = timeoutWindow.EchoAI.FactLockedRenderer.render(plan, "en", options).then(result => {
+    renderSettled = true;
+    return result;
+  });
+  await wait(5);
+  check("real-timeout provider call is still pending before the short timeout", providerStarted && !renderSettled);
+  const timedOutResult = await renderPromise;
+  check("real delayed provider triggers deterministic fallback text", timedOutResult.text === deterministic);
+  check("real delayed provider triggers provider_rejected_fallback route", timedOutResult.route === "provider_rejected_fallback");
+
+  const visibleText = timedOutResult.text;
+  releaseProvider(validSequenceFromMessages(providerMessages, "ALSO"));
+  await wait(0);
+  check("late provider resolution cannot mutate the returned visible result", timedOutResult.text === visibleText && Object.isFrozen(timedOutResult));
+
+  let releaseContextProvider;
+  let contextMessages;
+  timeoutProvider.handler = messages => {
+    contextMessages = messages;
+    return new Promise(resolve => { releaseContextProvider = resolve; });
+  };
+  const timeoutReply = await timeoutWindow.CampusAI.ask("What time does the library close?", { sessionId: "late-timeout-context" });
+  check("timed-out CampusAI request commits its deterministic Library context", timeoutWindow.EchoAI.ConversationContext.get("late-timeout-context")?.activeEntityId === "library");
+  releaseContextProvider(validSequenceFromMessages(contextMessages));
+  await wait(0);
+  check("late provider completion cannot corrupt conversation context", timeoutWindow.EchoAI.ConversationContext.get("late-timeout-context")?.activeEntityId === "library" && /4:30pm/.test(timeoutReply.answer));
+}
+
+function installGatedProvider(targetState) {
+  const calls = [];
+  targetState.available = true;
+  targetState.handler = messages => new Promise(resolve => {
+    calls.push({
+      resolve: (transitionId = "NONE") => resolve(validSequenceFromMessages(messages, transitionId)),
+    });
+  });
+  return calls;
+}
+
+// --- Same-session generations: latest-started owns context writes regardless of completion order ---
+{
+  const { window: raceWindow, providerState: raceProvider } = buildSandbox({ campusRendering: true, providerTimeoutMs: 250 });
+  const calls = installGatedProvider(raceProvider);
+  const libraryRequest = raceWindow.CampusAI.ask("What time does the library close?", { sessionId: "same-session-late-old" });
+  const koopRequest = raceWindow.CampusAI.ask("What time does KOOP close?", { sessionId: "same-session-late-old" });
+  await wait(0);
+  check("same-session race starts both provider requests without serializing them", calls.length === 2);
+  calls[1].resolve();
+  await koopRequest;
+  const newerContext = JSON.stringify(raceWindow.EchoAI.ConversationContext.get("same-session-late-old"));
+  calls[0].resolve();
+  await libraryRequest;
+  check("older Library completion cannot overwrite newer KOOP context", raceWindow.EchoAI.ConversationContext.get("same-session-late-old")?.activeEntityId === "koop-mart");
+  check("stale completion leaves the newer session context byte-identical", JSON.stringify(raceWindow.EchoAI.ConversationContext.get("same-session-late-old")) === newerContext);
+}
+
+{
+  const { window: raceWindow, providerState: raceProvider } = buildSandbox({ campusRendering: true, providerTimeoutMs: 250 });
+  const calls = installGatedProvider(raceProvider);
+  const libraryRequest = raceWindow.CampusAI.ask("What time does the library close?", { sessionId: "same-session-early-old" });
+  const koopRequest = raceWindow.CampusAI.ask("What time does KOOP close?", { sessionId: "same-session-early-old" });
+  await wait(0);
+  calls[0].resolve();
+  await libraryRequest;
+  check("older Library request cannot write context even when it completes first", raceWindow.EchoAI.ConversationContext.get("same-session-early-old")?.activeEntityId !== "library");
+  calls[1].resolve();
+  await koopRequest;
+  check("newer KOOP request owns context when it completes after the stale request", raceWindow.EchoAI.ConversationContext.get("same-session-early-old")?.activeEntityId === "koop-mart");
+}
+
+// --- Request generations are isolated per session id ---
+{
+  const { window: raceWindow, providerState: raceProvider } = buildSandbox({ campusRendering: true, providerTimeoutMs: 250 });
+  const calls = installGatedProvider(raceProvider);
+  const libraryRequest = raceWindow.CampusAI.ask("What time does the library close?", { sessionId: "independent-library" });
+  const koopRequest = raceWindow.CampusAI.ask("What time does KOOP close?", { sessionId: "independent-koop" });
+  await wait(0);
+  calls[1].resolve();
+  await koopRequest;
+  calls[0].resolve();
+  await libraryRequest;
+  check("different sessions retain independent Library context", raceWindow.EchoAI.ConversationContext.get("independent-library")?.activeEntityId === "library");
+  check("different sessions retain independent KOOP context", raceWindow.EchoAI.ConversationContext.get("independent-koop")?.activeEntityId === "koop-mart");
+}
+
 // ---------------------------------------------------------------------------
 // Required regression cases — Phase 4 wiring must not change any of these,
 // whether or not the provider path is reachable for that answer mode.
@@ -286,7 +529,7 @@ check("REGRESSION KOOP deterministic schedule remains authoritative", /9:00am–
 reply = await window.CampusAI.ask("What time does basketball court close?");
 check("REGRESSION Basketball verified hours remain unavailable", reply.answerPlan.mode === "UNSUPPORTED" && /unavailable/.test(reply.answer) && !/17:30|5:30pm/.test(reply.answer));
 
-for (const [name, parentBuilding] of [["Blok A1", "B_SERI_PALAS"], ["Blok B2", "B_SERI_TEMIN"], ["Blok C2", "B_SERI_LAKA"]]) {
+for (const [name, parentBuilding] of [["Blok A1", "B_SERI_PALAS"], ["Blok A2", "B_SERI_PALAS"], ["Blok B1", "B_SERI_TEMIN"], ["Blok B2", "B_SERI_TEMIN"], ["Blok C2", "B_SERI_LAKA"]]) {
   reply = await window.CampusAI.ask(name);
   check(`REGRESSION ${name} still navigates only to its verified parent area`, reply.actions[0]?.buildingId === parentBuilding && reply.actions[0]?.targetType === "PARENT_ONLY");
 }

@@ -1,5 +1,28 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-14 - Phase 4 request ordering without provider serialization
+
+- Compared three ways to fix out-of-order provider completions: UI-only
+  locking, serializing all provider calls per session, and a per-session
+  latest-started generation guard. UI-only locking would not protect direct
+  `CampusAI.ask()` callers; serialization could stack repeated 9-second waits.
+  Chose the generation guard so stale requests return normally but cannot
+  mutate context, while different sessions and provider calls stay concurrent.
+- Added the small UI in-flight guard as defense-in-depth, covering submit and
+  suggestion controls together and restoring them through `finally`.
+- Replaced opt-out campus rendering with explicit opt-in. Configuring the
+  general OpenRouter adapter no longer changes deterministic campus behavior
+  unless `campusRendering: true` is deliberately set.
+- Reduced the provider payload by removing `entityTitle`; transition selection
+  keeps only the exact minimum clause structure it consumes.
+- Strengthened the focused suite with controlled deferred promises rather than
+  wall-clock 9-second waits. The 25 ms test exercises the production timeout
+  race, while manually released requests deterministically cover both
+  completion orders and cross-session isolation.
+- No performance gain is claimed without browser measurement. Browser QA was
+  not rerun because browser tooling was unavailable; all automated release
+  gates pass.
+
 ## 2026-09-12 - KMK AI Phase 4 fact-lock: ID-only provider contract over free-text validation
 
 - Compared two designs for letting an optional provider touch campus

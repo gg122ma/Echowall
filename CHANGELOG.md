@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-09-14 - KMK AI PHASE 4 PRE-MERGE HARDENING
+
+- Added a per-session latest-started request-generation guard to
+  `CampusAI.ask()`. Older provider completions can still return answers but can
+  no longer call `ConversationContext.update()`, `markServed()`, or `clear()`
+  after a newer request starts. Different session IDs remain independent and
+  provider calls are not serialized.
+- Added Ask Echo single-flight defense: submit and suggestion buttons disable
+  together during a request, rapid repeated clicks are ignored, and controls
+  restore after success or failure.
+- Changed campus provider rendering to explicit opt-in through
+  `EchoConfig.freeAI.campusRendering === true`; general/non-campus adapter
+  behavior and production configuration remain unchanged.
+- Removed redundant `entityTitle` from the provider payload, leaving only the
+  constrained mode/language, approved clause text under opaque IDs, and fixed
+  transition allowlist.
+- Strengthened Phase 4 coverage to **89/89** assertions with a genuine
+  multi-clause validator matrix, a real controlled timeout and late-resolution
+  checks, same-session races in both completion orders, cross-session
+  isolation, provider-payload minimization, explicit opt-in, complete
+  A1/A2/B1/B2/C2 parent-only regressions, and UI single-flight restoration.
+- Validation passes: campus AI **199/199**, Map actions **21/21**, all **25/25**
+  test scripts, **115/115** syntax checks, Pages build/artifact (490 files),
+  production URL lock, static, portable, and both seed validators. Browser QA
+  was not rerun because browser tooling was unavailable.
+- No Supabase, auth, database, production-data, campus-data, or UI redesign
+  changes.
+
 ## 2026-09-12 - KMK AI PHASE 4: FACT-LOCKED CONSTRAINED LLM RENDERING
 
 - Added `services/ai/fact-locked-renderer.js`, a new deterministic-first

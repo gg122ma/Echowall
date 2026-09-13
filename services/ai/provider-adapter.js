@@ -44,7 +44,6 @@
     const payload = {
       answerMode: clausePlan.answerMode,
       language: clausePlan.language,
-      entityTitle: clausePlan.entityTitle,
       clauses: clausePlan.clauses.map(clause => ({ id: clause.clauseId, text: clause.exactText })),
       allowedTransitionIds: clausePlan.allowedTransitionIds,
     };

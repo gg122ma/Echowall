@@ -1,6 +1,17 @@
 (function () {
   "use strict";
   window.EchoAI = window.EchoAI || {};
+  const sessionRequestGenerations = new Map();
+
+  function beginSessionRequest(sessionId) {
+    const generation = (sessionRequestGenerations.get(sessionId) || 0) + 1;
+    sessionRequestGenerations.set(sessionId, generation);
+    return generation;
+  }
+
+  function isLatestSessionRequest(sessionId, generation) {
+    return sessionRequestGenerations.get(sessionId) === generation;
+  }
 
   const UNKNOWN = Object.freeze({
     en: "I can’t confirm that from the current EchoWall campus information.",
@@ -179,6 +190,7 @@
     const language = window.EchoAI.Language.detect(question);
     let intent = window.EchoAI.IntentRouter.classify(question);
     const sessionId = options.sessionId || "default";
+    const requestGeneration = beginSessionRequest(sessionId);
     if (!question) return response({ answer: unknownAnswer(language), intent: "unknown", confidence: 0, answerPlan: { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false } });
     if (!window.EchoAI.Config.enabled) {
       return response({ answer: unknownAnswer(language), intent: "unknown", confidence: 0, error: { code: "FEATURE_DISABLED" }, answerPlan: { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false } });
@@ -201,7 +213,9 @@
     if (intent === "campus_comparison") {
       const places = window.EchoAI.Retriever.resolveMany(question);
       if (places.length < 2) return response({ answer: ambiguousAnswer(language, places), intent, confidence: 0.35, places: places.map(resolvedPlace), answerPlan: { mode: "AMBIGUOUS", selectedFactIds: [], actionAllowed: false } });
-      places.slice(0, 2).forEach(place => window.EchoAI.ConversationContext.update(sessionId, place.canonicalId, intent));
+      if (isLatestSessionRequest(sessionId, requestGeneration)) {
+        places.slice(0, 2).forEach(place => window.EchoAI.ConversationContext.update(sessionId, place.canonicalId, intent));
+      }
       return response({ answer: comparisonAnswer(language, places), intent, confidence: 0.88, premise: "SUPPORTED", places: places.slice(0, 2).map(resolvedPlace), grounding: places.slice(0, 2).flatMap(grounding), answerPlan: { mode: "COMPARISON", selectedFactIds: [], actionAllowed: false } });
     }
 
@@ -212,7 +226,9 @@
       ? previous.activeIntent || previous.intent || "campus_info"
       : "campus_info";
     if (place && intent === "campus_nearby") {
-      const contextState = window.EchoAI.ConversationContext.update(sessionId, place.canonicalId, intent);
+      const contextState = isLatestSessionRequest(sessionId, requestGeneration)
+        ? window.EchoAI.ConversationContext.update(sessionId, place.canonicalId, intent)
+        : previous;
       return response({
         answer: nearbyAnswer(language, place), intent, confidence: resolution.confidence || 0.8, premise: "SUPPORTED",
         places: [resolvedPlace(place)], grounding: grounding(place), context: contextState,
@@ -234,11 +250,13 @@
       }
     }
     let contextState = previous;
-    if (place && plan.answerMode !== "UNSUPPORTED") contextState = window.EchoAI.ConversationContext.markServed(sessionId, place.canonicalId, intent, plan.facts);
-    else if (!place && ["dining", "discovery"].includes(resolution.status)) {
-      window.EchoAI.ConversationContext.clear(sessionId);
-      contextState = null;
-    } else if (!place && resolution.status !== "ambiguous") window.EchoAI.ConversationContext.clear(sessionId);
+    if (isLatestSessionRequest(sessionId, requestGeneration)) {
+      if (place && plan.answerMode !== "UNSUPPORTED") contextState = window.EchoAI.ConversationContext.markServed(sessionId, place.canonicalId, intent, plan.facts);
+      else if (!place && ["dining", "discovery"].includes(resolution.status)) {
+        window.EchoAI.ConversationContext.clear(sessionId);
+        contextState = null;
+      } else if (!place && resolution.status !== "ambiguous") window.EchoAI.ConversationContext.clear(sessionId);
+    }
 
     const answerPremise = plan.answerMode === "CORRECTION" ? "CONTRADICTED"
       : plan.answerMode === "CONFLICT" || plan.answerMode === "AMBIGUOUS" ? "AMBIGUOUS"

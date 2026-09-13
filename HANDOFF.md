@@ -1,3 +1,75 @@
+# KMK AI PHASE 4 PRE-MERGE HARDENING HANDOFF (2026-09-14)
+
+Status: **IMPLEMENTED; ALL LOCAL GATES PASS; BROWSER QA NOT RERUN**.
+
+This follow-up started from Phase 4 commit
+`c196354e854373c371a65b7bc951fdac5b0cfed1` on
+`feature/kmk-ai-phase4-fact-locked-rendering` and updates existing PR #1. It
+does not start Phase 5 and does not change Supabase, auth, database, or campus
+data.
+
+## Pre-merge findings fixed
+
+- **Session request ordering:** `CampusAI.ask()` now assigns a monotonically
+  increasing generation per `sessionId`. Every context `update`, `markServed`,
+  or `clear` is allowed only while that request remains the latest-started
+  request for its session. A stale provider completion may still return its
+  answer, but it cannot overwrite the newer request's entity, intent, served
+  facts/dimensions, or other context. Generations are scoped per session, so
+  different sessions remain concurrent and independent; provider calls are not
+  serialized.
+- **Root cause:** the Phase 4 `await FactLockedRenderer.render()` yielded before
+  the later `markServed()` call. Provider requests could complete out of order,
+  allowing an older request to write last. The generation check closes that
+  asynchronous write window at the AI/session layer.
+- **UI defense-in-depth:** Ask Echo now has a small `requestInFlight` guard.
+  Submit and all suggestion buttons are disabled while a request is pending;
+  rapid repeated clicks are ignored; all controls are restored after success
+  or failure. This is not the correctness boundaryâ€”direct callers remain
+  protected by the session generation guard.
+- **Explicit provider opt-in:** campus provider rendering now requires
+  `EchoConfig.freeAI.campusRendering === true`. Missing/false values stay
+  deterministic even when the general OpenRouter adapter is configured. The
+  production config was not enabled and no token was added.
+- **Minimal provider payload:** the redundant `entityTitle` field was removed.
+  The provider receives only `answerMode`, `language`, exact approved clause
+  text under opaque clause IDs, and the fixed transition-ID allowlist. Fact
+  IDs, provenance, Map/building IDs, actions, grounding, and the user query are
+  not sent.
+- **Structural coverage:** the Phase 4 suite now uses a real multi-clause
+  provider-eligible plan and independently checks valid, dropped, duplicated,
+  reordered, unknown, missing-transition, duplicate-transition,
+  illegal-transition, leading/trailing-transition, and provider-action cases.
+- **Actual timeout coverage:** a controlled unresolved provider promise and a
+  test-only 25 ms timeout exercise the real `ProviderAdapter` timer race. The
+  deterministic fallback and `provider_rejected_fallback` route are asserted;
+  late resolution cannot mutate the returned answer or conversation context.
+- **Concurrency coverage:** controlled provider gates prove the newer KOOP
+  request owns a shared session whether it finishes before or after an older
+  Library request. A separate test proves Library and KOOP sessions do not
+  interfere. UI-level tests cover rapid suggestion clicks and success/failure
+  control restoration.
+
+## Validation
+
+- Campus AI: **199/199**.
+- Map actions: **21/21**.
+- Phase 4 focused: **89/89**.
+- All `scripts/test-*.mjs`: **25/25 scripts pass**.
+- Active JavaScript/module syntax: **115/115 pass**.
+- Pages build: **490 files**; artifact validation **PASS**, no warnings.
+- Production URL lock, static, portable, Pustaka seed, and showcase seed
+  validators: **PASS**.
+- `git diff --check`: **PASS** (line-ending conversion warnings only).
+- Browser QA: **NOT RERUN** because browser tooling was unavailable. No browser
+  success or console claim is made for this hardening follow-up.
+
+## Rollback
+
+Revert only the Phase 4 hardening follow-up commit. This restores the earlier
+Phase 4 behavior without touching the original `c196354` commit or any
+Supabase/auth/database/data state.
+
 # KMK AI PHASE 4 FACT-LOCKED RENDERING HANDOFF (2026-09-12)
 
 Status: **IMPLEMENTED; ALL LOCAL GATES PASS; BROWSER QA PERFORMED (see below)**.

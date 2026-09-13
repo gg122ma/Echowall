@@ -48,7 +48,6 @@
     return Object.freeze({
       answerMode: plan.answerMode,
       language,
-      entityTitle: plan.place?.title || "",
       clauses,
       allowedTransitionIds: ALLOWED_TRANSITION_IDS,
     });

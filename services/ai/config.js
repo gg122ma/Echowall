@@ -6,7 +6,7 @@
     contextTtlMs: 20 * 60 * 1000,
     providerTimeoutMs: 9000,
     maxQuestionLength: 500,
-    campusProviderRenderingEnabled: window.EchoConfig?.freeAI?.campusRendering !== false,
+    campusProviderRenderingEnabled: window.EchoConfig?.freeAI?.campusRendering === true,
     sourceAuthority: Object.freeze({ ownerSource: 1, campusKnowledge: 2, mapData: 3, communityOpinion: 4, genericModel: 5 }),
     supportedLanguages: Object.freeze(["en", "ms", "zh"]),
     supportedIntents: Object.freeze([

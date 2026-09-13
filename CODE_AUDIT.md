@@ -1,5 +1,46 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-14 - KMK AI PHASE 4 PRE-MERGE HARDENING
+
+- Reproduced and fixed the Phase 4 out-of-order session mutation: the new
+  provider `await` could allow an older Library request to call `markServed()`
+  after a newer KOOP request. `CampusAI.ask()` now records a per-session request
+  generation at start and guards every context `update`, `markServed`, and
+  `clear`; latest-started owns future writes regardless of completion order.
+  Sessions have independent counters and provider calls remain parallel.
+- Added UI single-flight defense without redesign: the submit and suggestion
+  controls disable together while `ask()` is pending, repeated fast clicks are
+  ignored, and the controls restore in `finally` after both success and failure.
+- Changed campus provider rendering from opt-out to explicit opt-in
+  (`campusRendering === true`). General `FreeAIAdapter.sendMessage()` behavior
+  is unchanged, the production config remains deterministic, and no token was
+  added.
+- Removed redundant `entityTitle` from the external payload. Direct prompt
+  inspection tests confirm that clause entries contain only opaque `id` plus
+  exact approved `text`; fact/provenance/Map/action/grounding identifiers and
+  the user query are absent.
+- Replaced the single-clause structural fixture with a genuine multi-clause
+  plan. Reorder and duplication retain the expected sequence length and reach
+  clause-position validation; transition failures independently exercise
+  missing, duplicate, illegal, leading, and trailing shapes.
+- Added a real short-timeout test using a pending provider promise. It verifies
+  the call is unresolved before timeout, the actual timer produces the frozen
+  deterministic fallback with `provider_rejected_fallback`, and late provider
+  resolution cannot mutate answer text or session context.
+- Added end-to-end same-session races in both completion orders plus
+  cross-session isolation. The newer KOOP request remains authoritative and
+  the complete newer context stays byte-identical after the stale Library
+  completion.
+- Fact-lock review remains clean: provider free text is still ignored; clause
+  IDs cannot be dropped/reordered/duplicated; deterministic-only modes and Map
+  actions remain provider-inaccessible.
+- Validation: campus AI **199/199**, Map actions **21/21**, Phase 4 **89/89**,
+  all **25/25** test scripts, **115/115** syntax checks, Pages build/artifact
+  (490 files), production URL lock, static, portable, and both seed validators
+  pass. Browser QA was **not rerun** because tooling was unavailable.
+- No Supabase, auth, database, production-data, campus-data, or UI redesign
+  change was made.
+
 ## 2026-09-12 - KMK AI PHASE 4: FACT-LOCKED CONSTRAINED LLM RENDERING
 
 - **Invariant audited: the provider can never be a fact source.** Verified
