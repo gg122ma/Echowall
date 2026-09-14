@@ -96,7 +96,9 @@ function count(map, key) {
 
 function answerLanguage(answer) {
   const text = String(answer || "");
-  if (/[\u3400-\u9fff]/.test(text)) return "ZH";
+  const cjkCount = [...text].filter(character => /[\u3400-\u9fff]/.test(character)).length;
+  const latinWords = text.match(/[a-z]+/gi) || [];
+  if (cjkCount >= 3 && cjkCount >= Math.ceil(latinWords.length * 0.6)) return "ZH";
   const normalized = ` ${text.toLocaleLowerCase().replace(/[^a-z]+/g, " ")} `;
   const malayMarkers = [
     " saya ", " tidak ", " sumber ", " waktu ", " ditutup ", " dibuka ",
@@ -104,8 +106,12 @@ function answerLanguage(answer) {
     " pelajar ", " boleh ", " maklumat ", " berhampiran ", " kemudahan ",
     " ahad ", " khamis ", " jumaat ", " sabtu ", " ialah ", " nama ", " bagi ",
   ];
-  return malayMarkers.some(marker => normalized.includes(marker)) ? "MS" : "EN";
+  const malayHits = malayMarkers.filter(marker => normalized.includes(marker)).length;
+  const englishHits = (normalized.match(/\b(?:the|is|are|from|current|where|hours|closed|open|please|information)\b/g) || []).length;
+  return malayHits >= 2 || (malayHits === 1 && englishHits === 0) ? "MS" : "EN";
 }
+
+const INTERNAL_ID_PATTERN = /\bB_[A-Z0-9_]+\b|\b[a-z][a-z0-9-]+\.(?:hours|purpose|services?|rules?|fees?|identity)\.[a-z0-9.-]+\b/i;
 
 function includesText(answer, expected) {
   return String(answer || "").toLocaleLowerCase().includes(String(expected).toLocaleLowerCase());
@@ -128,6 +134,7 @@ function assertExpectation(expectation, reply, targetWindow, sessionId) {
     if (expectation.exactEntities) assert.deepEqual(entities, expectedEntities);
     else expectedEntities.forEach(entity => assert.ok(entities.includes(entity), `missing entity ${entity}; got ${entities.join(", ")}`));
   }
+  (expectation.forbiddenEntities || []).forEach(entity => assert.ok(!entities.includes(entity), `forbidden entity ${entity} was resolved`));
   if (expectation.expectedIntent) assert.equal(reply.intent, expectation.expectedIntent);
   if (expectation.expectedAnswerMode) assert.equal(reply.answerPlan.mode, expectation.expectedAnswerMode);
   if (expectation.expectedPremise) assert.equal(reply.premise, expectation.expectedPremise);
@@ -148,7 +155,11 @@ function assertExpectation(expectation, reply, targetWindow, sessionId) {
   }
   (expectation.mustNotContain || []).forEach(text => assert.ok(!includesText(reply.answer, text), `answer must not contain ${text}`));
   (expectation.forbiddenPatterns || []).forEach(pattern => assert.ok(!new RegExp(pattern, "iu").test(reply.answer), `answer matched forbidden pattern ${pattern}`));
-  if (expectation.noInternalIds) assert.ok(!/\bB_[A-Z0-9_]+\b|\b[a-z][a-z0-9-]+\.(?:hours|purpose|service|rule|fee|identity)\.[a-z0-9.-]+\b/i.test(reply.answer));
+  if (expectation.noInternalIds) assert.ok(!INTERNAL_ID_PATTERN.test(reply.answer));
+  if (expectation.noInternalIdsAnywhere) {
+    const studentVisibleOutput = JSON.stringify({ answer: reply.answer, actions: reply.actions });
+    assert.ok(!INTERNAL_ID_PATTERN.test(studentVisibleOutput), `student-visible output leaked an internal identifier: ${studentVisibleOutput}`);
+  }
   if (expectation.noProviderInternals) assert.ok(!/OpenRouter|FactLockedRenderer|AnswerPlanner|provider prompt|source registry|semantic key/i.test(reply.answer));
   if (expectation.noSystemPrompt) assert.ok(!/system prompt|developer message|hidden prompt|internal instructions/i.test(reply.answer));
   if (expectation.noFabricatedHours) assert.ok(!/\b(?:1[0-2]|0?[1-9])(?::[0-5]\d)?\s*(?:am|pm)\b|\b[01]?\d:[0-5]\d\b/i.test(reply.answer));
@@ -253,7 +264,7 @@ async function runCase(testCase) {
 }
 
 assert.equal(benchmark.schemaVersion, "1.0");
-assert.equal(benchmark.cases.length, 120, "Phase 5 permanent benchmark must contain exactly 120 cases");
+assert.ok(benchmark.cases.length >= 120, "Phase 5 permanent benchmark must retain at least its original 120 cases");
 assert.equal(new Set(benchmark.cases.map(item => item.id)).size, benchmark.cases.length, "benchmark IDs must be unique");
 
 const selectedCases = requestedIds.size ? benchmark.cases.filter(item => requestedIds.has(item.id)) : benchmark.cases;

@@ -193,7 +193,10 @@
   function isInjectionAttempt(question) {
     const text = String(question || "");
     if (/ignore (?:all |the )?(?:previous|system)|ignore\s+(?:answerplanner|knowledgeengine|responsevalidator)|bypass|jailbreak|abaikan (?:semua )?arahan|忽略.*(?:指令|提示)/i.test(text)) return true;
-    return /\b(?:reveal|show|print|output|return|expose|dump|tell me)\b[^.!?]{0,90}\b(?:system prompt|developer (?:message|variables?)|provider prompt|internal (?:fact|map|building)?\s*ids?|hidden (?:building )?ids?|hidden data|source registry|knowledge object|answerplanner|knowledgeengine|responsevalidator|b_\* identifiers?)\b/i.test(text);
+    const disclosureRequest = /\b(?:what|which|give(?: me)?|reveal|show(?: me)?|print|output|return|expose|dump|tell me)\b/i.test(text);
+    const implementationIdentifier = /\b(?:building|map|source|fact)\s*(?:id|identifier|code)s?\b|\b(?:id|identifier|code)s?\b[^.!?]{0,80}\b(?:echo\s+)?map\b|\binternal\s+(?:map|building)\s+(?:target|id|identifier|code)\b|\bb_[a-z0-9_]+\b|\bb_\*/i.test(text);
+    if (disclosureRequest && implementationIdentifier) return true;
+    return /\b(?:reveal|show|print|output|return|expose|dump|tell me)\b[^.!?]{0,90}\b(?:system prompt|developer (?:message|variables?)|provider prompt|internal (?:fact|map|building|source)?\s*ids?|hidden (?:building )?ids?|hidden data|source registry|knowledge object|answerplanner|knowledgeengine|responsevalidator|b_\* identifiers?)\b/i.test(text);
   }
 
   async function ask(message, options = {}) {
@@ -217,7 +220,9 @@
     let resolution = window.EchoAI.KnowledgeEngine.resolve(question);
     const clearReference = window.EchoAI.ConversationContext.referencesPrevious(question)
       || window.EchoAI.ConversationContext.isEllipticalFollowUp(question);
-    if (previous && clearReference && !(resolution.status === "resolved" && resolution.confidence >= 0.95)) {
+    const independentReferent = (resolution.status === "resolved" && resolution.confidence >= 0.95)
+      || ["dining", "discovery"].includes(resolution.status);
+    if (previous && clearReference && !independentReferent) {
       const contextPlace = window.EchoAI.KnowledgeEngine.getEntity(previous.activeEntityId || previous.entityId);
       if (contextPlace) {
         resolution = Object.freeze({

@@ -110,11 +110,28 @@
     return approvedIds.map(getEntity).filter(place => place && place.status !== "UNSUPPORTED");
   }
 
+  function descriptiveNeedEntity(message) {
+    const normalized = window.EchoAI.Normalizer.normalize(message);
+    const matches = [
+      ["koop-mart", /^(?:where (?:can|could|do) (?:i|students) (?:normally )?buy (?:daily )?(?:things|items|supplies)|where do students normally buy (?:things|daily things|daily supplies))$/],
+      ["pos-mini", /^(?:where can i print(?: something)?|need to print something where can i go)$/],
+      ["hostel-laundry", /^(?:where can i (?:do laundry|wash (?:my )?clothes)|where do i wash baju(?: ah)?|how much does washing cost|我可以在哪里洗衣|哪里可以洗衣服?)$/],
+      ["hostel-study-room", /^(?:where can i study (?:in|at) the hostel|any place to study at the hostel)$/],
+      ["hostel-iron-room", /^(?:where can i iron clothes|what about ironing)$/],
+      ["sports-equipment-store", /^where can (?:i )?borrow sports (?:equipment|stuff)(?: ah)?$/],
+      ["dewan-mahawangsa", /^(?:where is|wheres) the main event hall$/],
+    ];
+    const entityId = matches.find(([, pattern]) => pattern.test(normalized))?.[0] || "";
+    return entityId ? getEntity(entityId) : null;
+  }
+
   function resolve(message, contextEntityId = "") {
     const normalized = window.EchoAI.Normalizer.normalize(message);
     const special = (window.KMK_AI_PHASE3?.specialEntities || []).find(entity => entity.aliases.some(alias => aliasMatches(normalized, alias)));
     if (special) return Object.freeze({ status: "resolved", place: entityFromDefinition(special), candidates: Object.freeze([]), confidence: 0.99, resolutionType: special.mapState });
     const resolved = window.EchoAI.Retriever.resolve(message, contextEntityId);
+    const descriptiveEntity = descriptiveNeedEntity(message);
+    if (descriptiveEntity) return Object.freeze({ status: "resolved", place: descriptiveEntity, candidates: Object.freeze([descriptiveEntity]), confidence: 0.96, resolutionType: descriptiveEntity.mapState || "UNMAPPED" });
     if (resolved.status === "resolved" && resolved.confidence >= 0.95) {
       return Object.freeze({ ...resolved, resolutionType: resolved.place?.mapState || "UNMAPPED" });
     }
@@ -131,7 +148,10 @@
       .filter(entity => entity.aliases.some(alias => aliasMatches(normalized, alias)))
       .map(entityFromDefinition);
     const regularMatches = window.EchoAI.Retriever.resolveMany(message);
-    return [...new Map([...specialMatches, ...regularMatches].map(place => [place.canonicalId, place])).values()];
+    const descriptiveMatches = normalized === "which place can print and which sells daily items"
+      ? [getEntity("pos-mini"), getEntity("koop-mart")].filter(Boolean)
+      : [];
+    return [...new Map([...specialMatches, ...regularMatches, ...descriptiveMatches].map(place => [place.canonicalId, place])).values()];
   }
 
   function factTypesForIntent(intent) {

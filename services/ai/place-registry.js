@@ -18,9 +18,7 @@
 
   const EXTRA_ALIASES = Object.freeze({
     library: Object.freeze(["pustaka", "perpustakaan", "lib", "图书馆"]),
-    "koop-mart": Object.freeze(["koop", "koop mart", "koperasi", "koperasi mart", "student shop", "campus shop", "buy daily things", "daily supplies", "sells daily items"]),
-    "pos-mini": Object.freeze(["print", "printing service", "photocopy service"]),
-    "dewan-mahawangsa": Object.freeze(["event hall", "main event hall"]),
+    "koop-mart": Object.freeze(["koop", "koop mart", "koperasi", "koperasi mart"]),
     serambi: Object.freeze(["hep", "hal ehwal pelajar", "student affairs"]),
     "dewan-kuliah": Object.freeze(["lecture hall", "dk", "dewan kuliah", "讲堂", "讲座厅"]),
     masjid: Object.freeze(["mosque", "masjid", "清真寺"]),
@@ -29,7 +27,9 @@
     "cafe-c": Object.freeze(["cafe c", "kafe c", "kafeteria c"]),
     "cafe-admin": Object.freeze(["cafe admin", "kafe admin", "admin cafe", "kafeteria pentadbiran"]),
     "bicycle-service": Object.freeze(["stor basikal", "garaj basikal"]),
+    "bangunan-langkasuka": Object.freeze(["langkasuka"]),
   });
+  const DESCRIPTIVE_ALIASES = new Set(["campus store", "hall", "dewan"]);
 
   const SCHEDULES = Object.freeze({
     library: Object.freeze({ sun: "08:00-16:30", mon: "08:00-16:30", tue: "08:00-16:30", wed: "08:00-16:30", thu: "08:00-16:30", fri: "closed", sat: "closed" }),
@@ -81,10 +81,9 @@
         ...(profile?.aliases || []),
         primary.title,
         primary.id,
-        ...records.flatMap(record => record.aliases || []),
+        ...records.flatMap(record => (record.aliases || []).filter(alias => !DESCRIPTIVE_ALIASES.has(window.EchoAI.Normalizer.normalize(alias)))),
         ...(EXTRA_ALIASES[canonicalId] || []),
         building?.name,
-        ...Object.values(building?.tags || {}).flat(),
       ]);
       places.push(Object.freeze({
         ...primary,

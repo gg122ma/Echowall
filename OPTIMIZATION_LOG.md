@@ -1,5 +1,27 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-14 - Phase 5 pre-merge hardening by evidence class
+
+- Classified aliases as identity evidence versus descriptive need cues instead
+  of adding phrase-specific blacklists. Generic building tags and descriptors
+  were removed from identity scoring; exact anchored need rules preserve useful
+  student phrasing without allowing unknown qualifiers to inherit a place.
+- Preferred independent-referent precedence over weakening conversation
+  context globally. Exact ellipsis still works, but new entity and category
+  resolution wins before context substitution.
+- Extended the existing deterministic disclosure boundary rather than adding a
+  new security layer. The benchmark now validates the same student-visible
+  answer/action surface used by the UI.
+- Used universal/day-specific schedule endpoint comparison rather than creating
+  artificial conflicts or changing source facts. Variable schedules receive a
+  correction with the full deterministic schedule.
+- Ran 27 diagnostic variations after the permanent fixes. Two additional weak
+  descriptor matches were found, fixed at token classification, and represented
+  permanently; broader fuzzy resolution was intentionally avoided.
+- Final status: Phase 5 **156/156**, Campus AI **199/199**, Map **21/21**,
+  Phase 4 **89/89**, all tests **26/26**, syntax **116/116**, and all release
+  validators pass. Browser QA was unavailable and live provider QA was not run.
+
 ## 2026-09-14 - Phase 5 benchmark-led robustness without architectural expansion
 
 - Chose a 120-case semantic benchmark over hundreds of string permutations.

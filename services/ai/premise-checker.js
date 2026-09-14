@@ -52,13 +52,20 @@
     if (!day && isAssertion(message) && assertedTime && endpoint && place.schedule) {
       const endpointIndex = endpoint === "start" ? 0 : 1;
       const candidates = [...new Set(Object.values(place.schedule)
-        .filter(value => value && value !== "closed")
-        .map(value => String(value).split("-")[endpointIndex]))];
-      if (candidates.length) return Object.freeze({ status: candidates.includes(assertedTime) ? "SUPPORTED" : "CONTRADICTED", day: "", actual: candidates.join(",") });
+        .filter(Boolean)
+        .map(value => value === "closed" ? "closed" : String(value).split("-")[endpointIndex]))];
+      if (candidates.length) {
+        const universallySupported = candidates.length === 1 && candidates[0] === assertedTime;
+        return Object.freeze({ status: universallySupported ? "SUPPORTED" : "CONTRADICTED", day: "", actual: candidates.join(",") });
+      }
     }
     if (!day || !place.schedule?.[day]) return Object.freeze({ status: "SUPPORTED", day, actual: "" });
     const actual = place.schedule[day];
     if (!isAssertion(message)) return Object.freeze({ status: "SUPPORTED", day, actual });
+    if (assertedTime && endpoint) {
+      const actualEndpoint = actual === "closed" ? "closed" : String(actual).split("-")[endpoint === "start" ? 0 : 1];
+      return Object.freeze({ status: actualEndpoint === assertedTime ? "SUPPORTED" : "CONTRADICTED", day, actual });
+    }
     const actualClosed = actual === "closed";
     const claimClosed = assertedClosed(message);
     return Object.freeze({ status: actualClosed === claimClosed ? "SUPPORTED" : "CONTRADICTED", day, actual });

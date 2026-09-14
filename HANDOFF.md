@@ -1,3 +1,71 @@
+# KMK AI PHASE 5 PRE-MERGE HARDENING HANDOFF (2026-09-14)
+
+Status: **IMPLEMENTED; READY FOR SECOND PHASE 5 PRE-MERGE REVIEW**.
+
+This follow-up starts from reviewed Phase 5 SHA
+`392cbece92b1d19d30e2c5f04382399c55d150cc` on PR #2. It fixes the final
+read-only review findings without changing canonical facts, Supabase, auth,
+database/production data, provider configuration, or UI code.
+
+## Review findings and fixes
+
+- **Alias/Map safety:** descriptive needs are no longer canonical identity
+  aliases. Generic building tags and the known generic legacy aliases
+  `Campus Store`, `Hall`, and `Dewan` no longer participate in identity
+  resolution. A bounded `descriptiveNeedEntity()` path handles only complete,
+  generic service requests such as buying daily items, printing, laundry,
+  hostel study/ironing, sports-equipment borrowing, and the main event hall.
+  Descriptive tokens are ignored during weak token scoring, so qualified names
+  such as Sunrise Campus Shop, Moonlight Student Shop, Galaxy Printing
+  Service, and Lunar Laundry cannot inherit an exact campus entity or Map ID.
+- **Context safety:** `show me` was removed from substring refer-back matching.
+  Standalone `show me`, `show it`, and their Map forms remain exact elliptical
+  follow-ups, while independently resolved entities and dining/sports
+  discovery categories always outrank prior context. `Show me cafeterias`
+  therefore cannot reopen Library or emit `B_PUSTAKA`.
+- **Identifier safety:** natural building/Map/source/fact ID requests and
+  `B_*`/`B_...` code requests take the deterministic unsupported boundary
+  before entity resolution. Normal questions containing `building` or `map`
+  without an identifier request remain usable. Benchmark disclosure checks now
+  scan both answer text and UI-consumed action objects.
+- **Intent safety:** explicit `can I go/get to` and `how can I go/get` wording
+  routes to navigation. Anchored `Can I bring/eat/borrow/enter` forms remain
+  rules, while `Where can I borrow sports equipment?` remains a service need.
+- **Premise safety:** a day-unspecified endpoint is supported only when every
+  scheduled day has the same endpoint. Closed days count as a different state.
+  Day-specific assertions now compare the asserted time to the selected day's
+  actual endpoint. KOOP's canonical schedule was not changed.
+- **Benchmark quality:** the permanent suite grew from 120 scenarios/150 turns
+  to **156 scenarios/194 turns**. New categories cover seven alias-safety, six
+  context-safety, seven intent-safety, and seven premise-safety scenarios;
+  injection cases now total 19 primary/24 cross-category checks. Language
+  assertions require dominant CJK or multiple/dominant Malay signals, and the
+  former date-dependent Library `today` case now asks explicitly about Sunday.
+
+## Diagnostic pass and validation
+
+A separate **27-query** diagnostic pass covered qualified generic names,
+context switching, standalone `show` forms, building/Map/source/fact IDs,
+normal navigation/rule wording, and no-day/day-specific schedule assertions.
+It found two further instances of the same weak descriptive-token class
+(Galaxy Printing Service and Lunar Laundry); both were fixed and promoted as
+permanent cases. The existing Chinese laundry regression was preserved through
+an anchored service-need rule rather than restoring a generic alias.
+
+- Campus AI: **199/199**; Map actions: **21/21**; Phase 4: **89/89**;
+  Phase 5: **156/156**.
+- All `scripts/test-*.mjs`: **26/26 scripts pass**.
+- Active JavaScript/module syntax: **116/116 pass**.
+- Pages build/artifact (**490 files**), production URL lock, static, portable,
+  Pustaka seed, showcase seed, and `git diff --check`: **PASS**.
+- Browser QA: **NOT VERIFIED** because no browser backend was available.
+- Live OpenRouter QA: **NOT TESTED**; no credential was added and campus
+  provider rendering remains explicit opt-in and disabled in production.
+
+Remaining limitation: service-need resolution is deliberately conservative;
+unrecognized or qualified descriptive names may return unsupported instead of
+guessing. Roll back by reverting only the Phase 5 hardening follow-up commit.
+
 # KMK AI PHASE 5 STUDENT BENCHMARK & ROBUSTNESS HANDOFF (2026-09-14)
 
 Status: **IMPLEMENTED; ALL AUTOMATED GATES PASS; BROWSER QA NOT VERIFIED**.

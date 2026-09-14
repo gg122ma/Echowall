@@ -1,5 +1,41 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-14 - KMK AI PHASE 5 PRE-MERGE HARDENING AUDIT
+
+- Fixed all three High findings from the final read-only review. Generic
+  descriptors are separated from identity aliases, complete new
+  entity/category requests outrank conversation context, and natural requests
+  for implementation identifiers are refused before resolution.
+- **Alias audit:** exact Map targets now require identity evidence. Generic
+  building tags no longer become aliases; a small classified set of legacy
+  descriptors is excluded from identity resolution; weak scoring ignores
+  generic service tokens. Anchored need patterns preserve supported natural
+  queries without accepting additional unknown qualifiers.
+- **Context audit:** `referencesPrevious()` contains pronouns and refer-back
+  language only. `show me` is recognized solely by the exact elliptical
+  matcher, and `CampusAI.ask()` treats resolved dining/sports discovery as an
+  independent referent. All update/markServed/clear calls remain behind the
+  Phase 4 latest-request generation guard.
+- **Disclosure audit:** building, Map, source, fact, and `B_*` identifier
+  requests return deterministic `UNSUPPORTED` responses with empty actions.
+  `noInternalIdsAnywhere` inspects answer text plus UI-consumed actions, closing
+  the prior test gap where an action could contain `B_PUSTAKA`.
+- **Intent/premise audit:** navigation wording wins before the generic `can I`
+  rule cue. Rule-specific verbs remain rules. Schedule assertions require a
+  universal endpoint when no day is supplied and an exact selected-day
+  endpoint otherwise; closed days cannot be ignored.
+- Canonical fact values, source authority, conflicts, effective dates, Map
+  states/targets, and actions were not changed. Cafe Admin remains conflict;
+  Library/KOOP schedules remain authoritative; Basketball facts remain
+  unsupported; unsafe facilities and parent-only blocks retain their states.
+- Permanent benchmark: **156 scenarios / 194 turns / 156 passed**. A 27-query
+  diagnostic pass added representative Galaxy Printing Service, Lunar Laundry,
+  source-ID, fact-ID, and day-specific mismatch coverage.
+- Final regression: Campus AI **199/199**, Map **21/21**, Phase 4 **89/89**,
+  Phase 5 **156/156**, all tests **26/26**, syntax **116/116**, and every
+  build/release/diff validator passes. Browser QA remains not verified because
+  no browser backend was available; live provider QA remains not tested.
+
 ## 2026-09-14 - KMK AI PHASE 5 STUDENT QUERY ROBUSTNESS
 
 - Added a 120-case semantic benchmark with 20 normal, 12 natural, 15

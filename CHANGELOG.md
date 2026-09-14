@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-09-14 - KMK AI PHASE 5 PRE-MERGE HARDENING
+
+- Prevented generic service descriptions and qualified unknown place names
+  from resolving as verified campus identities or exact Map targets while
+  retaining safe questions about shopping, printing, laundry, study rooms,
+  ironing, sports equipment, and the main event hall.
+- Prevented complete `Show me <new entity/category>` requests from inheriting
+  an older conversation entity; standalone `show me`/`show it` follow-ups still
+  use the current context.
+- Refuse natural requests for building, Map, source, fact, and `B_*` internal
+  identifiers without emitting an action. Normal building and Map questions
+  continue to work.
+- Corrected navigation intent for `Can I go/get to <place>` and made no-day or
+  day-specific opening/closing confirmations conservative when schedules vary.
+- Expanded the Phase 5 benchmark to **156 scenarios / 194 turns**, strengthened
+  structured disclosure and language assertions, and made the Library-day case
+  deterministic. Campus AI 199/199, Map 21/21, Phase 4 89/89, Phase 5 156/156,
+  all 26 test scripts, 116 syntax checks, and all release validators pass.
+- No canonical fact, Supabase, auth, database/production data, provider
+  configuration, or UI changes.
+
 ## 2026-09-14 - KMK AI PHASE 5 STUDENT QUERY ROBUSTNESS
 
 - Ask Echo now understands more common student wording for KOOP shopping,

@@ -3,7 +3,7 @@
   window.EchoAI = window.EchoAI || {};
 
   const patterns = Object.freeze({
-    campus_navigation: /\b(take me|show me|show it|navigate|directions?|how (?:do|can) i get|how to find|bring me|can i go there|(?:drop|place) a pin|pin (?:it|this|that)|(?:show|open)[^.!?]{0,60}\b(?:echo )?map|(?:echo )?map\b|peta\b|bawa saya|tunjuk(?:kan)?|letak pin|cara (?:ke|pergi)|macam mana (?:nak )?(?:cari|pergi))\b|带我去|导航|怎么去|如何去|地图[^。？！?!]{0,30}(?:显示|打开)|(?:显示|打开)[^。？！?!]{0,30}地图/i,
+    campus_navigation: /\b(take me|show me|show it|navigate|directions?|how (?:do|can) i (?:get|go)|how to find|bring me|can i (?:go|get) (?:to\s+)?there|can i (?:go|get) to|(?:drop|place) a pin|pin (?:it|this|that)|(?:show|open)[^.!?]{0,60}\b(?:echo )?map|(?:echo )?map\b|peta\b|bawa saya|tunjuk(?:kan)?|letak pin|cara (?:ke|pergi)|macam mana (?:nak )?(?:cari|pergi))\b|带我去|导航|怎么去|如何去|地图[^。？！?!]{0,30}(?:显示|打开)|(?:显示|打开)[^。？！?!]{0,30}地图/i,
     campus_nearby: /\b(near|nearby|nearest|next to|around|dekat|berhampiran|paling dekat|sebelah)\b|附近|旁边|最近/i,
     campus_comparison: /\b(compare|versus|vs\.?|which (?:is|one|place|places|facility|facilities)|where are\b[^.!?]{0,80}\b(?:and|dan)|banding|bezanya|mana lebih)\b|比较|哪个/i,
     campus_hours: /\b(open|opens|opening|close|closes|closing|closed|hours?|time|buka|tutup|waktu|pukul|jam|midnight|noon|ahad|isnin|selasa|rabu|khamis|jumaat|sabtu|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b|\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|几点|开放|开门|关门|关闭|星期|周[一二三四五六日天]/i,
@@ -16,7 +16,9 @@
   function classify(message) {
     const normalized = window.EchoAI.Normalizer.normalize(message);
     if (!normalized) return "unknown";
-    for (const intent of ["campus_navigation", "campus_nearby", "campus_comparison", "campus_fees", "campus_services", "campus_rules", "campus_hours", "campus_location"]) {
+    if (patterns.campus_navigation.test(String(message || "")) || patterns.campus_navigation.test(normalized)) return "campus_navigation";
+    if (/^\s*can i (?:bring|eat|borrow|enter)\b/i.test(String(message || "")) || /^can i (?:bring|eat|borrow|enter)\b/.test(normalized)) return "campus_rules";
+    for (const intent of ["campus_nearby", "campus_comparison", "campus_fees", "campus_services", "campus_rules", "campus_hours", "campus_location"]) {
       if (patterns[intent].test(String(message || "")) || patterns[intent].test(normalized)) return intent;
     }
     if (/\b(campus|college|kmk|building|facility|cafe|kafe|library|pustaka|koop|masjid|surau|hostel|asrama|pavilion|astaka|court|blok|block|resource centre|reading room)\b|校园|校内|学院|食堂|图书馆|清真寺|阅览室/i.test(String(message || ""))) return "campus_info";
