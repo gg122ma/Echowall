@@ -149,19 +149,22 @@
   }
 
   function response(base) {
+    const suppressInternalIdentifiers = base.suppressInternalIdentifiers === true;
     return window.EchoAI.ResponseValidator.validate({
       answer: base.answer,
       intent: base.intent,
       confidence: base.confidence,
       premise: base.premise || "UNKNOWN",
-      resolvedPlaces: base.places || [],
-      grounding: base.grounding || [],
-      conflicts: base.conflicts || [],
-      facts: base.facts || [],
-      answerPlan: base.answerPlan || { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false },
-      resolution: base.resolution || null,
-      context: base.context || null,
-      actions: base.actions || [],
+      resolvedPlaces: suppressInternalIdentifiers ? [] : base.places || [],
+      grounding: suppressInternalIdentifiers ? [] : base.grounding || [],
+      conflicts: suppressInternalIdentifiers ? [] : base.conflicts || [],
+      facts: suppressInternalIdentifiers ? [] : base.facts || [],
+      answerPlan: suppressInternalIdentifiers
+        ? { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false }
+        : base.answerPlan || { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false },
+      resolution: suppressInternalIdentifiers ? null : base.resolution || null,
+      context: suppressInternalIdentifiers ? null : base.context || null,
+      actions: suppressInternalIdentifiers ? [] : base.actions || [],
       error: base.error || null,
     });
   }
@@ -187,15 +190,28 @@
 
   function blocksLegacyFallback(question, intent) {
     if (intent === "campus_fees") return true;
-    return intent === "campus_rules" && /\b(dress code|uniform|attire|kod pakaian)\b|着装/i.test(String(question || ""));
+    return intent === "campus_rules" && /\b(dress code|uniform|attire|kod pakaian|food|snacks?|eat(?:ing)?)\b|着装|食物|零食|吃/i.test(String(question || ""));
+  }
+
+  function requestsInternalIdentifier(question) {
+    const text = String(question || "");
+    const requestSignal = /\b(?:what|which|give(?: me)?|tell me|show(?: me)?|reveal|print|output|include|return|state|display|navigate|open|bring|take)\b/i.test(text);
+    const directInternalCode = /\bb_[a-z0-9_]*\b|\bb_\*|\bb\s+(?:id|identifier|code)\b/i.test(text);
+    const identifierSignal = /\b(?:ids?|identifiers?|codes?|targets?|keys?|internal names?|internal references?)\b/i.test(text);
+    const implementationContext = /\b(?:internal|building|map|source|fact|system|provider|registry|knowledge|planner|echo\s+map)\b/i.test(text);
+    const possessiveIdentifier = /\b(?:its|their|librarys|pustakas|koops|cafe\s+[abc]s)\s+(?:id|identifier|code|target|key)\b/i.test(window.EchoAI.Normalizer.normalize(text));
+    const campusSubject = /\b(?:library|pustaka|koop|astaka|pavilion|cafe\s+[abc]|cafe\s+admin|stor\s+sukan|pos\s+mini)\b/i.test(text);
+    const humanFacingCode = /\b(?:dress|conduct|qr|postal|zip)\s+code\b/i.test(text);
+    if (directInternalCode) return requestSignal || /\b(?:what|which)\b/i.test(text);
+    if (!requestSignal || !identifierSignal) return false;
+    if (humanFacingCode && !implementationContext && !possessiveIdentifier) return false;
+    return implementationContext || possessiveIdentifier || campusSubject;
   }
 
   function isInjectionAttempt(question) {
     const text = String(question || "");
     if (/ignore (?:all |the )?(?:previous|system)|ignore\s+(?:answerplanner|knowledgeengine|responsevalidator)|bypass|jailbreak|abaikan (?:semua )?arahan|忽略.*(?:指令|提示)/i.test(text)) return true;
-    const disclosureRequest = /\b(?:what|which|give(?: me)?|reveal|show(?: me)?|print|output|return|expose|dump|tell me)\b/i.test(text);
-    const implementationIdentifier = /\b(?:building|map|source|fact)\s*(?:id|identifier|code)s?\b|\b(?:id|identifier|code)s?\b[^.!?]{0,80}\b(?:echo\s+)?map\b|\binternal\s+(?:map|building)\s+(?:target|id|identifier|code)\b|\bb_[a-z0-9_]+\b|\bb_\*/i.test(text);
-    if (disclosureRequest && implementationIdentifier) return true;
+    if (requestsInternalIdentifier(text)) return true;
     return /\b(?:reveal|show|print|output|return|expose|dump|tell me)\b[^.!?]{0,90}\b(?:system prompt|developer (?:message|variables?)|provider prompt|internal (?:fact|map|building|source)?\s*ids?|hidden (?:building )?ids?|hidden data|source registry|knowledge object|answerplanner|knowledgeengine|responsevalidator|b_\* identifiers?)\b/i.test(text);
   }
 
@@ -210,7 +226,7 @@
       return response({ answer: unknownAnswer(language), intent: "unknown", confidence: 0, error: { code: "FEATURE_DISABLED" }, answerPlan: { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false } });
     }
     if (isInjectionAttempt(question)) {
-      return response({ answer: injectionAnswer(language), intent: "unknown", confidence: 1, answerPlan: { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false } });
+      return response({ answer: injectionAnswer(language), intent: "unknown", confidence: 1, suppressInternalIdentifiers: true, answerPlan: { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false } });
     }
     if (/community (?:post|note)|student (?:post|opinion)|catatan komuniti|pendapat pelajar|社区(?:帖子|意见)/i.test(question) && /official|rasmi|policy|rule|规定|官方/i.test(question)) {
       return response({ answer: communityAuthorityAnswer(language), intent: "campus_rules", confidence: 1, answerPlan: { mode: "DIRECT", selectedFactIds: [], actionAllowed: false } });

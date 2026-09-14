@@ -66,11 +66,15 @@
       candidates: Object.freeze([]),
     });
 
-    const selection = window.EchoAI.KnowledgeEngine.selectFacts(place.canonicalId, isFollowUp ? (previous.activeIntent || previous.intent || intent) : intent, {
-      asOf,
-      servedFactIds: isFollowUp ? previous.servedFactIds || [] : [],
-      limit: intent === "campus_location" || intent === "campus_navigation" ? 2 : (isFollowUp ? 2 : 3),
-    });
+    const unsupportedRuleTopic = intent === "campus_rules"
+      && /\b(?:food|snacks?|eat(?:ing)?)\b|makan|食物|零食|吃/i.test(String(question || ""));
+    const selection = unsupportedRuleTopic
+      ? Object.freeze({ facts: Object.freeze([]), conflicts: Object.freeze([]) })
+      : window.EchoAI.KnowledgeEngine.selectFacts(place.canonicalId, isFollowUp ? (previous.activeIntent || previous.intent || intent) : intent, {
+        asOf,
+        servedFactIds: isFollowUp ? previous.servedFactIds || [] : [],
+        limit: intent === "campus_location" || intent === "campus_navigation" ? 2 : (isFollowUp ? 2 : 3),
+      });
     const facts = selection.facts;
     const conflicts = selection.conflicts;
     let answerMode = isFollowUp ? "FOLLOW_UP" : "DIRECT";

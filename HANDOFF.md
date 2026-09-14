@@ -1,3 +1,90 @@
+# KMK AI PHASE 5 FINAL HARDENING ROUND 2 HANDOFF (2026-09-14)
+
+Status: **IMPLEMENTED; READY FOR FINAL PHASE 5 PRE-MERGE REVIEW**.
+
+This follow-up starts from independently reviewed PR #2 SHA
+`a6edc89be8693a26682f6248c8ce6278a899a64b`. It addresses the second-review
+blockers on `feature/kmk-ai-phase5-student-benchmark` without changing
+canonical fact values, source authority, provider configuration, Supabase,
+auth, database/production data, or UI code.
+
+## Second-review findings and fixes
+
+- **Identity versus service concepts:** `PlaceRegistry` now filters descriptive
+  aliases from every Phase 3/legacy record source, and unmatched Map-only
+  buildings expose only their name and ID as identity aliases. Generic
+  multiword phrases such as sports equipment, printing service, laundry,
+  student shop, and event hall can no longer win Retriever substring matching.
+  A bounded qualified-descriptive-name guard prevents unknown names such as
+  Nova Sports Equipment or Ocean Laundry Center from inheriting a known
+  entity or Map target.
+- **Sports/bicycle ownership:** the conflicting legacy `sports equipment`
+  concept no longer identifies `bicycle-service`. Bounded service-need routing
+  sends source-supported sports-equipment borrowing to
+  `sports-equipment-store` / Stor Sukan, while explicit bicycle rental and Stor
+  Basikal identity remain with `bicycle-service`. EN, BM, ZH, and conservative
+  code-switch forms are covered without making broad sports words aliases.
+- **Identifier disclosure:** `requestsInternalIdentifier()` combines request,
+  identifier, and implementation-context signals, including possessive and
+  compound navigation forms. Requests such as navigation plus “state its
+  identifier” return deterministic `UNSUPPORTED`, no action, no resolved-place
+  metadata, and no internal IDs. The response-construction boundary also
+  strips actions, resolution, context, grounding, facts, conflicts, and
+  selected IDs for a classified disclosure request.
+- **Intent precedence:** bounded service needs run before generic `can I`
+  rules; explicit food/snack permission requests remain rules and cannot be
+  replaced by dining discovery merely because they contain `food`. Actual
+  discovery questions still return safe dining choices.
+- **Hostel study:** bounded EN/BM/ZH forms resolve the partial, ambiguous
+  `hostel-study-room` record instead of generic `blok-kediaman`; no exact
+  hostel Map target is created.
+- **Benchmark disclosure checks:** `noInternalIdsAnywhere` now scans answer,
+  actions, and resolved-place metadata against `B_*`, fact IDs, and the known
+  source/building/fact identifier inventory. Explicit disclosure cases also
+  require an empty resolved-place surface.
+
+## Benchmark and diagnostics
+
+The permanent benchmark now contains **199 scenarios / 239 conversational
+turns**, all passing. Round 2 added representative regressions for multiword
+qualified aliases, sports-versus-bicycle ownership, compound/possessive
+identifier requests, rule/discovery precedence, multilingual sports borrowing,
+and hostel study. Expectations continue to assert entity, intent, answer mode,
+final action safety, and language rather than full-answer snapshots.
+
+A temporary **58-query unseen diagnostic pass** covered qualified names,
+multiword concepts, sports/bicycle semantics, compound and contextual
+identifier requests, rules versus dining, EN/BM/ZH/code-switch services,
+hostel study, context switching, and Map safety. Initial probes exposed
+additional variants of the same classes; root fixes were applied and one
+representative per class was promoted. The final pass was **58/58**, and the
+temporary diagnostic script was removed.
+
+## Validation and boundaries
+
+- Campus AI: **199/199**; Map actions: **21/21**; Phase 4: **89/89**;
+  Phase 5: **199/199**.
+- All `scripts/test-*.mjs`: **26/26 scripts pass**.
+- Active JavaScript/module syntax: **116/116 pass**.
+- Pages build/artifact (**490 files**), production URL lock, static, portable,
+  Pustaka seed, showcase seed, and `git diff --check`: **PASS**.
+- Browser QA: **NOT VERIFIED** because no browser backend was available.
+- Live OpenRouter QA: **NOT TESTED**; no credential was added and
+  `campusRendering` remains explicit opt-in and disabled in production.
+
+Cafe Admin remains `CONFLICT`; the current Library and KOOP schedules are
+unchanged; the expired Library exception remains excluded; Basketball hours
+and fees remain unsupported; Surau is not Masjid; Reading Room is not
+substituted; Court A/C remain disabled; A1/A2/B1/B2/C2 remain parent-only; and
+P5 remains unmapped. Phase 4 fact-lock, deterministic fallback, provider action
+prohibition, latest-started session generation, UI single-flight, and the final
+ResponseValidator gate are intact.
+
+Remaining limitation: service-need matching is intentionally bounded.
+Unrecognized descriptive wording may return unsupported instead of guessing.
+Rollback by reverting only this Round 2 hardening commit; do not alter source
+data or earlier Phase 4/5 history.
+
 # KMK AI PHASE 5 PRE-MERGE HARDENING HANDOFF (2026-09-14)
 
 Status: **IMPLEMENTED; READY FOR SECOND PHASE 5 PRE-MERGE REVIEW**.

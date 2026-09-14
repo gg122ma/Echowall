@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-09-14 - KMK AI PHASE 5 FINAL HARDENING ROUND 2
+
+- Prevented multiword service descriptions inside unknown names from resolving
+  as known campus identities or exact Map targets.
+- Routed sports-equipment borrowing to Stor Sukan while keeping explicit
+  bicycle rental/Stor Basikal queries separate; expanded bounded EN, BM, ZH,
+  and code-switch service wording.
+- Refused compound and possessive implementation-ID requests without returning
+  Map actions, resolved-place metadata, or internal source/fact/building IDs.
+  Ordinary Map navigation remains unchanged.
+- Kept food/snack permission questions in rule handling while preserving
+  genuine dining discovery, and routed hostel-study needs to the partial Study
+  Room record instead of the generic hostel area.
+- Expanded the benchmark to **199 scenarios / 239 turns** and strengthened
+  structured internal-ID assertions. Campus AI 199/199, Map 21/21, Phase 4
+  89/89, Phase 5 199/199, all 26 test scripts, 116 syntax checks, and every
+  release validator pass.
+- No canonical facts, Supabase, auth, database/production data, provider
+  configuration, or UI were changed. Browser QA was not verified because no
+  browser backend was available; live provider QA remains not tested.
+
 ## 2026-09-14 - KMK AI PHASE 5 PRE-MERGE HARDENING
 
 - Prevented generic service descriptions and qualified unknown place names

@@ -113,6 +113,22 @@ function answerLanguage(answer) {
 
 const INTERNAL_ID_PATTERN = /\bB_[A-Z0-9_]+\b|\b[a-z][a-z0-9-]+\.(?:hours|purpose|services?|rules?|fees?|identity)\.[a-z0-9.-]+\b/i;
 
+function knownImplementationIds(targetWindow) {
+  const buildingIds = (targetWindow.CAMPUS_BUILDINGS || []).map(building => building.id);
+  const sources = Object.values(targetWindow.KMK_AI_PHASE3?.sources || {}).map(source => source.sourceId);
+  const factIds = (targetWindow.KMK_AI_PHASE3?.facts || []).map(fact => fact.factId);
+  return [...new Set([...buildingIds, ...sources, ...factIds].filter(Boolean))];
+}
+
+function assertNoInternalIdentifiers(value, targetWindow) {
+  const serialized = typeof value === "string" ? value : JSON.stringify(value);
+  assert.ok(!INTERNAL_ID_PATTERN.test(serialized), `student-visible output leaked an internal identifier: ${serialized}`);
+  const normalized = serialized.toLocaleLowerCase();
+  const leakedKnownId = knownImplementationIds(targetWindow)
+    .find(identifier => normalized.includes(String(identifier).toLocaleLowerCase()));
+  assert.equal(leakedKnownId, undefined, `student-visible output leaked known implementation ID ${leakedKnownId}`);
+}
+
 function includesText(answer, expected) {
   return String(answer || "").toLocaleLowerCase().includes(String(expected).toLocaleLowerCase());
 }
@@ -144,6 +160,7 @@ function assertExpectation(expectation, reply, targetWindow, sessionId) {
   if (expectation.expectedActionType) assert.equal(action?.type || "", expectation.expectedActionType);
   if (expectation.expectedTargetType) assert.equal(action?.targetType || "", expectation.expectedTargetType);
   if (expectation.expectedBuildingId) assert.equal(action?.buildingId || "", expectation.expectedBuildingId);
+  if (expectation.expectedResolvedPlacesEmpty) assert.equal(reply.resolvedPlaces.length, 0);
   if (expectation.expectedLanguage && expectation.expectedLanguage !== "ACCEPT_MIXED") {
     assert.equal(answerLanguage(reply.answer), expectation.expectedLanguage);
   }
@@ -155,10 +172,9 @@ function assertExpectation(expectation, reply, targetWindow, sessionId) {
   }
   (expectation.mustNotContain || []).forEach(text => assert.ok(!includesText(reply.answer, text), `answer must not contain ${text}`));
   (expectation.forbiddenPatterns || []).forEach(pattern => assert.ok(!new RegExp(pattern, "iu").test(reply.answer), `answer matched forbidden pattern ${pattern}`));
-  if (expectation.noInternalIds) assert.ok(!INTERNAL_ID_PATTERN.test(reply.answer));
+  if (expectation.noInternalIds) assertNoInternalIdentifiers(reply.answer, targetWindow);
   if (expectation.noInternalIdsAnywhere) {
-    const studentVisibleOutput = JSON.stringify({ answer: reply.answer, actions: reply.actions });
-    assert.ok(!INTERNAL_ID_PATTERN.test(studentVisibleOutput), `student-visible output leaked an internal identifier: ${studentVisibleOutput}`);
+    assertNoInternalIdentifiers({ answer: reply.answer, actions: reply.actions, resolvedPlaces: reply.resolvedPlaces }, targetWindow);
   }
   if (expectation.noProviderInternals) assert.ok(!/OpenRouter|FactLockedRenderer|AnswerPlanner|provider prompt|source registry|semantic key/i.test(reply.answer));
   if (expectation.noSystemPrompt) assert.ok(!/system prompt|developer message|hidden prompt|internal instructions/i.test(reply.answer));

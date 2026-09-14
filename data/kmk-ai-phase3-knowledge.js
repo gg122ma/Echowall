@@ -45,7 +45,7 @@
     freeze({ id: "hostel-laundry", title: "Dobby", aliases: freeze(["dobby", "hostel laundry", "diy laundry", "dobi", "洗衣房"]), mapState: "AMBIGUOUS", buildingId: "" }),
     freeze({ id: "hostel-study-room", title: "Study Room", aliases: freeze(["hostel study room", "dorm study room"]), mapState: "AMBIGUOUS", buildingId: "" }),
     freeze({ id: "hostel-iron-room", title: "Iron Room", aliases: freeze(["hostel iron room", "dorm iron room", "ironing room"]), mapState: "AMBIGUOUS", buildingId: "" }),
-    freeze({ id: "sports-equipment-store", title: "Stor Sukan", aliases: freeze(["stor sukan", "sports equipment store"]), mapState: "UNMAPPED", buildingId: "" }),
+    freeze({ id: "sports-equipment-store", title: "Stor Sukan", aliases: freeze(["stor sukan"]), mapState: "UNMAPPED", buildingId: "" }),
     freeze({ id: "pos-mini", title: "Pos Mini", aliases: freeze(["pos mini", "parcel collection centre", "parcel collection center", "parcel centre", "parcel center", "collection centre", "collection center", "pusat penerimaan barang", "collect a parcel", "collect parcel", "parcel pickup"]), mapState: "UNMAPPED", buildingId: "" }),
     freeze({ id: "basketball-court", title: "Basketball Court", aliases: freeze(["basketball", "basketball court", "gelanggang bola keranjang", "篮球场"]), mapState: "EXACT", buildingId: "B_BASKETBALL_NW" }),
   ]);

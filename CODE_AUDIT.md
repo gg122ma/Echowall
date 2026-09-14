@@ -1,5 +1,42 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-14 - KMK AI PHASE 5 FINAL HARDENING ROUND 2 AUDIT
+
+- **Alias/source audit:** removed descriptive service concepts from identity
+  evidence across Phase 3, legacy knowledge records, and unmatched Map tags.
+  Retriever exact/multiword substring scoring now sees only classified identity
+  aliases. A bounded qualified-name guard prevents an unknown named shop,
+  event hall, printing service, laundry, or sports-equipment business from
+  gaining a known exact target.
+- **Ownership audit:** Stor Sukan owns sports-equipment borrowing; bicycle-only
+  wording and Stor Basikal retain `bicycle-service`. The legacy overlapping
+  `sports equipment` alias is no longer identity evidence. No service fact or
+  availability statement was invented.
+- **Disclosure audit:** the new semantic helper detects request + identifier +
+  implementation context, including possessive and compound navigation forms.
+  Classified requests are stopped before resolution, and response construction
+  independently suppresses resolved metadata, actions, grounding, facts,
+  conflicts, context, and selected IDs. Benchmark checks cover the complete
+  student-visible structure and known source/fact/building IDs.
+- **Intent audit:** explicit rule requests outrank generic dining cues; bounded
+  EN/BM/ZH/code-switch service needs outrank generic rules and nearby wording.
+  Hostel-study queries resolve only the partial Study Room entity, not the
+  generic hostel zone. Actual dining and sports discovery remains multi-option
+  and action-free.
+- **Map audit:** unknown qualified descriptors produce no action; Stor Sukan,
+  Study Room, and bicycle service stay unmapped/ambiguous; ordinary verified
+  Library/KOOP/Cafe/Astaka actions are unchanged. `ResponseValidator` remains
+  the final action gate.
+- Permanent benchmark: **199 scenarios / 239 turns / 199 passed**. A separate
+  **58-query** unseen pass finished **58/58** after root-class fixes and its
+  temporary harness was removed.
+- Regression: Campus AI **199/199**, Map **21/21**, Phase 4 **89/89**, Phase 5
+  **199/199**, all tests **26/26**, syntax **116/116**, and all build/release,
+  seed, and diff gates pass. Browser QA is not verified because no browser
+  backend was available; live provider QA is not tested.
+- Source truth and Phase 4 boundaries are unchanged. No Supabase, auth,
+  database, production-data, provider, dependency, or UI change was made.
+
 ## 2026-09-14 - KMK AI PHASE 5 PRE-MERGE HARDENING AUDIT
 
 - Fixed all three High findings from the final read-only review. Generic

@@ -13,11 +13,21 @@
     campus_location: /\b(where|where is|wheres|location|locate|find|kat mana|di mana|lokasi)\b|在哪里|哪儿|位置/i,
   });
 
+  const SERVICE_NEEDS = Object.freeze([
+    /\b(?:(?:where (?:do|can|could) (?:i|we|students)?\s*|i need to )borrow (?:sports?|sporting) (?:equipment|gear|stuff)|where (?:can|could) (?:i|students) (?:rent|hire|borrow) (?:a )?(?:bike|bicycle))\b/i,
+    /\b(?:(?:kat|di) mana (?:nak |boleh )?pinjam (?:barang|peralatan) sukan|(?:barang|peralatan) sukan boleh pinjam (?:di|kat) mana|boleh pinjam (?:barang sukan|peralatan sukan) (?:dekat|di|kat) mana|kat mana nak pinjam sports gear|where boleh pinjam sports (?:equipment|gear)|basikal boleh pinjam dekat mana)\b/i,
+    /(?:哪里可以借运动器材|运动器材(?:去)?哪里借|哪里借运动器材|体育器材在哪里借|我去哪里借体育用品|sports gear 哪里 borrow)/i,
+    /\b(?:where (?:can|may) (?:i|students|hostel residents) study (?:in|at) (?:the )?(?:hostel|asrama)|where can hostel residents study|where is there a hostel study space|a place to study in the dorm|any (?:place to study|study room) in (?:the )?hostel|is there somewhere to study in (?:the )?hostel|kat asrama ada study room tak)\b|宿舍(?:哪里可以自习|有自习室吗)/i,
+  ]);
+
+  const EXPLICIT_RULE_REQUEST = /^(?:(?:can|may) i (?:bring|eat|borrow|enter|take)|(?:is|are) (?:food|snacks?|eating|this|that|it) allowed|what food can i (?:bring|take))\b/i;
+
   function classify(message) {
     const normalized = window.EchoAI.Normalizer.normalize(message);
     if (!normalized) return "unknown";
+    if (SERVICE_NEEDS.some(pattern => pattern.test(String(message || "")) || pattern.test(normalized))) return "campus_services";
     if (patterns.campus_navigation.test(String(message || "")) || patterns.campus_navigation.test(normalized)) return "campus_navigation";
-    if (/^\s*can i (?:bring|eat|borrow|enter)\b/i.test(String(message || "")) || /^can i (?:bring|eat|borrow|enter)\b/.test(normalized)) return "campus_rules";
+    if (EXPLICIT_RULE_REQUEST.test(String(message || "").trim()) || EXPLICIT_RULE_REQUEST.test(normalized)) return "campus_rules";
     for (const intent of ["campus_nearby", "campus_comparison", "campus_fees", "campus_services", "campus_rules", "campus_hours", "campus_location"]) {
       if (patterns[intent].test(String(message || "")) || patterns[intent].test(normalized)) return intent;
     }

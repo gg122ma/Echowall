@@ -1,5 +1,31 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-14 - Phase 5 Round 2 hardening by semantic boundary
+
+- Chose alias classification at `PlaceRegistry` ingestion over more stop words
+  or test-name blacklists. This prevents multiword descriptive aliases from
+  reaching Retriever's high-confidence substring path while keeping verified
+  names such as Stor Sukan, Stor Basikal, KOOP, Pustaka, and Astaka intact.
+- Kept service resolution as bounded intent logic. Sports borrowing, bicycle
+  borrowing, and hostel study have separate source-backed routes in EN/BM/ZH
+  and selected code-switch forms; broad sports, bicycle, or hostel tokens do
+  not become identity evidence.
+- Replaced incremental disclosure-regex growth with a semantic helper that
+  composes request, identifier, and implementation-context signals. Added a
+  response-boundary suppression flag as defense in depth so a classified
+  disclosure cannot return actions or identifier-bearing metadata.
+- Preserved service-first routing only for bounded needs and added an explicit
+  rule-request gate for food/snack permission language. This avoids a global
+  intent reorder that had regressed laundry, printing, shopping, and follow-up
+  services.
+- Ran **58 unseen diagnostic queries** rather than promoting every permutation.
+  New equivalence classes received one representative permanent regression;
+  the final benchmark is **199/199 scenarios (239 turns)** and the diagnostic
+  harness was removed.
+- Final status: Campus AI **199/199**, Map **21/21**, Phase 4 **89/89**, all
+  tests **26/26**, syntax **116/116**, and all Pages/static/portable/seed/diff
+  gates pass. Browser QA remained unavailable and live provider QA was not run.
+
 ## 2026-09-14 - Phase 5 pre-merge hardening by evidence class
 
 - Classified aliases as identity evidence versus descriptive need cues instead

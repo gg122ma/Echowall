@@ -4,8 +4,8 @@
 
   const STOP_WORDS = new Set([
     "the", "is", "at", "a", "an", "and", "to", "me", "where", "what", "when", "how", "does", "do", "mart",
-    "campus", "student", "shop", "store", "event", "hall", "service", "services", "print", "printing", "laundry", "sport", "sports", "equipment",
-    "di", "kat", "mana", "apa", "ke", "yang", "kalau", "hari", "pukul", "jam",
+    "campus", "student", "shop", "store", "event", "hall", "service", "services", "print", "printing", "laundry", "sport", "sports", "equipment", "food",
+    "di", "kat", "mana", "apa", "ke", "yang", "kalau", "hari", "pukul", "jam", "dewan",
     "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
     "ahad", "isnin", "sel", "selasa", "rabu", "kham", "khamis", "jumaat", "jumat", "sabtu",
   ]);

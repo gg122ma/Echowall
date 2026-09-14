@@ -29,7 +29,17 @@
     "bicycle-service": Object.freeze(["stor basikal", "garaj basikal"]),
     "bangunan-langkasuka": Object.freeze(["langkasuka"]),
   });
-  const DESCRIPTIVE_ALIASES = new Set(["campus store", "hall", "dewan"]);
+  const DESCRIPTIVE_ALIAS_PATTERNS = Object.freeze([
+    /^(?:campus|student) (?:shop|store)$/,
+    /^(?:event )?hall$/,
+    /^(?:sports )?equipment(?: store| borrowing)?$/,
+    /^(?:print(?:ing)?|printing service|photocopy service)$/,
+    /^(?:laundry|hostel laundry|diy laundry|wash(?:ing)? (?:my )?clothes|washing cost|laundry fee)$/,
+    /^(?:study (?:in|at) (?:the )?hostel|place to study (?:in|at) (?:the )?hostel)$/,
+    /^(?:iron clothes|ironing|borrow sports (?:equipment|stuff)|sports stuff)$/,
+    /^(?:buy daily things|daily supplies|sells daily items)$/,
+    /^(?:food|dining|eat|place to eat|food aid)$/,
+  ]);
 
   const SCHEDULES = Object.freeze({
     library: Object.freeze({ sun: "08:00-16:30", mon: "08:00-16:30", tue: "08:00-16:30", wed: "08:00-16:30", thu: "08:00-16:30", fri: "closed", sat: "closed" }),
@@ -63,6 +73,11 @@
     return (window.KMK_AI_PHASE3?.entities || []).find(entity => entity.id === canonicalId) || null;
   }
 
+  function isIdentityAlias(alias) {
+    const normalized = window.EchoAI.Normalizer.normalize(alias);
+    return Boolean(normalized) && !DESCRIPTIVE_ALIAS_PATTERNS.some(pattern => pattern.test(normalized));
+  }
+
   function getPlaces() {
     const buildings = Array.isArray(window.CAMPUS_BUILDINGS) ? window.CAMPUS_BUILDINGS : [];
     const buildingById = new Map(buildings.map(building => [building.id, building]));
@@ -78,10 +93,10 @@
       const buildingId = building?.id || "";
       if (building) usedBuildings.add(building.id);
       const aliases = unique([
-        ...(profile?.aliases || []),
+        ...(profile?.aliases || []).filter(isIdentityAlias),
         primary.title,
         primary.id,
-        ...records.flatMap(record => (record.aliases || []).filter(alias => !DESCRIPTIVE_ALIASES.has(window.EchoAI.Normalizer.normalize(alias)))),
+        ...records.flatMap(record => (record.aliases || []).filter(isIdentityAlias)),
         ...(EXTRA_ALIASES[canonicalId] || []),
         building?.name,
       ]);
@@ -105,7 +120,7 @@
         buildingId: building.id,
         building,
         title: building.name,
-        aliases: Object.freeze(unique([building.name, building.id, building.category, ...Object.values(building.tags || {}).flat()])),
+        aliases: Object.freeze(unique([building.name, building.id])),
         category: building.category,
         content: building.purpose?.en || building.description?.en || "",
         contentMs: building.purpose?.ms || building.description?.ms || "",

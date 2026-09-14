@@ -99,9 +99,9 @@
 
   function discoveryCategory(message) {
     const text = String(message || "");
-    const dining = /\b(?:cafeterias?|cafes?|dining|food|where (?:can|could) i eat|where to eat|places? to eat|kafeteria|kafe|tempat makan|mana boleh makan|makan)\b|食堂|餐厅|咖啡厅|哪里可以吃饭|哪(?:里|儿)能吃饭|吃东西/i;
+    const dining = /\b(?:cafeterias?|cafes?|dining|where (?:can|could) i (?:eat|get food)|where to eat|places? to eat|what places serve food|what cafes? are there|show me (?:cafeterias?|cafes?)|kafeteria|kafe|tempat makan|mana boleh makan)\b|食堂|餐厅|咖啡厅|哪里可以吃饭|哪(?:里|儿)能吃饭|吃东西/i;
     if (dining.test(text)) return "dining";
-    const sports = /\b(?:sports?|sport facilities|sports facilities|places? to exercise|where (?:can|could) i (?:play sports|exercise)|kemudahan sukan|tempat sukan|bersukan|mana boleh bersukan)\b|体育设施|运动设施|哪里可以运动|运动场地/i;
+    const sports = /\b(?:sport facilities|sports facilities|what sports facilities are there|show me sports facilities|places? to exercise|where (?:can|could) i (?:play sports|exercise)|kemudahan sukan|tempat sukan|dewan sukan|mana boleh bersukan)\b|体育设施|运动设施|哪里可以运动|运动场地/i;
     return sports.test(text) ? "sports" : "";
   }
 
@@ -115,23 +115,33 @@
     const matches = [
       ["koop-mart", /^(?:where (?:can|could|do) (?:i|students) (?:normally )?buy (?:daily )?(?:things|items|supplies)|where do students normally buy (?:things|daily things|daily supplies))$/],
       ["pos-mini", /^(?:where can i print(?: something)?|need to print something where can i go)$/],
-      ["hostel-laundry", /^(?:where can i (?:do laundry|wash (?:my )?clothes)|where do i wash baju(?: ah)?|how much does washing cost|我可以在哪里洗衣|哪里可以洗衣服?)$/],
-      ["hostel-study-room", /^(?:where can i study (?:in|at) the hostel|any place to study at the hostel)$/],
+      ["hostel-laundry", /^(?:diy laundry|where can i (?:do laundry|wash (?:my )?clothes)|where do i wash baju(?: ah)?|how much does washing cost|我可以在哪里洗衣|哪里可以洗衣服?)$/],
       ["hostel-iron-room", /^(?:where can i iron clothes|what about ironing)$/],
-      ["sports-equipment-store", /^where can (?:i )?borrow sports (?:equipment|stuff)(?: ah)?$/],
+      ["sports-equipment-store", /^(?:(?:where (?:do|can|could) (?:i|we|students)?\s*|i need to )borrow (?:sports?|sporting) (?:equipment|stuff|gear)(?: ah)?(?: where)?|(?:kat|di) mana (?:nak |boleh )?pinjam (?:barang|peralatan) sukan|(?:barang|peralatan) sukan boleh pinjam (?:di|kat) mana|boleh pinjam (?:barang sukan|peralatan sukan) (?:dekat|di|kat) mana|kat mana nak pinjam sports gear|where boleh pinjam sports (?:equipment|gear)|哪里可以借运动器材|运动器材去?哪里借|哪里借运动器材|体育器材在哪里借|我去哪里借体育用品|sports gear 哪里 borrow)$/],
+      ["bicycle-service", /^(?:where (?:can|could) (?:i|students) (?:rent|hire|borrow) (?:a )?(?:bike|bicycle)|where is the bicycle service|basikal boleh pinjam dekat mana)$/],
+      ["hostel-study-room", /^(?:where (?:can|may) (?:i|students|hostel residents) study (?:in|at) (?:the )?(?:hostel|asrama)|where can hostel residents study|where is there a hostel study space|a place to study in the dorm|any (?:place to study|study room) (?:in|at) (?:the )?hostel|is there somewhere to study in the hostel|kat asrama ada study room tak|宿舍哪里可以自习|宿舍有自习室吗)$/],
       ["dewan-mahawangsa", /^(?:where is|wheres) the main event hall$/],
     ];
     const entityId = matches.find(([, pattern]) => pattern.test(normalized))?.[0] || "";
     return entityId ? getEntity(entityId) : null;
   }
 
+  function isQualifiedDescriptiveName(normalized) {
+    const match = normalized.match(/^(?:where is|wheres|show|open|navigate to|pin|drop a pin for) (?:the )?(.+?) (sports equipment|sports gear|equipment store|event hall|student shop|campus shop|campus store|printing service|laundry(?: center| centre| room)?)(?: (?:on|in) (?:echo )?map)?$/);
+    if (!match) return false;
+    return !new Set(["main", "hostel", "campus", "student"]).has(match[1]);
+  }
+
   function resolve(message, contextEntityId = "") {
     const normalized = window.EchoAI.Normalizer.normalize(message);
+    const descriptiveEntity = descriptiveNeedEntity(message);
+    if (descriptiveEntity) return Object.freeze({ status: "resolved", place: descriptiveEntity, candidates: Object.freeze([descriptiveEntity]), confidence: 0.96, resolutionType: descriptiveEntity.mapState || "UNMAPPED" });
+    if (isQualifiedDescriptiveName(normalized)) {
+      return Object.freeze({ status: "unknown", place: null, candidates: Object.freeze([]), confidence: 0, resolutionType: "UNMAPPED" });
+    }
     const special = (window.KMK_AI_PHASE3?.specialEntities || []).find(entity => entity.aliases.some(alias => aliasMatches(normalized, alias)));
     if (special) return Object.freeze({ status: "resolved", place: entityFromDefinition(special), candidates: Object.freeze([]), confidence: 0.99, resolutionType: special.mapState });
     const resolved = window.EchoAI.Retriever.resolve(message, contextEntityId);
-    const descriptiveEntity = descriptiveNeedEntity(message);
-    if (descriptiveEntity) return Object.freeze({ status: "resolved", place: descriptiveEntity, candidates: Object.freeze([descriptiveEntity]), confidence: 0.96, resolutionType: descriptiveEntity.mapState || "UNMAPPED" });
     if (resolved.status === "resolved" && resolved.confidence >= 0.95) {
       return Object.freeze({ ...resolved, resolutionType: resolved.place?.mapState || "UNMAPPED" });
     }
