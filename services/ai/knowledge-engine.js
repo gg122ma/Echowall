@@ -125,8 +125,18 @@
     return Object.freeze({ ...resolved, resolutionType: resolved.place?.mapState || (resolved.status === "ambiguous" ? "AMBIGUOUS" : "UNMAPPED") });
   }
 
+  function resolveMany(message) {
+    const normalized = window.EchoAI.Normalizer.normalize(message);
+    const specialMatches = (window.KMK_AI_PHASE3?.specialEntities || [])
+      .filter(entity => entity.aliases.some(alias => aliasMatches(normalized, alias)))
+      .map(entityFromDefinition);
+    const regularMatches = window.EchoAI.Retriever.resolveMany(message);
+    return [...new Map([...specialMatches, ...regularMatches].map(place => [place.canonicalId, place])).values()];
+  }
+
   function factTypesForIntent(intent) {
     if (intent === "campus_hours") return ["hours"];
+    if (intent === "campus_fees") return ["fee"];
     if (intent === "campus_rules") return ["rule"];
     if (intent === "campus_services") return ["service", "purpose", "identity", "fee"];
     if (intent === "campus_location" || intent === "campus_navigation") return ["purpose", "identity", "service"];
@@ -165,6 +175,7 @@
     getSpecialEntity,
     discoveryCategory,
     resolve,
+    resolveMany,
     selectFacts,
     validateInventory,
   });

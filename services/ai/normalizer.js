@@ -14,6 +14,7 @@
     let text = String(value || "").toLocaleLowerCase();
     try { text = text.normalize("NFKD").replace(/[\u0300-\u036f]/g, ""); } catch {}
     text = text.replace(/[’']/g, "").replace(/[^a-z0-9\u3400-\u9fff]+/g, " ").trim().replace(/\s+/g, " ");
+    text = text.replace(/\bco\s+op\b/g, "koop");
     return text.split(" ").map(token => TYPO_REPLACEMENTS[token] || token).join(" ");
   }
 

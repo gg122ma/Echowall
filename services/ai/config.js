@@ -10,7 +10,7 @@
     sourceAuthority: Object.freeze({ ownerSource: 1, campusKnowledge: 2, mapData: 3, communityOpinion: 4, genericModel: 5 }),
     supportedLanguages: Object.freeze(["en", "ms", "zh"]),
     supportedIntents: Object.freeze([
-      "campus_info", "campus_hours", "campus_rules", "campus_services",
+      "campus_info", "campus_hours", "campus_rules", "campus_services", "campus_fees",
       "campus_location", "campus_navigation", "campus_nearby", "campus_discovery",
       "campus_comparison", "general", "unknown",
     ]),

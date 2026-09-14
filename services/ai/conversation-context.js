@@ -40,7 +40,7 @@
 
   function referencesPrevious(message) {
     const normalized = window.EchoAI.Normalizer.normalize(message);
-    return /\b(it|there|that place|its|situ|sana|tempat itu|dia)\b/.test(normalized)
+    return /\b(it|there|that|that place|its|show me|where exactly|situ|sana|tempat itu|dia|which source|choose one|pick (?:the )?(?:later|earlier) one)\b/.test(normalized)
       || /(那里|那边|它|附近|怎么去|如何去)/.test(String(message || ""));
   }
 
@@ -48,8 +48,10 @@
     const normalized = window.EchoAI.Normalizer.normalize(message);
     if (!normalized) return false;
     return /^(?:more|what else|anything else|what about|how about|kalau|apa lagi|lagi)\b/.test(normalized)
+      || /^(?:what time|where exactly|show me(?: on (?:the )?map)?|which source is correct|just choose one|(?:really )?just pick (?:the )?(?:later|earlier) one)$/.test(normalized)
+      || /^so \d{1,2}(?::\d{2})?(?:am|pm)? (?:or|atau) \d{1,2}(?::\d{2})?(?:am|pm)?$/.test(normalized)
       || /^(?:还有呢|还有吗|还有什么|再说一点|更多)[？?。.!！]?$/.test(String(message || "").trim())
-      || /^(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday|ahad|isnin|selasa|rabu|khamis|jumaat|jumat|sabtu)(?:\s+(?:then|pula))?$/.test(normalized)
+      || /^(?:and\s+)?(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday|ahad|isnin|selasa|rabu|khamis|jumaat|jumat|sabtu)(?:\s+(?:then|pula))?$/.test(normalized)
       || /^(?:那|那么)?(?:星期|周)[一二三四五六日天](?:呢)?$/.test(String(message || "").trim().replace(/[？?。.!！]/g, ""));
   }
 

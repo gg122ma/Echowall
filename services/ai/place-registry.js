@@ -18,7 +18,9 @@
 
   const EXTRA_ALIASES = Object.freeze({
     library: Object.freeze(["pustaka", "perpustakaan", "lib", "图书馆"]),
-    "koop-mart": Object.freeze(["koop", "koop mart", "koperasi", "koperasi mart"]),
+    "koop-mart": Object.freeze(["koop", "koop mart", "koperasi", "koperasi mart", "student shop", "campus shop", "buy daily things", "daily supplies", "sells daily items"]),
+    "pos-mini": Object.freeze(["print", "printing service", "photocopy service"]),
+    "dewan-mahawangsa": Object.freeze(["event hall", "main event hall"]),
     serambi: Object.freeze(["hep", "hal ehwal pelajar", "student affairs"]),
     "dewan-kuliah": Object.freeze(["lecture hall", "dk", "dewan kuliah", "讲堂", "讲座厅"]),
     masjid: Object.freeze(["mosque", "masjid", "清真寺"]),

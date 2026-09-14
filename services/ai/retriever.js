@@ -3,7 +3,7 @@
   window.EchoAI = window.EchoAI || {};
 
   const STOP_WORDS = new Set([
-    "the", "is", "at", "a", "an", "to", "me", "where", "what", "when", "how", "does", "do",
+    "the", "is", "at", "a", "an", "and", "to", "me", "where", "what", "when", "how", "does", "do", "mart",
     "di", "kat", "mana", "apa", "ke", "yang", "kalau", "hari", "pukul", "jam",
     "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
     "ahad", "isnin", "sel", "selasa", "rabu", "kham", "khamis", "jumaat", "jumat", "sabtu",
@@ -15,6 +15,14 @@
     if (!normalizedAlias) return 0;
     if (STOP_WORDS.has(normalizedAlias)) return 0;
     if (query === normalizedAlias) return 100 + normalizedAlias.length;
+    const rawAlias = String(alias || "").trim();
+    const shortCode = /^[A-Z]{2,4}$/.test(rawAlias) || /^[A-Za-z]\d{1,2}$/.test(rawAlias);
+    if (shortCode) {
+      const index = query.indexOf(normalizedAlias);
+      const before = index > 0 ? query[index - 1] : "";
+      const after = index >= 0 ? query[index + normalizedAlias.length] || "" : "";
+      if (index >= 0 && !/[a-z0-9]/i.test(before) && !/[a-z0-9]/i.test(after)) return 90 + normalizedAlias.length;
+    }
     if (query.includes(normalizedAlias) && (/[\u3400-\u9fff]/.test(normalizedAlias) || normalizedAlias.includes(" ") || normalizedAlias.length >= 4)) return 80 + normalizedAlias.length;
     const aliasTokens = normalizer.tokens(normalizedAlias);
     let score = 0;
