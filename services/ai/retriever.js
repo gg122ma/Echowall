@@ -9,29 +9,60 @@
     "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
     "ahad", "isnin", "sel", "selasa", "rabu", "kham", "khamis", "jumaat", "jumat", "sabtu",
   ]);
+  const MIN_IDENTITY_SCORE = 70;
+  const SAFE_TARGET_MODIFIERS = new Set(["main", "campus", "kmk", "building", "block", "room"]);
+
+  function phraseIndex(query, alias) {
+    const index = query.indexOf(alias);
+    if (index < 0) return -1;
+    const before = index > 0 ? query[index - 1] : "";
+    const after = query[index + alias.length] || "";
+    return !/[a-z0-9]/i.test(before) && !/[a-z0-9]/i.test(after) ? index : -1;
+  }
+
+  function explicitLocationTarget(query) {
+    let match = query.match(/^(?:(?:could|can|would) you )?(?:please )?(?:where is|wheres|locate|find|show(?: me)?|open|pin|navigate to|take me to|bring me to) (?:the )?(.+)$/);
+    if (!match) match = query.match(/^(.+?) (?:kat|di) mana$/);
+    if (!match) return "";
+    return match[1]
+      .replace(/\s+(?:near|beside|inside)\s+.+$/, "")
+      .replace(/\s+(?:on|in|using) (?:the )?(?:echo )?map(?: please)?$/, "")
+      .replace(/\s+for me$/, "")
+      .trim();
+  }
+
+  function aliasFitsLocationTarget(query, alias) {
+    const target = explicitLocationTarget(query);
+    if (!target) return true;
+    const index = phraseIndex(target, alias);
+    if (index < 0) return false;
+    const remainder = `${target.slice(0, index)} ${target.slice(index + alias.length)}`.trim();
+    return !remainder || window.EchoAI.Normalizer.tokens(remainder).every(token => SAFE_TARGET_MODIFIERS.has(token));
+  }
 
   function scoreAlias(query, queryTokens, alias) {
     const normalizer = window.EchoAI.Normalizer;
     const normalizedAlias = normalizer.normalize(alias);
     if (!normalizedAlias) return 0;
     if (STOP_WORDS.has(normalizedAlias)) return 0;
-    if (query === normalizedAlias) return 100 + normalizedAlias.length;
+    if (query === normalizedAlias) return 110 + normalizedAlias.length;
     const rawAlias = String(alias || "").trim();
     const shortCode = /^[A-Z]{2,4}$/.test(rawAlias) || /^[A-Za-z]\d{1,2}$/.test(rawAlias);
     if (shortCode) {
-      const index = query.indexOf(normalizedAlias);
-      const before = index > 0 ? query[index - 1] : "";
-      const after = index >= 0 ? query[index + normalizedAlias.length] || "" : "";
-      if (index >= 0 && !/[a-z0-9]/i.test(before) && !/[a-z0-9]/i.test(after)) return 90 + normalizedAlias.length;
+      const index = phraseIndex(query, normalizedAlias);
+      if (index >= 0 && aliasFitsLocationTarget(query, normalizedAlias)) return 100 + normalizedAlias.length;
     }
-    if (query.includes(normalizedAlias) && (/[\u3400-\u9fff]/.test(normalizedAlias) || normalizedAlias.includes(" ") || normalizedAlias.length >= 4)) return 80 + normalizedAlias.length;
+    if (phraseIndex(query, normalizedAlias) >= 0 && aliasFitsLocationTarget(query, normalizedAlias)
+      && (/[\u3400-\u9fff]/.test(normalizedAlias) || normalizedAlias.includes(" ") || normalizedAlias.length >= 4)) return 90 + normalizedAlias.length;
     const aliasTokens = normalizer.tokens(normalizedAlias);
-    let score = 0;
-    queryTokens.filter(token => token.length >= 3 && !STOP_WORDS.has(token)).forEach(token => {
-      if (aliasTokens.includes(token)) score += token.length >= 4 ? 12 : 4;
-      else if (aliasTokens.some(aliasToken => normalizer.isConservativeTypoMatch(token, aliasToken))) score += 7;
-    });
-    return score;
+    const meaningfulAliasTokens = aliasTokens.filter(token => token.length >= 3 && !STOP_WORDS.has(token));
+    const meaningfulQueryTokens = queryTokens.filter(token => token.length >= 3 && !STOP_WORDS.has(token));
+    if (!meaningfulAliasTokens.length || !meaningfulQueryTokens.length) return 0;
+    const exactMatches = meaningfulAliasTokens.filter(token => meaningfulQueryTokens.includes(token));
+    const typoMatches = meaningfulAliasTokens.filter(aliasToken => meaningfulQueryTokens.some(token => normalizer.isConservativeTypoMatch(token, aliasToken)));
+    const covered = new Set([...exactMatches, ...typoMatches]);
+    if (covered.size === meaningfulAliasTokens.length && typoMatches.length > 0) return 75 + meaningfulAliasTokens.join("").length;
+    return exactMatches.reduce((score, token) => score + (token.length >= 4 ? 12 : 4), 0);
   }
 
   function scorePlace(query, queryTokens, place) {
@@ -51,7 +82,7 @@
     const scored = window.EchoAI.PlaceRegistry.getPlaces().map(place => ({
       place,
       score: scorePlace(query, queryTokens, place),
-    })).filter(item => item.score > 0).sort((a, b) => b.score - a.score || a.place.title.localeCompare(b.place.title, "en"));
+    })).filter(item => item.score >= MIN_IDENTITY_SCORE).sort((a, b) => b.score - a.score || a.place.title.localeCompare(b.place.title, "en"));
 
     if (!scored.length) {
       const contextPlace = contextEntityId ? window.EchoAI.PlaceRegistry.getById(contextEntityId) : null;
@@ -80,7 +111,7 @@
     return window.EchoAI.PlaceRegistry.getPlaces().map(place => ({
       place,
       score: scorePlace(query, queryTokens, place),
-    })).filter(item => item.score >= 12).sort((a, b) => b.score - a.score).map(item => item.place).filter((place, index, all) => all.findIndex(item => item.canonicalId === place.canonicalId) === index);
+    })).filter(item => item.score >= MIN_IDENTITY_SCORE).sort((a, b) => b.score - a.score).map(item => item.place).filter((place, index, all) => all.findIndex(item => item.canonicalId === place.canonicalId) === index);
   }
 
   window.EchoAI.Retriever = Object.freeze({ resolve, resolveMany });

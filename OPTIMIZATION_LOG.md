@@ -1,5 +1,30 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-14 - Phase 5 Round 3 confidence and composition hardening
+
+- Replaced reliance on a closed descriptive-suffix guard with an evidence
+  boundary: exact bounded aliases, bounded short codes, or fully covered
+  conservative typos are accepted; a unique partial token is not. This closes
+  suffix families without maintaining fictional-name blacklists.
+- Kept user-facing titles but removed raw record/building IDs from alias
+  ingestion. Explicit target coverage separates the requested place from a
+  known nearby landmark, preserving legitimate relation queries.
+- Used hostel-context + study-need + question-signal composition instead of a
+  longer sentence regex. Applied the same limited approach to source-backed
+  sports borrowing, bicycles, laundry, and printing; unsupported remains
+  preferable when those concepts are incomplete.
+- Split disclosure language into request, strong identifier, implementation
+  context, possessive, direct-code, and human-facing control groups. This is
+  narrower than treating bare `key`, `code`, or `target` as internal and more
+  complete than adding only `dump fact IDs` as a literal exception.
+- Ran 107 unseen diagnostics. Landmark-as-target, raw `B_*`, and broader
+  service variants were fixed at shared boundaries and represented once each;
+  the temporary harness was removed.
+- Final status: Phase 5 **225/225**, Campus AI **199/199**, Map **21/21**,
+  Phase 4 **89/89**, all tests **26/26**, active syntax **116/116**, and all
+  Pages/static/portable/seed/diff gates pass. The existing low-severity,
+  explicit-opt-in single-clause provider-call optimization remains untouched.
+
 ## 2026-09-14 - Phase 5 Round 2 hardening by semantic boundary
 
 - Chose alias classification at `PlaceRegistry` ingestion over more stop words

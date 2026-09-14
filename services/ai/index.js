@@ -195,17 +195,22 @@
 
   function requestsInternalIdentifier(question) {
     const text = String(question || "");
-    const requestSignal = /\b(?:what|which|give(?: me)?|tell me|show(?: me)?|reveal|print|output|include|return|state|display|navigate|open|bring|take)\b/i.test(text);
-    const directInternalCode = /\bb_[a-z0-9_]*\b|\bb_\*|\bb\s+(?:id|identifier|code)\b/i.test(text);
-    const identifierSignal = /\b(?:ids?|identifiers?|codes?|targets?|keys?|internal names?|internal references?)\b/i.test(text);
-    const implementationContext = /\b(?:internal|building|map|source|fact|system|provider|registry|knowledge|planner|echo\s+map)\b/i.test(text);
-    const possessiveIdentifier = /\b(?:its|their|librarys|pustakas|koops|cafe\s+[abc]s)\s+(?:id|identifier|code|target|key)\b/i.test(window.EchoAI.Normalizer.normalize(text));
-    const campusSubject = /\b(?:library|pustaka|koop|astaka|pavilion|cafe\s+[abc]|cafe\s+admin|stor\s+sukan|pos\s+mini)\b/i.test(text);
-    const humanFacingCode = /\b(?:dress|conduct|qr|postal|zip)\s+code\b/i.test(text);
-    if (directInternalCode) return requestSignal || /\b(?:what|which)\b/i.test(text);
-    if (!requestSignal || !identifierSignal) return false;
-    if (humanFacingCode && !implementationContext && !possessiveIdentifier) return false;
-    return implementationContext || possessiveIdentifier || campusSubject;
+    const normalized = window.EchoAI.Normalizer.normalize(text);
+    const requestSignal = /\b(?:what|which|give(?: me)?|tell(?: me)?|show(?: me)?|reveal|print|output|include|return|state|display|dump|expose|navigate|open|bring|take)\b/i.test(normalized);
+    if (!requestSignal) return false;
+
+    const directInternalCode = /\bB_(?:\*|[A-Z0-9_]+)(?![A-Z0-9_])/i.test(text)
+      || /\bb_[a-z0-9_]*\b|\bb\s+(?:id|identifier|code)\b/i.test(normalized);
+    const humanFacingPhrase = /\b(?:dress|conduct|qr|postal|zip)\s+code\b|\bcode of conduct\b|\btarget audience\b|\bkey (?:facilities|services|information|details|places)\b/i.test(normalized);
+    const possessiveIdentifier = /\b(?:its|their|librarys|pustakas|koops|cafe\s+[abc]s)\s+(?:id|identifier|code|target|key)\b/i.test(normalized);
+    const explicitInternalIdentifier = /\b(?:internal (?:id|identifier|name|reference|target|key|code)|(?:building|map|source|fact|system|provider|registry|knowledge|planner|echo map) (?:id|identifier|reference|target|key|code)s?)\b/i.test(normalized);
+    const identifierNoun = /\b(?:ids?|identifiers?|codes?|keys?)\b/i.test(normalized);
+    const implementationContext = /\b(?:internal|building|map|source|fact|system|provider|registry|knowledge|planner|echo map)\b/i.test(normalized);
+    const campusSubject = /\b(?:library|pustaka|koop|astaka|pavilion|cafe\s+[abc]|cafe\s+admin|stor\s+sukan|pos\s+mini)\b/i.test(normalized);
+
+    if (directInternalCode || explicitInternalIdentifier || possessiveIdentifier) return true;
+    if (humanFacingPhrase) return false;
+    return identifierNoun && (implementationContext || campusSubject);
   }
 
   function isInjectionAttempt(question) {

@@ -1,3 +1,74 @@
+# KMK AI PHASE 5 FINAL HARDENING ROUND 3 HANDOFF (2026-09-14)
+
+Status: **IMPLEMENTED; READY FOR CLAUDE FINAL RE-REVIEW**.
+
+Round 3 starts from `7b58c18c5a9c19bc37181a490338546aa59bb3ea`
+on PR #2. Claude Sonnet 5 independently ran 103 adversarial probe turns and
+reported four High resolver/disclosure classes plus one Medium disclosure-verb
+gap despite the then-green 199-case suite.
+
+## Round 3 root causes and fixes
+
+- **Identity confidence:** `PlaceRegistry` no longer publishes raw record IDs
+  or Map building IDs as student aliases. It exposes user-facing
+  `identityAliases`. `Retriever` now requires exact bounded identity phrases,
+  bounded short codes, or complete conservative-typo coverage; a unique weak
+  token overlap cannot cross the identity evidence floor. Explicit location
+  targets must be covered by the matched identity apart from harmless
+  modifiers, so a known nearby landmark cannot become the requested target.
+- **Descriptive suffix safety:** the closed suffix guard was removed. Study
+  Hall, Equipment/Printing/Learning Centre, Student Facility, Sports Depot,
+  and other unseen variants fail from insufficient identity evidence rather
+  than phrase blacklists.
+- **Hostel study:** hostel/asrama/dorm/resident context composes with
+  study/self-study/belajar/ulang-kaji/Chinese study concepts. Clear needs route
+  to the existing partial `hostel-study-room`; hostel or study alone does not.
+- **Bounded services:** sports borrowing, bicycle borrowing, laundry, and
+  printing use action + service-concept composition in EN/BM/ZH. Qualified
+  business-name lookups never enter this service path.
+- **Identifier disclosure:** strong ID/code/internal-reference requests are
+  distinguished from ordinary key facilities/services, dress/QR/postal codes,
+  and target-audience wording. Dump/expose, possessive/contextual, compound
+  navigation, and raw `B_*` requests are refused. Defense-in-depth suppression
+  still removes actions, resolved metadata, facts, grounding, resolution,
+  context, and selected IDs.
+
+## Round 3 benchmark and diagnostics
+
+- Permanent benchmark: **225 scenarios / 266 conversational turns / 225
+  passed**.
+- P5-200 through P5-225 cover compositional hostel study, fictional qualified
+  identities, legitimate title controls, disclosure false-positive controls,
+  dump/expose/compound/contextual ID requests, landmark separation, raw `B_*`,
+  and broader service phrasing.
+- A temporary **107-query unseen diagnostic pass** covered 20 fictional
+  identities, 15 legitimate identities, 15 hostel-study paraphrases, 15 ID
+  requests, 10 false-positive controls, 10 EN/BM/ZH service paraphrases, five
+  two-turn contexts, and 12 Map combinations. It finished **107/107** and was
+  removed after representative failures were promoted.
+
+## Round 3 validation and boundaries
+
+- Campus AI: **199/199**; Map actions: **21/21**; Phase 4: **89/89**;
+  Phase 5: **225/225**.
+- All `scripts/test-*.mjs`: **26/26 scripts pass**; active application
+  JavaScript/module syntax: **116/116 pass**. Archived checkpoint and
+  before-rollback snapshots are outside this active syntax scope.
+- Pages build/artifact (**490 files**), production URL lock, static, portable,
+  Pustaka seed, showcase seed, and `git diff --check`: **PASS**.
+- Browser QA and live-provider QA are reported in the final task report; no
+  provider credential or production opt-in was added.
+
+No canonical facts, authority, dates, conflicts, Map states/targets,
+Supabase/auth/database/production data, provider configuration, or UI code
+changed. Phase 4 fact-lock, explicit provider opt-in, deterministic fallback,
+request generation, UI single-flight, provider action prohibition, and
+ResponseValidator remain intact.
+
+Rollback: revert only the Round 3 hardening commit created after
+`7b58c18c5a9c19bc37181a490338546aa59bb3ea`; do not rewrite earlier Phase 4 or
+Phase 5 history.
+
 # KMK AI PHASE 5 FINAL HARDENING ROUND 2 HANDOFF (2026-09-14)
 
 Status: **IMPLEMENTED; READY FOR FINAL PHASE 5 PRE-MERGE REVIEW**.

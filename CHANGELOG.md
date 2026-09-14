@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-09-14 - KMK AI PHASE 5 FINAL HARDENING ROUND 3
+
+- Prevented fictional Study Hall, Equipment/Printing/Learning Centre, Student
+  Facility, Sports Depot, and similar names from becoming real campus
+  identities through one generic token or a referenced landmark.
+- Expanded natural hostel-study handling across English, Bahasa Melayu,
+  Chinese, and code-switching while retaining the partial Study Room answer
+  and never inventing a hostel Map target.
+- Improved source-backed sports borrowing, bicycle, laundry, and printing
+  phrasing without turning service words into place-name aliases.
+- Refined internal-ID refusal so dump/expose, compound navigation, possessive,
+  contextual, and raw `B_*` requests are blocked, while ordinary key
+  facilities/services, dress/QR/postal codes, and Map queries remain usable.
+- Expanded the permanent benchmark to **225 scenarios / 266 turns** and ran a
+  separate **107/107 unseen-query** diagnostic pass. Campus AI 199/199, Map
+  21/21, Phase 4 89/89, Phase 5 225/225, all 26 test scripts, 116 active syntax
+  checks, and every release validator pass.
+- No canonical facts, Supabase, auth, database/production data, provider
+  configuration, or UI were changed. Live provider QA remains not tested.
+
 ## 2026-09-14 - KMK AI PHASE 5 FINAL HARDENING ROUND 2
 
 - Prevented multiword service descriptions inside unknown names from resolving

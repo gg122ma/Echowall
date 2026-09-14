@@ -110,8 +110,62 @@
     return approvedIds.map(getEntity).filter(place => place && place.status !== "UNSUPPORTED");
   }
 
+  function directIdentityEntity(message) {
+    const normalized = window.EchoAI.Normalizer.normalize(message);
+    const target = normalized.replace(/^(?:where is|wheres) (?:the )?/, "");
+    if (!target || target === normalized) return null;
+    return window.EchoAI.PlaceRegistry.getPlaces().find(place => (place.identityAliases || place.aliases || [])
+      .some(alias => window.EchoAI.Normalizer.normalize(alias) === target)) || null;
+  }
+
+  function isHostelStudyNeed(message) {
+    const normalized = window.EchoAI.Normalizer.normalize(message);
+    const hostelContext = /\b(?:hostel|dorm|dormitory|asrama|hostel residents?|dorm residents?|residents?)\b|宿舍/.test(normalized);
+    const studyNeed = /\b(?:study|self study|study space|study room|study area|belajar|ulang kaji)\b|自习|读书|学习/.test(normalized);
+    const serviceQuestion = /\b(?:where|where is|where do|where can|is there|any|place|space|room|area|mana|ada|boleh|tempat)\b|哪里|哪儿|有.+吗/.test(normalized);
+    return hostelContext && studyNeed && serviceQuestion;
+  }
+
+  function compositionalServiceEntity(message) {
+    const normalized = window.EchoAI.Normalizer.normalize(message);
+    const identityLookup = /^(?:where is|wheres|locate|find|show|open|navigate(?: to)?)\b/.test(normalized);
+    const serviceQuestion = /\b(?:where|where do|where can|where could|where might|go|mana|dekat|need|students?)\b|哪里|哪儿|去哪/.test(normalized);
+    if (!serviceQuestion || identityLookup) return null;
+
+    const borrowNeed = /\b(?:borrow|loan|rent|hire|pinjam|sewa)\b|借|租/.test(normalized);
+    const sportsConcept = /\b(?:sport|sports|sporting|sukan)\b/.test(normalized)
+      && /\b(?:equipment|gear|stuff|barang|peralatan)\b/.test(normalized)
+      || /运动器材|体育器材|体育用品/.test(normalized);
+    if (borrowNeed && sportsConcept) return getEntity("sports-equipment-store");
+
+    const bicycleConcept = /\b(?:bike|bicycle|basikal)\b|自行车|脚踏车/.test(normalized);
+    if (borrowNeed && bicycleConcept) return getEntity("bicycle-service");
+
+    const laundryNeed = /\b(?:wash|washing|laundry|dobi|basuh)\b|洗衣/.test(normalized)
+      && /\b(?:clothes|clothing|baju|laundry|dobi|basuh|wash|washing)\b|洗衣/.test(normalized);
+    if (laundryNeed) return getEntity("hostel-laundry");
+
+    const printingNeed = /\b(?:print|photocopy|cetak|fotostat)\b|打印|复印/.test(normalized);
+    if (printingNeed) return getEntity("pos-mini");
+    return null;
+  }
+
+  function unresolvedPrimaryLocationTarget(message) {
+    const normalized = window.EchoAI.Normalizer.normalize(message);
+    const match = normalized.match(/^(?:(?:please )?(?:where is|wheres|locate|find|show|open)|navigate to) (?:the )?(.+?)\s+(?:near|beside|inside)\s+(.+)$/);
+    if (!match) return false;
+    const subject = match[1];
+    const regularIdentity = window.EchoAI.PlaceRegistry.getPlaces().some(place => (place.identityAliases || place.aliases || [])
+      .some(alias => aliasMatches(subject, alias)));
+    const specialIdentity = (window.KMK_AI_PHASE3?.specialEntities || []).some(entity => entity.aliases.some(alias => aliasMatches(subject, alias)));
+    return !regularIdentity && !specialIdentity;
+  }
+
   function descriptiveNeedEntity(message) {
     const normalized = window.EchoAI.Normalizer.normalize(message);
+    if (isHostelStudyNeed(normalized)) return getEntity("hostel-study-room");
+    const compositionalEntity = compositionalServiceEntity(normalized);
+    if (compositionalEntity) return compositionalEntity;
     const matches = [
       ["koop-mart", /^(?:where (?:can|could|do) (?:i|students) (?:normally )?buy (?:daily )?(?:things|items|supplies)|where do students normally buy (?:things|daily things|daily supplies))$/],
       ["pos-mini", /^(?:where can i print(?: something)?|need to print something where can i go)$/],
@@ -119,26 +173,19 @@
       ["hostel-iron-room", /^(?:where can i iron clothes|what about ironing)$/],
       ["sports-equipment-store", /^(?:(?:where (?:do|can|could) (?:i|we|students)?\s*|i need to )borrow (?:sports?|sporting) (?:equipment|stuff|gear)(?: ah)?(?: where)?|(?:kat|di) mana (?:nak |boleh )?pinjam (?:barang|peralatan) sukan|(?:barang|peralatan) sukan boleh pinjam (?:di|kat) mana|boleh pinjam (?:barang sukan|peralatan sukan) (?:dekat|di|kat) mana|kat mana nak pinjam sports gear|where boleh pinjam sports (?:equipment|gear)|哪里可以借运动器材|运动器材去?哪里借|哪里借运动器材|体育器材在哪里借|我去哪里借体育用品|sports gear 哪里 borrow)$/],
       ["bicycle-service", /^(?:where (?:can|could) (?:i|students) (?:rent|hire|borrow) (?:a )?(?:bike|bicycle)|where is the bicycle service|basikal boleh pinjam dekat mana)$/],
-      ["hostel-study-room", /^(?:where (?:can|may) (?:i|students|hostel residents) study (?:in|at) (?:the )?(?:hostel|asrama)|where can hostel residents study|where is there a hostel study space|a place to study in the dorm|any (?:place to study|study room) (?:in|at) (?:the )?hostel|is there somewhere to study in the hostel|kat asrama ada study room tak|宿舍哪里可以自习|宿舍有自习室吗)$/],
       ["dewan-mahawangsa", /^(?:where is|wheres) the main event hall$/],
     ];
     const entityId = matches.find(([, pattern]) => pattern.test(normalized))?.[0] || "";
     return entityId ? getEntity(entityId) : null;
   }
 
-  function isQualifiedDescriptiveName(normalized) {
-    const match = normalized.match(/^(?:where is|wheres|show|open|navigate to|pin|drop a pin for) (?:the )?(.+?) (sports equipment|sports gear|equipment store|event hall|student shop|campus shop|campus store|printing service|laundry(?: center| centre| room)?)(?: (?:on|in) (?:echo )?map)?$/);
-    if (!match) return false;
-    return !new Set(["main", "hostel", "campus", "student"]).has(match[1]);
-  }
-
   function resolve(message, contextEntityId = "") {
     const normalized = window.EchoAI.Normalizer.normalize(message);
+    const directIdentity = directIdentityEntity(message);
+    if (directIdentity) return Object.freeze({ status: "resolved", place: directIdentity, candidates: Object.freeze([directIdentity]), confidence: 0.99, resolutionType: directIdentity.mapState || "UNMAPPED" });
     const descriptiveEntity = descriptiveNeedEntity(message);
     if (descriptiveEntity) return Object.freeze({ status: "resolved", place: descriptiveEntity, candidates: Object.freeze([descriptiveEntity]), confidence: 0.96, resolutionType: descriptiveEntity.mapState || "UNMAPPED" });
-    if (isQualifiedDescriptiveName(normalized)) {
-      return Object.freeze({ status: "unknown", place: null, candidates: Object.freeze([]), confidence: 0, resolutionType: "UNMAPPED" });
-    }
+    if (unresolvedPrimaryLocationTarget(message)) return Object.freeze({ status: "unknown", place: null, candidates: Object.freeze([]), confidence: 0, resolutionType: "UNMAPPED" });
     const special = (window.KMK_AI_PHASE3?.specialEntities || []).find(entity => entity.aliases.some(alias => aliasMatches(normalized, alias)));
     if (special) return Object.freeze({ status: "resolved", place: entityFromDefinition(special), candidates: Object.freeze([]), confidence: 0.99, resolutionType: special.mapState });
     const resolved = window.EchoAI.Retriever.resolve(message, contextEntityId);

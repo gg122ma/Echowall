@@ -1,5 +1,38 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-14 - KMK AI PHASE 5 FINAL HARDENING ROUND 3 AUDIT
+
+- **Independent-review input:** Claude Sonnet 5 ran 103 adversarial probe
+  turns and reproduced four High classes—hostel-study substitution, weak-token
+  identity resolution, descriptive-suffix bypass, and `key facilities` false
+  disclosure—plus the Medium `dump/expose` disclosure gap.
+- **Identity audit:** raw record IDs and Map building IDs are no longer aliases.
+  Resolver acceptance requires bounded phrase/short-code evidence or complete
+  conservative-typo coverage; partial token scores cannot resolve. Explicit
+  location targets are checked independently from nearby landmark mentions.
+- **Title audit:** Study Room and Resource Centre still resolve. Fictional
+  Study Hall, Equipment/Printing/Learning Centre, Student Facility, Sports
+  Depot, and landmark-qualified variants remain unsupported with no action.
+- **Service audit:** hostel + study concepts compose into the source-backed
+  partial Study Room record. Sports equipment, bicycles, laundry, and printing
+  use bounded need composition and remain separate from identity matching.
+- **Disclosure audit:** request verbs include dump/expose, while identifier
+  semantics distinguish internal IDs/codes/keys/references from ordinary key
+  facilities/services and human-facing code phrases. Existing response
+  suppression removes every identifier-bearing surface.
+- **Map/source audit:** weak or fictional identities cannot create actions;
+  legitimate exact and parent-only targets remain unchanged. No fact value,
+  source authority, effective date, conflict, or Map mapping changed.
+- Permanent benchmark: **225 scenarios / 266 turns / 225 passed**. The
+  temporary diagnostic harness ran **107/107 unseen queries** and was removed.
+- Regression: Campus AI **199/199**, Map **21/21**, Phase 4 **89/89**, all
+  tests **26/26**, active syntax **116/116**, and Pages/artifact/URL/static/
+  portable/seeds/diff gates pass.
+
+Phase 4 fact-lock, explicit opt-in, deterministic fallback, latest-request
+generation, UI single-flight, provider action prohibition, deterministic-only
+CONFLICT/UNSUPPORTED/AMBIGUOUS handling, and ResponseValidator remain intact.
+
 ## 2026-09-14 - KMK AI PHASE 5 FINAL HARDENING ROUND 2 AUDIT
 
 - **Alias/source audit:** removed descriptive service concepts from identity
