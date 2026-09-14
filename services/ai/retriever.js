@@ -11,6 +11,14 @@
   ]);
   const MIN_IDENTITY_SCORE = 70;
   const SAFE_TARGET_MODIFIERS = new Set(["main", "campus", "kmk", "building", "block", "room"]);
+  const QUERY_SCAFFOLD_WORDS = new Set([
+    "about", "accept", "after", "allowed", "amount", "answer", "anything", "are", "around", "assume", "bag", "before", "beside", "between", "bring", "buy", "can", "close", "closed", "closes", "closing", "code", "conflict", "court",
+    "boys", "confirm", "correct", "cost", "could", "current", "day", "directions", "dress", "eat", "enter", "exactly", "facilities", "fee", "fees", "find", "for", "friday", "from", "get", "girls", "give", "go", "got",
+    "hours", "inside", "information", "into", "items", "locate", "map", "may", "midnight", "monday", "near", "navigate", "need", "next", "noon", "now", "of", "on",
+    "just", "key", "later", "likely", "location", "mention", "minimum", "most", "much", "my", "office", "only", "open", "opened", "opening", "opens", "outside", "pay", "payment", "please", "pretend", "provide", "provides", "qr", "right", "rules", "saturday", "say", "services", "show", "sunday",
+    "take", "tell", "there", "thursday", "time", "today", "tuesday", "usage", "use", "used", "wednesday", "which", "works", "would", "you", "bawa", "belanja", "berapa", "betul", "boleh", "buka",
+    "berfungsi", "cari", "cuma", "dekat", "dibenarkan", "hari", "harga", "jangan", "lah", "macam", "masuk", "nak", "pada", "pagi", "pejabat", "peta", "peraturan", "tak", "tutup", "waktu", "yuran",
+  ]);
 
   function phraseIndex(query, alias) {
     const index = query.indexOf(alias);
@@ -21,7 +29,10 @@
   }
 
   function explicitLocationTarget(query) {
-    let match = query.match(/^(?:(?:could|can|would) you )?(?:please )?(?:where is|wheres|locate|find|show(?: me)?|open|pin|navigate to|take me to|bring me to) (?:the )?(.+)$/);
+    let match = query.match(/^(?:(?:could|can|would) you )?(?:please )?(?:help me )?(?:where is|wheres|locate|find|show(?: me)?|open|pin|drop a pin for|navigate to|take me to|bring me to) (?:the )?(.+)$/);
+    if (!match) match = query.match(/^where can (?:i|we) (?:find|locate) (?:the )?(.+)$/);
+    if (!match) match = query.match(/^(?:do you know |(?:please )?tell me )where (?:the )?(.+?) is$/);
+    if (!match) match = query.match(/^i need directions to (?:the )?(.+)$/);
     if (!match) match = query.match(/^(.+?) (?:kat|di) mana$/);
     if (!match) return "";
     return match[1]
@@ -29,6 +40,32 @@
       .replace(/\s+(?:on|in|using) (?:the )?(?:echo )?map(?: please)?$/, "")
       .replace(/\s+for me$/, "")
       .trim();
+  }
+
+  function wholeTargetMatchesAlias(target, alias) {
+    const normalizer = window.EchoAI.Normalizer;
+    const targetTokens = normalizer.tokens(target).filter(token => !SAFE_TARGET_MODIFIERS.has(token));
+    const aliasTokens = normalizer.tokens(alias).filter(token => !SAFE_TARGET_MODIFIERS.has(token));
+    if (!targetTokens.length || targetTokens.length !== aliasTokens.length) return false;
+    return aliasTokens.every((aliasToken, index) => targetTokens[index] === aliasToken
+      || normalizer.isConservativeTypoMatch(targetTokens[index], aliasToken));
+  }
+
+  function hasNoUnexplainedIdentityTokens(query, alias) {
+    const normalizer = window.EchoAI.Normalizer;
+    if (/[^\x00-\x7f]/.test(query)) {
+      const remainder = query.replace(alias, "").replace(/(?:请问|在哪里|哪里|哪儿|在哪|位置|怎么|如何|几点|开放|开门|关门|关闭|营业|可以|有没有|是不是|附近|有什么|什么|有|地图|带我去|给我看|星期[一二三四五六日天]|早上|下午|晚上|请|在|显示|点|开|关|对|吗|呢)/g, "").replace(/[0-9:\s]+/g, "");
+      return remainder.length === 0;
+    }
+    const queryTokens = normalizer.tokens(query).filter(token => token.length >= 2 && !STOP_WORDS.has(token)
+      && !SAFE_TARGET_MODIFIERS.has(token) && !QUERY_SCAFFOLD_WORDS.has(token) && !/^\d+(?::\d+)?(?:am|pm)?$/.test(token));
+    const aliasTokens = normalizer.tokens(alias).filter(token => token.length >= 2 && !STOP_WORDS.has(token) && !SAFE_TARGET_MODIFIERS.has(token));
+    const unmatched = [...queryTokens];
+    aliasTokens.forEach(aliasToken => {
+      const index = unmatched.findIndex(token => token === aliasToken || normalizer.isConservativeTypoMatch(token, aliasToken));
+      if (index >= 0) unmatched.splice(index, 1);
+    });
+    return unmatched.length === 0;
   }
 
   function aliasFitsLocationTarget(query, alias) {
@@ -40,7 +77,7 @@
     return !remainder || window.EchoAI.Normalizer.tokens(remainder).every(token => SAFE_TARGET_MODIFIERS.has(token));
   }
 
-  function scoreAlias(query, queryTokens, alias) {
+  function scoreAlias(query, queryTokens, alias, allowMultipleIdentities = false) {
     const normalizer = window.EchoAI.Normalizer;
     const normalizedAlias = normalizer.normalize(alias);
     if (!normalizedAlias) return 0;
@@ -50,9 +87,9 @@
     const shortCode = /^[A-Z]{2,4}$/.test(rawAlias) || /^[A-Za-z]\d{1,2}$/.test(rawAlias);
     if (shortCode) {
       const index = phraseIndex(query, normalizedAlias);
-      if (index >= 0 && aliasFitsLocationTarget(query, normalizedAlias)) return 100 + normalizedAlias.length;
+      if (index >= 0 && aliasFitsLocationTarget(query, normalizedAlias) && (allowMultipleIdentities || hasNoUnexplainedIdentityTokens(query, normalizedAlias))) return 100 + normalizedAlias.length;
     }
-    if (phraseIndex(query, normalizedAlias) >= 0 && aliasFitsLocationTarget(query, normalizedAlias)
+    if (phraseIndex(query, normalizedAlias) >= 0 && aliasFitsLocationTarget(query, normalizedAlias) && (allowMultipleIdentities || hasNoUnexplainedIdentityTokens(query, normalizedAlias))
       && (/[\u3400-\u9fff]/.test(normalizedAlias) || normalizedAlias.includes(" ") || normalizedAlias.length >= 4)) return 90 + normalizedAlias.length;
     const aliasTokens = normalizer.tokens(normalizedAlias);
     const meaningfulAliasTokens = aliasTokens.filter(token => token.length >= 3 && !STOP_WORDS.has(token));
@@ -61,13 +98,15 @@
     const exactMatches = meaningfulAliasTokens.filter(token => meaningfulQueryTokens.includes(token));
     const typoMatches = meaningfulAliasTokens.filter(aliasToken => meaningfulQueryTokens.some(token => normalizer.isConservativeTypoMatch(token, aliasToken)));
     const covered = new Set([...exactMatches, ...typoMatches]);
-    if (covered.size === meaningfulAliasTokens.length && typoMatches.length > 0) return 75 + meaningfulAliasTokens.join("").length;
+    const target = explicitLocationTarget(query);
+    const targetAllowsFallback = target ? wholeTargetMatchesAlias(target, normalizedAlias) : allowMultipleIdentities || hasNoUnexplainedIdentityTokens(query, normalizedAlias);
+    if (covered.size === meaningfulAliasTokens.length && typoMatches.length > 0 && targetAllowsFallback) return 75 + meaningfulAliasTokens.join("").length;
     return exactMatches.reduce((score, token) => score + (token.length >= 4 ? 12 : 4), 0);
   }
 
-  function scorePlace(query, queryTokens, place) {
+  function scorePlace(query, queryTokens, place, allowMultipleIdentities = false) {
     return Math.max(0, ...place.aliases.map(alias => {
-      const score = scoreAlias(query, queryTokens, alias);
+      const score = scoreAlias(query, queryTokens, alias, allowMultipleIdentities);
       if (!score) return 0;
       const isPrimary = [place.title, place.canonicalId, place.id]
         .some(value => window.EchoAI.Normalizer.normalize(value) === window.EchoAI.Normalizer.normalize(alias));
@@ -110,7 +149,7 @@
     const queryTokens = normalizer.tokens(query);
     return window.EchoAI.PlaceRegistry.getPlaces().map(place => ({
       place,
-      score: scorePlace(query, queryTokens, place),
+      score: scorePlace(query, queryTokens, place, true),
     })).filter(item => item.score >= MIN_IDENTITY_SCORE).sort((a, b) => b.score - a.score).map(item => item.place).filter((place, index, all) => all.findIndex(item => item.canonicalId === place.canonicalId) === index);
   }
 

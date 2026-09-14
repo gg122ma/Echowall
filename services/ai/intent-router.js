@@ -32,7 +32,7 @@
 
   function isCompositionalServiceNeed(message) {
     const normalized = window.EchoAI.Normalizer.normalize(message);
-    const identityLookup = /^(?:where is|wheres|locate|find|show|open|navigate(?: to)?)\b/.test(normalized);
+    const identityLookup = /^(?:(?:(?:could|can|would) you )?(?:please )?(?:help me )?(?:where is|wheres|locate|find|show(?: me)?|open|pin|drop a pin for|navigate to|take me to|bring me to)|where can (?:i|we) (?:find|locate)|(?:do you know |(?:please )?tell me )where|i need directions to)\b/.test(normalized);
     const serviceQuestion = /\b(?:where|where do|where can|where could|where might|go|mana|dekat|need|students?)\b|哪里|哪儿|去哪/.test(normalized);
     if (!serviceQuestion || identityLookup) return false;
     const borrowNeed = /\b(?:borrow|loan|rent|hire|pinjam|sewa)\b|借|租/.test(normalized);
