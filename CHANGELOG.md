@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-09-14 - KMK AI PHASE 5 STUDENT QUERY ROBUSTNESS
+
+- Ask Echo now understands more common student wording for KOOP shopping,
+  printing, laundry/ironing, hostel study spaces, sports-equipment borrowing,
+  fees, and Map requests without requiring internal entity names.
+- Improved safe English, Bahasa Melayu, Chinese, and Malaysian code-switch
+  recognition, including `co op`, bounded campus codes, casual hours phrases,
+  and BM pin/navigation wording. Unknown lookalike businesses are not mapped to
+  KOOP.
+- Follow-ups such as `And Saturday?`, `where exactly?`, `show me`, and
+  requests to choose between conflicted source times keep the correct current
+  entity without overriding explicit new places. Multi-place comparisons no
+  longer make an arbitrary participant the hidden target of the next follow-up.
+- Confident false opening/closing premises using midnight, noon, or am/pm are
+  corrected from current schedules. Cafe Admin conflicts and unsupported
+  Basketball hours remain unchanged.
+- Requests for internal prompts, IDs, registries, planner objects, or hidden
+  data now return the existing safe source-boundary response; provider and Map
+  internals are not exposed.
+- Added a durable 120-case student benchmark. It passes 120/120 alongside
+  Campus AI 199/199, Map 21/21, Phase 4 89/89, all 26 test scripts, 116 syntax
+  checks, and all release validators.
+- No Supabase, auth, database, production-data, provider configuration, or UI
+  changes.
+
 ## 2026-09-14 - KMK AI PHASE 4 PRE-MERGE HARDENING
 
 - Added a per-session latest-started request-generation guard to

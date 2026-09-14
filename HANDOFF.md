@@ -1,3 +1,127 @@
+# KMK AI PHASE 5 STUDENT BENCHMARK & ROBUSTNESS HANDOFF (2026-09-14)
+
+Status: **IMPLEMENTED; ALL AUTOMATED GATES PASS; BROWSER QA NOT VERIFIED**.
+
+Phase 4 PR #1 was merged with merge commit
+`7d6cb119a6139ba0f74e742ddd2e4afbbc6916e0`. Phase 5 started from that same
+`origin/main` SHA on `feature/kmk-ai-phase5-student-benchmark` and does not
+change Supabase, auth, database state, production data, provider configuration,
+or the UI.
+
+## Benchmark architecture and coverage
+
+- `data/kmk-ai-phase5-benchmark.json` is a durable, machine-readable set of
+  **120** student scenarios. `scripts/test-kmk-ai-phase5-benchmark.mjs` loads
+  the real CampusAI module stack in an isolated browser-like VM and validates
+  semantic response structure rather than full-string snapshots: entity,
+  intent, answer mode, premise, Map state/action/target, selected/forbidden
+  facts, language, safe text constraints, and conversation state.
+- Primary categories: normal **20**, natural phrasing **12**, follow-up **15**,
+  correction **12**, conflict **8**, unsupported/source gaps **10**, Map safety
+  **12**, typo normalization **8**, injection **10**, comparison **8**, and
+  controlled concurrency **5**. Cross-category coverage brings Map safety to
+  **15** and adversarial/injection boundaries to **15** without duplicating
+  cases.
+- Language buckets: English **82**, Bahasa Melayu **10**, Chinese **8**,
+  Malaysian code-switch **15**, plus **5** language-neutral controlled
+  concurrency cases. Chinese coverage is **10** when the two Chinese-led
+  code-switch cases are included.
+- Multi-turn cases use a stable session per scenario. Five provider-controlled
+  concurrency cases cover both same-session completion orders, independent
+  sessions, follow-up after a superseding request, and context after a real
+  short timeout.
+
+## Bugs discovered and fixed
+
+- Added narrow, source-identity-safe aliases for common student wording around
+  KOOP, printing, laundry fees, hostel study/ironing, sports-equipment loans,
+  Dewan Mahawangsa, and the Chinese Basketball Court name. No canonical fact
+  value or authority record changed.
+- Hardened conservative normalization for `co op`, bounded short campus codes
+  such as ATM/A1/B1, and generic-token scoring so an unknown `Moonlight Mart`
+  cannot become KOOP and a follow-up containing `and` cannot become Track and
+  Field Stadium.
+- Expanded EN/BM/ZH and Malaysian code-switch intent cues for hours, fees,
+  services, rules, comparisons, and safe Map requests including `letak pin`.
+  Provider calls were not added.
+- Fixed contextual day/refusal/Map follow-ups (`And Saturday?`, `where
+  exactly`, `show me`, `which source`, and refusal to choose the later/earlier
+  Cafe Admin conflict). Explicit high-confidence entity mentions still
+  override context, and the Phase 4 latest-started generation guard is intact.
+- Added deterministic no-day opening/closing premise checks for `midnight`,
+  `noon`, and am/pm endpoints, so confident false premises are corrected from
+  selected schedules rather than mirrored.
+- Prevented legacy general-content fallback from turning unsupported fee or
+  dress-code questions into unrelated answers. Explicit requests for system,
+  provider, registry, planner, fact-ID, or building-ID internals now take the
+  existing deterministic injection refusal path.
+- Comparison resolution now includes the existing special safe entities, so
+  A1/B1-style comparisons do not bypass the special-entity registry. A
+  comparison also clears the single-entity refer-back context under the
+  latest-request guard, instead of silently making the second participant own
+  an ambiguous later follow-up.
+
+## Benchmark iteration and source gaps
+
+The initial benchmark exposed **44** failures (76/120); layer-specific fixes
+and expectation corrections brought it to **120/120**. Corrections included
+keeping ambiguous `Dewan sukan besar` ambiguous, preserving the verified
+Library Saturday closure, recognizing Dobby fee answers as `PARTIAL` because
+its Map state remains ambiguous, replacing a substring-based `RM` check that
+accidentally matched the word `information` with a currency pattern, and
+requiring internal-disclosure refusals to return no resolved campus entity.
+
+Source gaps remain explicit: Cafe Admin hours stay `CONFLICT`; Basketball
+hours, Court A/C mapping, Reading Room and Surau exact mapping, Pavilion dress
+code, and Basketball fees stay unsupported; P5 stays unmapped; A1/A2/B1/B2/C2
+remain parent-only. The expired April-May 2026 Library exception stays
+historical. No benchmark expectation was allowed to create a fact.
+
+The required second pass ran **20** temporary diagnostic variations across
+code-switching, follow-up, false premise, Map, and injection handling. It found
+the contextual day, forced-conflict-choice, unknown-Mart, pin-phrasing, and
+internal-disclosure blind spots; **5** representative checks were promoted into
+existing permanent cases. The temporary runner was removed after use.
+
+## Files changed
+
+- Benchmark: `data/kmk-ai-phase5-benchmark.json`,
+  `scripts/test-kmk-ai-phase5-benchmark.mjs`.
+- Robustness: `data/kmk-ai-phase3-knowledge.js`, `services/ai/config.js`,
+  `conversation-context.js`, `index.js`, `intent-router.js`,
+  `knowledge-engine.js`, `language.js`, `normalizer.js`, `place-registry.js`,
+  `premise-checker.js`, and `retriever.js`.
+- Documentation: `HANDOFF.md`, `CODE_AUDIT.md`, `CHANGELOG.md`, and
+  `OPTIMIZATION_LOG.md`.
+
+## Final validation
+
+- Campus AI: **199/199**; Map actions: **21/21**; Phase 4: **89/89**;
+  Phase 5: **120/120**.
+- All `scripts/test-*.mjs`: **26/26 scripts pass**.
+- Active JavaScript/module syntax: **116/116 pass**.
+- Pages build: **490 files**; Pages artifact, production URL lock, static,
+  portable, Pustaka seed, and showcase seed validation: **PASS**.
+- `git diff --check`: **PASS**.
+- Browser QA: **NOT VERIFIED** because the browser runtime had no available
+  browser session. No browser or console-success claim is made.
+- Live OpenRouter QA: **NOT TESTED**. No safe credential was configured,
+  `campusRendering` remains disabled in production, and deterministic campus
+  behavior remains the default.
+
+## Remaining limitations and rollback
+
+The Phase 4 low-severity behavior where an eligible one-clause answer may call
+an explicitly enabled provider remains unchanged; production does not enable
+that path. Language handling remains conservative rather than broadly fuzzy,
+so unknown or collision-prone place names intentionally stay unsupported or
+ambiguous.
+
+Rollback by reverting the Phase 5 branch commits only. This removes the
+benchmark and robustness rules while leaving Phase 4 merge
+`7d6cb119a6139ba0f74e742ddd2e4afbbc6916e0` and all Supabase/auth/database/data
+state untouched.
+
 # KMK AI PHASE 4 PRE-MERGE HARDENING HANDOFF (2026-09-14)
 
 Status: **IMPLEMENTED; ALL LOCAL GATES PASS; BROWSER QA NOT RERUN**.

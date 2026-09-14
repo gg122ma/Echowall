@@ -1,5 +1,44 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-14 - Phase 5 benchmark-led robustness without architectural expansion
+
+- Chose a 120-case semantic benchmark over hundreds of string permutations.
+  Assertions target entity, intent, answer mode, selected facts, premise,
+  validated final Map actions, language, and session state, so punctuation or
+  harmless wording changes do not create noise.
+- Kept fixes in their existing layers: aliases in the canonical entity
+  profiles, token safety in the retriever, cue recognition in the intent and
+  language modules, premise parsing in `PremiseChecker`, and refer-back rules in
+  `ConversationContext`. No parallel AI architecture or provider dependency
+  was introduced.
+- Preferred explicit safe aliases and bounded short-code matching over broad
+  fuzzy search. This supports `co op`, ATM, A1/B1, laundry/printing/student-shop
+  wording, and Chinese Basketball Court while keeping unknown lookalikes such
+  as Moonlight Mart unsupported.
+- Preferred exact elliptical follow-up patterns over sticky context. This
+  prevents weak alias tokens from hijacking `And Saturday?`, but still lets an
+  explicit KOOP or other high-confidence place replace Library immediately.
+  Comparisons clear the single-entity context rather than adding a parallel
+  multi-entity context model during a robustness phase.
+- Extended the existing deterministic injection refusal only for explicit
+  internal-disclosure/override vocabulary. Campus misinformation still reaches
+  premise/conflict logic and receives a useful correction instead of a generic
+  security refusal.
+- Map phrase expansion affects intent classification only. Existing registry,
+  `MapAction`, and `ResponseValidator` ownership still decides whether a target
+  is exact, parent-only, unmapped, or disabled.
+- Left the optional single-clause provider-call optimization unchanged. It is a
+  low-severity, opt-in-only performance issue; changing established Phase 4
+  provider-test behavior was not necessary for Phase 5 correctness.
+- A controlled 20-query second pass was used after the permanent suite first
+  reached green. Five representative blind spots were promoted; the temporary
+  diagnostic harness was then deleted to avoid test-only clutter.
+- Final automated status: Phase 5 **120/120**, all tests **26/26**, syntax
+  **116/116**, and every build/release validator passes. Browser QA was not
+  verified because no browser session was available; no performance claim is
+  made. Live provider QA remains untested and production campus rendering stays
+  disabled.
+
 ## 2026-09-14 - Phase 4 request ordering without provider serialization
 
 - Compared three ways to fix out-of-order provider completions: UI-only

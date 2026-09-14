@@ -1,5 +1,65 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-14 - KMK AI PHASE 5 STUDENT QUERY ROBUSTNESS
+
+- Added a 120-case semantic benchmark with 20 normal, 12 natural, 15
+  follow-up, 12 correction, 8 conflict, 10 unsupported, 12 primary Map, 8
+  typo, 10 primary injection, 8 comparison, and 5 controlled concurrency
+  cases. Cross-tagged boundary cases provide 15 Map-safety and 15
+  adversarial/injection checks. Language coverage is 82 English, 10 BM, 8
+  Chinese, 15 code-switch, and 5 language-neutral races; two Chinese-led
+  mixed cases bring Chinese behavior coverage to 10.
+- **Source-safety audit:** no fact value, provenance, authority rank, effective
+  date, conflict record, or building target changed. Added aliases are limited
+  to verified identities. Cafe Admin remains conflicted; Library/KOOP retain
+  current L1 schedules; the expired Library exception remains excluded;
+  Basketball hours remain unsupported; Surau and Reading Room remain distinct
+  and unmapped/disabled; Court A/C remain disabled; P5 remains unmapped; and
+  A1/A2/B1/B2/C2 remain parent-only.
+- **Resolution/normalization audit:** bounded short codes require exact token
+  boundaries; typo matching retains the existing conservative length/edit
+  limits; generic `mart` and conjunction `and` cannot independently create an
+  entity score. The added phrase aliases were collision-checked through the
+  full canonical inventory and benchmark. There is no broad fuzzy resolver.
+- **Conversation audit:** context substitution occurs only for clear refer-back
+  or exact elliptical forms and only when there is no explicit
+  high-confidence entity. A superseding explicit entity still wins. All
+  context writes remain behind the Phase 4 per-session request generation,
+  with both completion orders, different sessions, post-timeout state, and a
+  follow-up after the newer request covered end to end.
+  Multi-entity comparisons now clear the single-entity context under the same
+  generation guard; a later elliptical hours query cannot silently select the
+  second comparison participant.
+- **Injection audit:** explicit attempts to disclose or override internal
+  prompts, planner/validator/registry objects, fact IDs, Map/building IDs, or
+  developer variables return a deterministic unsupported boundary response.
+  False campus assertions still proceed through source-aware
+  conflict/unsupported/correction logic, so the guard does not hide useful
+  factual corrections. Provider free text remains structurally unable to enter
+  visible campus output.
+- **Map audit:** final `ResponseValidator` actions are asserted, not only
+  intents. Exact targets remain limited to verified buildings; parent-only
+  blocks retain their verified parents; unmapped/disabled places never gain an
+  action. New `map`, `peta`, pin, and BM `letak pin` cues change intent only,
+  never target eligibility.
+- **Fallback audit:** unsupported fee and dress-code requests no longer fall
+  into unrelated legacy entity prose. This does not alter legacy behavior for
+  supported services, general FreeAI behavior, provider configuration, or the
+  deterministic fact renderer.
+- Initial benchmark status was 76/120. After layer-specific fixes and five
+  expectation corrections it is 120/120. A separate 20-query second pass found
+  five reproducible blind spots; representative assertions were promoted and
+  the temporary diagnostic harness removed.
+- Regression status: Campus AI **199/199**, Map **21/21**, Phase 4 **89/89**,
+  Phase 5 **120/120**, all test scripts **26/26**, syntax **116/116**, Pages
+  build/artifact (490 files), production URL lock, static, portable, both seed
+  validators, and diff check pass.
+- Browser QA is **not verified** because no browser session was available.
+  Live provider QA is **not tested**; there is no safe credential and campus
+  provider rendering remains explicit opt-in and disabled in production.
+- No Supabase, auth, database, production-data, UI, provider, or dependency
+  change was made.
+
 ## 2026-09-14 - KMK AI PHASE 4 PRE-MERGE HARDENING
 
 - Reproduced and fixed the Phase 4 out-of-order session mutation: the new
