@@ -1,5 +1,34 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-16 - PHASE 5 CANONICAL RESOLVER FINAL CONVERGENCE AUDIT
+
+- Canonical authority remains exclusive to `CanonicalResolver.resolve()`.
+  The auxiliary subject addition yields mention evidence only; it neither
+  returns a service ID nor authorizes a Map target.
+- The auxiliary boundary is a bounded closed-class grammar operator followed
+  immediately by an exact alias. Predicate verbs and complements stay open
+  vocabulary and are not matched, scored, stripped, or allowlisted.
+- Overlapping occurrence evidence now removes only a contained shorter exact
+  alias or a non-primary same-span relational alias. Unresolved prefixes and
+  suffixes are not stripped, so fictional larger names stay ambiguous or
+  unresolved with no canonical entity.
+- Migration classification: 11 prior Map/provenance changes are
+  `OWNER_APPROVED_CONTRACT_CHANGE`; six fictional answer-mode changes are
+  `OWNER_APPROVED_CONSERVATIVE_AMBIGUITY`; P5-260 is intentional ambiguity;
+  P5-218 and P5-231 are fixed regressions. No other unapproved expectation
+  migration remains.
+- Map audit remains exact-provenance only. Mention, approximate, service,
+  context, discovery, ambiguous, and unresolved results are Map-ineligible;
+  A1/A2, B1/B2, and C2 retain verified parents and P5 remains unmapped.
+- Evidence: Phase 5 **275/275**, focused architecture **29/29**, Campus
+  **199/199**, Map **21/21**, Phase 4 **89/89**, all tests **27/27**, active
+  syntax **116/116**, and all release validators pass. A 200-turn final suite
+  reports 35 intentional ambiguities, zero false canonical resolutions, zero
+  false Map actions, and zero unexpected recall regressions.
+- Audit conclusion: source truth, production data, UI behavior, and Phase 4
+  architecture are unchanged. The branch is ready for independent Claude
+  final review, not merge.
+
 ## 2026-09-16 - PHASE 5 CANONICAL RESOLVER AUDIT
 
 - `CanonicalResolver.resolve()` is the only per-turn authority that assigns a

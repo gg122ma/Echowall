@@ -61,10 +61,14 @@ const resolve = (question, options = {}) => window.EchoAI.CanonicalResolver.reso
 });
 const exact = resolve("Where is Library?");
 check("exact verified target is the sole exact Map source", exact.target.state === "EXACT_KNOWN_TARGET" && exact.canonical.basis === "EXACT_TARGET" && exact.map.eligible === true && exact.map.placeId === "library");
-const mention = resolve("Library: what time does it close?");
-check("known predicate mention resolves for facts without Map confidence", mention.target.state === "KNOWN_ENTITY_MENTION" && mention.canonical.entityId === "library" && mention.map.eligible === false);
-const ambiguous = resolve("Students appreciate Library.");
-check("undecidable free-form mention is intentionally ambiguous", ambiguous.target.state === "AMBIGUOUS_NAMED_REFERENCE" && ambiguous.canonical.state === "AMBIGUOUS" && ambiguous.map.eligible === false);
+const mention = resolve("Dewan Mahawangsa: what traditions does it anchor?");
+check("the longest exact alias supplies a known predicate mention without Map confidence", mention.target.state === "KNOWN_ENTITY_MENTION" && mention.canonical.entityId === "dewan-mahawangsa" && mention.map.eligible === false);
+const ordinaryMention = resolve("Tutors regularly consult Pustaka.");
+check("syntactically undecidable open-class declaratives remain intentionally ambiguous", ordinaryMention.target.state === "AMBIGUOUS_NAMED_REFERENCE" && ordinaryMention.canonical.state === "AMBIGUOUS" && !ordinaryMention.canonical.entityId && ordinaryMention.map.eligible === false);
+const auxiliaryMention = resolve("Would KOOP curate revision kits?");
+check("closed-class auxiliary plus exact subject permits an arbitrary predicate without Map confidence", auxiliaryMention.target.state === "KNOWN_ENTITY_MENTION" && auxiliaryMention.canonical.entityId === "koop-mart" && auxiliaryMention.canonical.basis === "MENTION" && auxiliaryMention.map.eligible === false);
+const ambiguous = resolve("Harbor Library closes tomorrow.");
+check("genuinely undecidable larger-name syntax remains ambiguous", ambiguous.target.state === "AMBIGUOUS_NAMED_REFERENCE" && ambiguous.canonical.state === "AMBIGUOUS" && ambiguous.map.eligible === false);
 const fictional = resolve("Locate Mossvale Library Gallery.");
 check("known alias inside a larger Latin target is unresolved", fictional.target.state === "UNRESOLVED_NAMED_TARGET" && !fictional.canonical.entityId && !fictional.map.eligible);
 const untemplatedFictional = resolve("Cedar Library Arcade closes early.");

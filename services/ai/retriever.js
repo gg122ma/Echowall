@@ -13,6 +13,7 @@
   });
   const CONTEXT_TARGET = /^(?:it|there|this|that|that place|the place|me|situ|sana|tempat itu|它|那里|那边)$/u;
   const COMPARISON_CONNECTOR = /\b(?:and|dan|versus|vs)\b|和|与|跟/iu;
+  const CLOSED_CLASS_AUXILIARY = /^(?:do|does|did|can|could|may|might|will|would|should|is|are|was|were|has|have|had)\s+(?:the\s+)?/u;
   const GENERIC_TARGETS = Object.freeze({
     cafe: "dining", cafes: "dining", cafeteria: "dining", cafeterias: "dining", kafe: "dining", kafeteria: "dining",
     "sports facilities": "sports", "sport facilities": "sports", "dewan sukan": "sports", "dewan sukan besar": "sports",
@@ -177,6 +178,18 @@
     return deepFreeze({ view, matches: bestEvidence([...exact, ...approximateOccurrences(view, exact)]) });
   }
 
+  function maximalAliasEvidence(matches) {
+    return matches.filter(candidate => !matches.some(other => other !== candidate
+      && other.matchKind === "EXACT"
+      && other.normalizedSpan.start <= candidate.normalizedSpan.start
+      && other.normalizedSpan.end >= candidate.normalizedSpan.end
+      && (other.normalizedSpan.end - other.normalizedSpan.start > candidate.normalizedSpan.end - candidate.normalizedSpan.start
+        || other.normalizedSpan.start === candidate.normalizedSpan.start
+          && other.normalizedSpan.end === candidate.normalizedSpan.end
+          && other.primary
+          && !candidate.primary)));
+  }
+
   function cleanTarget(value) {
     let target = String(value || "").trim();
     let previous = "";
@@ -210,6 +223,12 @@
       { kind: "location", strength: "service_object", pattern: /^(?:kat|di) mana\s+(.+)$/u },
       { kind: "information", strength: "identity", pattern: /^(?:tell me about|information about)\s+(.+)$/u },
       { kind: "information", strength: "identity", pattern: /^(?:what|how) about\s+(.+)$/u },
+      { kind: "nearby", strength: "identity", pattern: /^what\s+(?:is|are)\s+(?:near|next to|around)\s+(.+)$/u },
+      { kind: "nearby", strength: "identity", pattern: /^(?:got|is there)\s+(?:an?\s+)?(.+?)\s+(?:around|on|in)\s+(?:the\s+)?campus$/u },
+      { kind: "location", strength: "identity", pattern: /^(.+?)\s+location$/u },
+      { kind: "information", strength: "identity", pattern: /^(.+?)\s+(?:same as|is (?:beside|inside|in|near))\s+.+$/u },
+      { kind: "information", strength: "identity", pattern: /^(.+?)\s+(?:在|跟|和|与)\s+.+$/u },
+      { kind: "hours", strength: "identity", pattern: /^(?:pretend|assume|just answer\s*:?)\s+(.+?)\s+(?:opens?|closes?|later time|opening time|closing time)\b.*$/u },
       { kind: "services", strength: "identity", pattern: /^(?:what|which)(?:\s+.+?)?\s+(?:does|do)\s+(.+?)\s+(?:provide|offer|have|stock|sell)(?:\s+.*)?$/u },
       { kind: "services", strength: "identity", pattern: /^(?:what|which)\s+(?:is|are)\s+(.+?)\s+(?:used for|for|about)(?:\s+.*)?$/u },
       { kind: "rules", strength: "identity", pattern: /^(?:can|may)\s+.+?\s+(?:go to|enter|use|visit)\s+(.+?)(?:\s+(?:after|before|at)\s+.+)?$/u },
@@ -227,6 +246,7 @@
       { kind: "location", strength: "service_object", pattern: /^(.+?)\s+(?:kat|di) mana$/u },
       { kind: "location", strength: "service_object", pattern: /^(.+?)(?:在哪里|在哪儿|怎么去|如何去|的位置)(?:借|洗|打印|复印)?$/u },
       { kind: "nearby", strength: "identity", pattern: /^(.+?)(?:附近|周边)(?:有)?(?:什么|哪些).*$/u },
+      { kind: "predicate", strength: "identity", pattern: /^(.+?)(?:今天|明天|最近|目前|现在).+$/u },
       { kind: "hours", strength: "identity", pattern: /^(.+?)(?:今天|明天)?(?:几点|什么时候)(?:开门|关门|关闭|关)$/u },
       { kind: "hours", strength: "identity", pattern: /^(.+?)(?:星期|周)[一二三四五六日天].*(?:开门|关门|开放|关闭|开|关)(?:\s*(?:对吗|吗|呢))?$/u },
     ];
@@ -395,6 +415,21 @@
     return !after && /\b(?:near|nearby|at|into|inside|within|around|to|of|for|dekat|dalam)(?:\s+the)?\s*$/u.test(before);
   }
 
+  function auxiliarySubjectMention(aliasEvidence, matches) {
+    const operator = CLOSED_CLASS_AUXILIARY.exec(aliasEvidence.view.folded);
+    if (!operator) return null;
+    const subjectStart = operator[0].length;
+    const candidates = matches
+      .filter(match => match.matchKind === "EXACT" && match.normalizedSpan.start === subjectStart)
+      .sort((left, right) => right.normalized.length - left.normalized.length || right.score - left.score);
+    if (!candidates.length) return null;
+    const longestLength = candidates[0].normalized.length;
+    const longest = candidates.filter(match => match.normalized.length === longestLength);
+    if (new Set(longest.map(match => match.entityId)).size !== 1) return null;
+    const rest = aliasEvidence.view.folded.slice(candidates[0].normalizedSpan.end);
+    return /^\s+\S/u.test(rest) ? candidates[0] : null;
+  }
+
   function result(input) {
     return deepFreeze({
       intent: input.intent,
@@ -419,9 +454,9 @@
     const occurrences = aliasEvidence.matches;
     const serviceEntityIds = new Set(serviceAnalysis.frames.map(frame => SERVICE_ENTITY_BY_FRAME[frame.kind]).filter(Boolean));
     const overlapsServiceEvidence = match => serviceAnalysis.evidence.some(item => item.span.start < match.normalizedSpan.end && item.span.end > match.normalizedSpan.start);
-    const identityOccurrences = serviceAnalysis.state === "COMPLETE"
+    const identityOccurrences = maximalAliasEvidence(serviceAnalysis.state === "COMPLETE"
       ? occurrences.filter(match => !overlapsServiceEvidence(match))
-      : occurrences;
+      : occurrences);
     const category = discoveryCategory(slot, message);
 
     if (slot?.strength === "category" || category && !identityOccurrences.length && serviceAnalysis.state === "NONE") {
@@ -442,7 +477,9 @@
         const match = exact[0];
         const basis = match.matchKind === "EXACT" ? "EXACT_TARGET" : "APPROXIMATE_TARGET";
         const state = match.matchKind === "EXACT" ? STATES.EXACT_TARGET : STATES.KNOWN_MENTION;
-        const targetIntent = slot.kind === "information" ? "campus_info" : `campus_${slot.kind}`;
+        const targetIntent = slot.kind === "information" ? "campus_info"
+          : slot.kind === "location" && match.entityId !== "bicycle-service" ? "campus_location"
+            : intent;
         return result({ intent: targetIntent, target: targetState(state, slot, match.entityId, match.matchKind), mentions: [match], service, canonical: canonical("RESOLVED", match.entityId, basis, match.matchKind === "EXACT" ? 0.99 : 0.76), map: mapDecision(match.entityId, basis, match.matchKind), aliasEvidence });
       }
       if (exact.length > 1) {
@@ -481,6 +518,10 @@
       }
       if (uniqueEntities.length > 1) {
         return result({ intent, target: targetState(STATES.AMBIGUOUS_REFERENCE), mentions: identityOccurrences, service: serviceResult(serviceAnalysis, "BLOCKED_BY_AMBIGUITY"), canonical: canonical("AMBIGUOUS", "", "MULTIPLE_MENTIONS", 0.35), aliasEvidence });
+      }
+      const auxiliaryMention = auxiliarySubjectMention(aliasEvidence, prioritizedOccurrences);
+      if (auxiliaryMention) {
+        return result({ intent, target: targetState(STATES.KNOWN_MENTION), mentions: prioritizedOccurrences, service, canonical: canonical("RESOLVED", auxiliaryMention.entityId, "MENTION", 0.9), aliasEvidence });
       }
       const boundedMatches = identityOccurrences.filter(match => isStructurallyBoundedMention(message, match, intent));
       if (!boundedMatches.length) {

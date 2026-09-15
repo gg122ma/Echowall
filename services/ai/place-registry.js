@@ -30,6 +30,12 @@
     "bangunan-langkasuka": Object.freeze(["langkasuka"]),
     "dewan-mahawangsa": Object.freeze(["main event hall"]),
   });
+  const TYPED_IDENTITY_VARIANTS = Object.freeze({
+    library: Object.freeze([{ alias: "library building", kind: "GENERIC_DESCRIPTOR_VARIANT" }]),
+    "blok-c2": Object.freeze([{ alias: "c2 block", kind: "GENERIC_DESCRIPTOR_VARIANT" }]),
+    "blok-p5": Object.freeze([{ alias: "p5 building", kind: "GENERIC_DESCRIPTOR_VARIANT" }]),
+    "hostel-laundry": Object.freeze([{ alias: "dobby room", kind: "GENERIC_DESCRIPTOR_VARIANT" }]),
+  });
   const SPECIFIC_HOSTEL_CODES = new Set(["a1", "a2", "b1", "b2", "c2", "p5"]);
   const DESCRIPTIVE_ALIAS_PATTERNS = Object.freeze([
     /^(?:campus|student) (?:shop|store)$/,
@@ -100,6 +106,7 @@
         primary.title,
         ...records.flatMap(record => (record.aliases || []).filter(alias => isIdentityAlias(alias, canonicalId))),
         ...(EXTRA_ALIASES[canonicalId] || []),
+        ...(TYPED_IDENTITY_VARIANTS[canonicalId] || []).map(variant => variant.alias),
         building?.name,
       ]);
       places.push(Object.freeze({
@@ -151,8 +158,8 @@
       ...definition,
       canonicalId: definition.id,
       building,
-      aliases: Object.freeze(unique([definition.title, ...(definition.aliases || [])])),
-      identityAliases: Object.freeze(unique([definition.title, ...(definition.aliases || [])])),
+      aliases: Object.freeze(unique([definition.title, ...(definition.aliases || []), ...(TYPED_IDENTITY_VARIANTS[definition.id] || []).map(variant => variant.alias)])),
+      identityAliases: Object.freeze(unique([definition.title, ...(definition.aliases || []), ...(TYPED_IDENTITY_VARIANTS[definition.id] || []).map(variant => variant.alias)])),
       sourceRecords: Object.freeze([]),
     });
   }

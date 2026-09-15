@@ -1,3 +1,41 @@
+# KMK AI PHASE 5 CANONICAL RESOLVER FINAL CONVERGENCE HANDOFF (2026-09-16)
+
+Status: **IMPLEMENTED; READY FOR CLAUDE FINAL REVIEW**.
+
+Starting commit: `09a5312be0ec6ddd16335b05c9800cb20be70ab2`.
+The accepted canonical architecture is unchanged. The final convergence adds
+one structural grammar rule: a closed-class auxiliary followed immediately by
+an exact registered alias is a `KNOWN_ENTITY_MENTION`; the arbitrary predicate
+is never inspected. These mentions can supply facts but cannot create Map
+provenance. Longer exact aliases and primary same-span identities also dominate
+contained or relational alias evidence.
+
+Benchmark migration is now explicit. Eleven pre-existing Map/provenance
+expectation changes remain `OWNER_APPROVED_CONTRACT_CHANGE`. P5-243, P5-244,
+P5-248, P5-249, P5-251, and P5-257 are
+`OWNER_APPROVED_CONSERVATIVE_AMBIGUITY`; each has no canonical entity, resolved
+place, action, or inherited stale context. P5-260 is
+`INTENTIONAL_CONSERVATIVE_AMBIGUITY`. P5-218 and P5-231 are
+`REGRESSION_FIXED` as KOOP mentions with no Map confidence. All other
+unapproved pre-existing expectation changes were restored and their resolver
+regressions fixed.
+
+Permanent results: Phase 5 **275/275**, resolver architecture **29/29**,
+Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all test scripts
+**27/27**, and active syntax **116/116**. Final diagnostics passed **200/200**:
+30 exact targets, 30 known mentions, 20 auxiliary mentions, 30 fictional
+identities, 25 service cases, 25 multilingual cases, 20 context turns, and 20
+Map cases. There were 35 intentional safe ambiguities, zero false canonical
+resolutions, zero false Map actions, and zero unexpected recall regressions.
+All Pages, artifact, production URL, static, portable, Pustaka seed, showcase
+seed, and diff checks pass.
+
+No source truth, production data, UI, or Phase 4 behavior changed. Rollback is
+`git revert <final convergence commit>` after it is created. Do not merge PR
+#2 until independent review passes; do not start Phase 6.
+
+---
+
 # KMK AI PHASE 5 CANONICAL RESOLVER HANDOFF (2026-09-16)
 
 Status: **IMPLEMENTED; READY FOR CLAUDE FINAL REVIEW**.

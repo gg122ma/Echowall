@@ -1,5 +1,23 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-16 - Phase 5 canonical resolver final convergence
+
+- Encoded the owner-approved ambiguity migration without adding new
+  name-introduction, suffix, capitalization, or open-class vocabulary rules.
+- Added only a closed-class auxiliary operator boundary, allowing an exact
+  entity subject to retain arbitrary predicate text as a known mention while
+  remaining Map-ineligible.
+- Normalized overlapping alias evidence structurally: the longer exact span
+  wins, and a primary identity wins over same-span relational aliases.
+- Kept service analysis concept-only and added the Malay passive morphology
+  `difotostat` to the existing PRINT action concept; canonical service mapping
+  remains exclusive to the resolver.
+- Permanent evidence: Phase 5 **275/275**, focused architecture **29/29**,
+  Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all tests **27/27**,
+  syntax **116/116**, and all release validators pass. Final diagnostics are
+  **200/200**, with zero false identities, zero false Map actions, and zero
+  unexpected recall regressions.
+
 ## 2026-09-16 - Phase 5 single canonical resolver
 
 - Consolidated per-turn identity authority into one immutable resolution

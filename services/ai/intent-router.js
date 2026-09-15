@@ -27,14 +27,14 @@
     const request = evidence(REQUEST_SIGNAL, text, "REQUEST");
     const concepts = Object.freeze({
       borrow: evidence(/\b(?:borrow(?:ed|ing)?|loan|rent(?:ed|al|ing)?|hire(?:d|ing)?|(?:di)?pinjam|sewa)\b|借|租/u, text, "BORROW"),
-      print: evidence(/\b(?:print(?:ed|ing)?|photocop(?:y|ied|ying)|(?:di)?cetak|fotostat)\b|打印|复印/u, text, "PRINT"),
+      print: evidence(/\b(?:print(?:ed|ing)?|photocop(?:y|ied|ying)|(?:di)?cetak|(?:di)?fotostat)\b|打印|复印/u, text, "PRINT"),
       wash: evidence(/\b(?:wash(?:ed|ing)?|launder(?:ed|ing)?|(?:di)?basuh)\b|洗衣/u, text, "WASH"),
       iron: evidence(/\b(?:iron(?:ed|ing)?|(?:di)?seterika)\b|熨衣/u, text, "IRON"),
       study: evidence(/\b(?:study|self study|belajar|ulang kaji)\b|自习|读书|学习/u, text, "STUDY"),
       buy: evidence(/\b(?:buy|purchase|sell|sells|selling|beli|jual)\b/u, text, "BUY"),
       collect: evidence(/\b(?:collect|pickup|pick up|ambil)\b|取/u, text, "COLLECT"),
-      document: evidence(/\b(?:document|documents|paper|papers|page|pages|sheets?|notes?|assignment|assignments|worksheet|worksheets|something|anything|dokumen|kertas|nota|tugasan)\b|文件|资料|作业/u, text, "DOCUMENT"),
-      clothes: evidence(/\b(?:clothes|clothing|garments?|laundry|baju|pakaian)\b|衣服|衣物/u, text, "CLOTHES"),
+      document: evidence(/\b(?:document|documents|paper|papers|page|pages|sheets?|handouts?|chapters?|thesis|notes?|assignment|assignments|worksheet|worksheets|something|anything|dokumen|kertas|nota|tugasan)\b|文件|资料|作业/u, text, "DOCUMENT"),
+      clothes: evidence(/\b(?:clothes|clothing|garments?|uniforms?|shirts?|laundry|baju|pakaian)\b|衣服|衣物/u, text, "CLOTHES"),
       bicycle: evidence(/\b(?:bike|bicycle|basikal)\b|自行车|脚踏车/u, text, "BICYCLE"),
       equipment: evidence(/\b(?:equipment|gear|stuff|barang|peralatan)\b|器材|用品/u, text, "EQUIPMENT"),
       sports: evidence(/\b(?:sport|sports|sporting|sukan)\b|运动|体育/u, text, "SPORTS"),

@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-09-16 - KMK AI PHASE 5 CANONICAL RESOLVER FINAL CONVERGENCE
+
+- Finalized the approved conservative ambiguity contract: six safe fictional
+  references now explicitly expect `AMBIGUOUS`, and the undecidable
+  `Researchers admire Library.` case remains ambiguous with no entity or Map
+  action.
+- Added a bounded closed-class auxiliary subject rule. `AUX + exact alias +
+  arbitrary predicate` now produces a fact-capable known mention without
+  inspecting open-class predicate vocabulary or gaining Map confidence.
+- Made exact alias evidence prefer a longer containing alias and a primary
+  identity over same-span relational aliases. This keeps complete registered
+  identities authoritative without adding descriptor or suffix lists.
+- Retained the 11 owner-approved Map/provenance migration changes and restored
+  every other pre-existing expectation not covered by the approved contract.
+  P5-218 and P5-231 are fixed regressions; Phase 5 is **275/275**.
+- Focused architecture coverage is **29/29**. Final diagnostics pass **200/200**
+  (30 exact, 30 mention, 20 auxiliary, 30 fictional, 25 service, 25
+  multilingual, 20 context, 20 Map), with 35 intentional ambiguities, zero
+  false canonical resolutions, zero false Map actions, and zero unexpected
+  recall regressions.
+- Campus 199/199, Map 21/21, Phase 4 89/89, all 27 test scripts, active syntax
+  116/116, Pages/artifact, production URL, static, portable, both seed
+  validators, and diff checks pass. Source truth and Phase 4 are unchanged.
+
 ## 2026-09-16 - KMK AI PHASE 5 CANONICAL RESOLVER
 
 - Replaced the fragmented identity, service, special-entity, context, and Map
