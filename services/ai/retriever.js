@@ -2,30 +2,179 @@
   "use strict";
   window.EchoAI = window.EchoAI || {};
 
-  const SAFE_TARGET_MODIFIERS = new Set(["main", "campus", "kmk", "building", "block", "room"]);
-  const COMPARISON_CONNECTOR = /\b(?:and|dan|versus|vs)\b|和|与|跟/i;
-  const ACTION_LED_TARGET = /^(?:print|printing|photocopy|copy|wash|washing|laundry|iron|ironing|borrow|rent|hire|study|eat|buy|collect|cetak|fotostat|basuh|dobi|pinjam|sewa|belajar|makan|beli|打印|复印|洗衣|借|租|学习|吃)/i;
-  const ACTION_IN_CLAUSE = /\b(?:print|photocopy|wash|borrow|rent|hire|study|eat|buy|cetak|fotostat|basuh|pinjam|sewa|belajar|makan|beli)\b|打印|复印|洗衣|借|租|学习|吃/i;
-  const GENERIC_DISCOVERY_TARGET = /^(?:cafeterias?|cafes?|sports facilities|dewan sukan(?: besar)?)$/i;
-  const CONTEXT_REFERENCE_TARGET = /^(?:it|there|this|that|that place|the place|me)$/i;
-  const SUBJECT_REFERENCE_TOKENS = new Set(["i", "im", "we", "you", "he", "she", "they", "saya", "kami", "kita", "awak", "dia", "mereka"]);
-  const PREDICATE_AUXILIARIES = new Set(["can", "could", "did", "do", "does", "may", "might", "must", "shall", "should", "will", "would"]);
-  const IDENTITY_ACTION_TOKENS = new Set(["enter", "find", "go", "locate", "reach", "visit", "cari", "masuk", "pergi"]);
-  const LOCAL_GRAMMAR_BOUNDARIES = new Set([
-    "a", "an", "the", "and", "or", "but", "about", "at", "by", "for", "from", "in", "inside", "into", "near", "beside", "of", "on", "to", "with",
-    "am", "are", "is", "was", "were", "be", "been", "being", "can", "could", "did", "do", "does", "had", "has", "have",
-    "may", "might", "must", "shall", "should", "will", "would", "how", "what", "when", "where", "which", "who", "why",
-    "any", "some", "these", "those", "assume", "compare", "pretend", "i", "im", "me", "my", "we", "our", "you", "your",
-    "ada", "adakah", "boleh", "dekat", "di", "dengan", "dan", "dari", "ke", "kat", "mana", "untuk",
-  ]);
+  const STATES = Object.freeze({
+    EXACT_TARGET: "EXACT_KNOWN_TARGET",
+    UNRESOLVED_TARGET: "UNRESOLVED_NAMED_TARGET",
+    AMBIGUOUS_REFERENCE: "AMBIGUOUS_NAMED_REFERENCE",
+    KNOWN_MENTION: "KNOWN_ENTITY_MENTION",
+    SERVICE_NEED: "SERVICE_NEED",
+    CONTEXT_REFERENCE: "CONTEXT_REFERENCE",
+    NONE: "NO_ENTITY_EVIDENCE",
+  });
+  const CONTEXT_TARGET = /^(?:it|there|this|that|that place|the place|me|situ|sana|tempat itu|它|那里|那边)$/u;
+  const COMPARISON_CONNECTOR = /\b(?:and|dan|versus|vs)\b|和|与|跟/iu;
+  const GENERIC_TARGETS = Object.freeze({
+    cafe: "dining", cafes: "dining", cafeteria: "dining", cafeterias: "dining", kafe: "dining", kafeteria: "dining",
+    "sports facilities": "sports", "sport facilities": "sports", "dewan sukan": "sports", "dewan sukan besar": "sports",
+  });
+  const DISCOVERY_IDS = Object.freeze({
+    dining: Object.freeze(["cafe-a", "cafe-b", "cafe-c", "cafe-admin"]),
+    sports: Object.freeze(["astaka", "basketball-court", "sports-equipment-store"]),
+  });
+  const SERVICE_ENTITY_BY_FRAME = Object.freeze({
+    PRINT_DOCUMENT: "pos-mini",
+    WASH_CLOTHES: "hostel-laundry",
+    IRON_CLOTHES: "hostel-iron-room",
+    BORROW_BICYCLE: "bicycle-service",
+    BORROW_SPORTS_EQUIPMENT: "sports-equipment-store",
+    HOSTEL_STUDY: "hostel-study-room",
+    BUY_DAILY_SUPPLIES: "koop-mart",
+    COLLECT_PARCEL: "pos-mini",
+  });
 
-  function phraseIndex(query, alias) {
-    const index = query.indexOf(alias);
-    if (index < 0) return -1;
-    if (/[^\x00-\x7f]/.test(alias)) return index;
-    const before = index > 0 ? query[index - 1] : "";
-    const after = query[index + alias.length] || "";
-    return !/[a-z0-9]/i.test(before) && !/[a-z0-9]/i.test(after) ? index : -1;
+  function deepFreeze(value) {
+    if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+    Object.values(value).forEach(deepFreeze);
+    return Object.freeze(value);
+  }
+
+  function isWordCharacter(character) {
+    return Boolean(character && /[\p{L}\p{N}]/u.test(character));
+  }
+
+  function isLatinWordCharacter(character) {
+    return Boolean(character && isWordCharacter(character) && !/[\u3400-\u9fff]/u.test(character));
+  }
+
+  function unicodeView(value) {
+    const source = String(value || "");
+    let folded = "";
+    const offsets = [];
+    let pendingSpace = false;
+    let sourceOffset = 0;
+    for (const originalCharacter of source) {
+      let expanded = originalCharacter.toLocaleLowerCase();
+      try { expanded = expanded.normalize("NFKD").replace(/[\u0300-\u036f]/g, ""); } catch {}
+      for (const character of expanded) {
+        if (isWordCharacter(character)) {
+          if (pendingSpace && folded && !folded.endsWith(" ")) {
+            folded += " ";
+            offsets.push(sourceOffset);
+          }
+          folded += character;
+          offsets.push(sourceOffset);
+          pendingSpace = false;
+        } else pendingSpace = true;
+      }
+      sourceOffset += originalCharacter.length;
+    }
+    return Object.freeze({ source, folded, offsets: Object.freeze(offsets) });
+  }
+
+  function originalSpan(view, start, end) {
+    if (start < 0 || end <= start || !view.offsets.length) return Object.freeze({ start: 0, end: 0 });
+    const originalStart = view.offsets[start] ?? 0;
+    const lastOffset = view.offsets[Math.min(end - 1, view.offsets.length - 1)] ?? originalStart;
+    const lastCharacter = [...view.source.slice(lastOffset)][0] || "";
+    return Object.freeze({ start: originalStart, end: lastOffset + lastCharacter.length });
+  }
+
+  function aliasCatalog() {
+    const records = [];
+    window.EchoAI.PlaceRegistry.getIdentityPlaces().forEach(place => {
+      const primary = new Set([place.title, place.id, place.canonicalId].map(value => unicodeView(value).folded).filter(Boolean));
+      [...new Set(place.identityAliases || place.aliases || [])].forEach(alias => {
+        const normalized = unicodeView(alias).folded;
+        if (!normalized) return;
+        records.push(Object.freeze({
+          entityId: place.canonicalId,
+          alias: String(alias),
+          normalized,
+          primary: primary.has(normalized),
+          script: /[\u3400-\u9fff]/u.test(normalized) ? "CJK_OR_MIXED" : "LATIN",
+        }));
+      });
+    });
+    return records;
+  }
+
+  function exactOccurrences(view) {
+    const results = [];
+    aliasCatalog().forEach(record => {
+      let offset = 0;
+      while (offset <= view.folded.length - record.normalized.length) {
+        const index = view.folded.indexOf(record.normalized, offset);
+        if (index < 0) break;
+        const before = view.folded[index - 1] || "";
+        const after = view.folded[index + record.normalized.length] || "";
+        const latinBoundary = record.script !== "LATIN" || (!isLatinWordCharacter(before) && !isLatinWordCharacter(after));
+        if (latinBoundary) results.push(Object.freeze({
+          ...record,
+          matchKind: "EXACT",
+          normalizedSpan: Object.freeze({ start: index, end: index + record.normalized.length }),
+          span: originalSpan(view, index, index + record.normalized.length),
+          score: 200 + record.normalized.length + (record.primary ? 30 : 0) + (/^[a-z]\d{1,2}$/.test(record.normalized) ? 40 : 0),
+        }));
+        offset = index + Math.max(record.normalized.length, 1);
+      }
+    });
+    return results;
+  }
+
+  function latinTokens(view) {
+    const tokens = [];
+    const pattern = /[a-z0-9]+/gu;
+    let match;
+    while ((match = pattern.exec(view.folded))) tokens.push(Object.freeze({ text: match[0], start: match.index, end: pattern.lastIndex }));
+    return tokens;
+  }
+
+  function approximateOccurrences(view, exact) {
+    const exactEntities = new Set(exact.map(item => `${item.entityId}:${item.normalizedSpan.start}`));
+    const tokens = latinTokens(view);
+    const results = [];
+    aliasCatalog().filter(record => record.script === "LATIN").forEach(record => {
+      const aliasTokens = record.normalized.split(" ").filter(Boolean);
+      if (!aliasTokens.length) return;
+      for (let offset = 0; offset <= tokens.length - aliasTokens.length; offset += 1) {
+        const windowTokens = tokens.slice(offset, offset + aliasTokens.length);
+        const covered = aliasTokens.every((aliasToken, index) => windowTokens[index].text === aliasToken
+          || window.EchoAI.Normalizer.isConservativeTypoMatch(windowTokens[index].text, aliasToken));
+        const hasTypo = aliasTokens.some((aliasToken, index) => windowTokens[index].text !== aliasToken);
+        if (!covered || !hasTypo || exactEntities.has(`${record.entityId}:${windowTokens[0].start}`)) continue;
+        results.push(Object.freeze({
+          ...record,
+          matchKind: "APPROXIMATE",
+          normalizedSpan: Object.freeze({ start: windowTokens[0].start, end: windowTokens[windowTokens.length - 1].end }),
+          span: originalSpan(view, windowTokens[0].start, windowTokens[windowTokens.length - 1].end),
+          score: 100 + record.normalized.length + (record.primary ? 20 : 0),
+        }));
+      }
+    });
+    return results;
+  }
+
+  function bestEvidence(matches) {
+    const unshadowed = matches.filter(item => !matches.some(other => other !== item
+      && other.matchKind === "EXACT"
+      && other.normalizedSpan.start === item.normalizedSpan.start
+      && other.normalizedSpan.end > item.normalizedSpan.end));
+    const sorted = [...unshadowed].sort((left, right) => right.score - left.score
+      || left.normalizedSpan.start - right.normalizedSpan.start
+      || right.normalized.length - left.normalized.length
+      || left.entityId.localeCompare(right.entityId, "en"));
+    const byEntityAndPosition = new Map();
+    sorted.forEach(item => {
+      const key = `${item.entityId}:${item.normalizedSpan.start}`;
+      if (!byEntityAndPosition.has(key)) byEntityAndPosition.set(key, item);
+    });
+    return [...byEntityAndPosition.values()].sort((left, right) => left.normalizedSpan.start - right.normalizedSpan.start || right.score - left.score);
+  }
+
+  function collectAliasEvidence(message) {
+    const view = unicodeView(message);
+    const exact = exactOccurrences(view);
+    return deepFreeze({ view, matches: bestEvidence([...exact, ...approximateOccurrences(view, exact)]) });
   }
 
   function cleanTarget(value) {
@@ -34,335 +183,337 @@
     while (target && target !== previous) {
       previous = target;
       target = target
-        .replace(/^(?:please\s+|the\s+|a\s+|an\s+)+/, "")
-        .replace(/^exact\s+/, "")
-        .replace(/^(?:exact\s+)?location of\s+/, "")
-        .replace(/^tell me (?:the )?(?:most likely )?/, "")
-        .replace(/\s+(?:please|for me|exactly)$/, "")
-        .replace(/^(?:on|in|using)\s+(?:the\s+)?(?:echo\s+)?map$/, "")
-        .replace(/\s+(?:on|in|using)\s+(?:the\s+)?(?:echo\s+)?map$/, "")
-        .replace(/\s+(?:near|beside|inside|next to)\s+.+$/, "")
-        .replace(/\s+(?:situated|located)$/, "")
+        .replace(/^(?:please\s+|the\s+|a\s+|an\s+)+/iu, "")
+        .replace(/^exact(?:ly)?\s+/iu, "")
+        .replace(/^(?:exact\s+)?location of\s+/iu, "")
+        .replace(/^tell me (?:the )?(?:most likely )?/iu, "")
+        .replace(/(?:\s+(?:please|for me|exactly))+$/iu, "")
+        .replace(/^(?:on|in|using)\s+(?:the\s+)?(?:echo\s+)?map$/iu, "")
+        .replace(/(?:\s+(?:on|in|using)\s+(?:the\s+)?(?:echo\s+)?map)+$/iu, "")
+        .replace(/[?!.。,，！？；;:]+$/u, "")
         .trim();
     }
     return target;
   }
 
   function extractTargetSlot(message) {
-    const query = window.EchoAI.Normalizer.normalize(message);
+    const view = unicodeView(message);
+    const query = view.folded.replace(/[?!.。,，！？；;:]+$/u, "").trim();
     if (!query) return null;
-    const targetPatterns = [
-      { kind: "navigation", strength: "identity", pattern: /^(?:(?:could|can|would) you\s+)?(?:please\s+)?(?:help me\s+)?(?:navigate to|take me to|bring me to|drop a pin for|pin|open|show(?: me)?)\s+(.+)$/ },
-      { kind: "location", strength: "identity", pattern: /^(?:(?:could|can|would) you\s+)?(?:please\s+)?(?:help me\s+)?(?:where is|wheres|locate|find)\s+(.+)$/ },
-      { kind: "location", strength: "identity", pattern: /^i need (?:directions to|to (?:find|locate|reach|get to))\s+(.+)$/ },
-      { kind: "navigation", strength: "identity", pattern: /^how (?:do|can) i (?:get|go) to\s+(.+)$/ },
-      { kind: "navigation", strength: "identity", pattern: /^how to find\s+(.+)$/ },
-      { kind: "location", strength: "object", pattern: /^where (?:should|might|could|can) i (?:go|head)(?:\s+to)?\s+for\s+(.+)$/ },
-      { kind: "location", strength: "object", pattern: /^where (?:might|could|can) i get\s+(.+)$/ },
-      { kind: "hours", strength: "identity", pattern: /^(?:what time|when)\s+(?:does|do|is|are)\s+(.+?)\s+(?:open|close|closing|operating|available)(?:\s+.*)?$/ },
-      { kind: "hours", strength: "identity", pattern: /^(?:is|are)\s+(.+?)\s+(?:open|closed|operating|available)(?:\s+.*)?$/ },
-      { kind: "location", strength: "clause", pattern: /^(.+?)\s+(?:kat|di) mana$/ },
+    const patterns = [
+      { kind: "navigation", strength: "identity", pattern: /^(?:(?:could|can|would) you\s+)?(?:please\s+)?(?:help me\s+)?(?:navigate to|take me to|bring me to|drop a pin for|pin|open|show(?: me)?)\s+(.+)$/u },
+      { kind: "navigation", strength: "identity", pattern: /^(?:can|could|may) i (?:go|get) to\s+(.+)$/u },
+      { kind: "navigation", strength: "identity", pattern: /^(?:tolong\s+)?(?:letak pin untuk|macam mana nak cari)\s+(.+)$/u },
+      { kind: "navigation", strength: "identity", pattern: /^(.+?)\s+(?:boleh\s+)?(?:show|open)(?:\s+(?:it|this))?\s+(?:on\s+)?(?:the\s+)?(?:echo\s+)?map(?:\s+tak)?$/u },
+      { kind: "navigation", strength: "identity", pattern: /^(?:请)?(?:在)?地图(?:上)?(?:显示|打开)(.+)$/u },
+      { kind: "location", strength: "identity", pattern: /^(?:(?:could|can|would) you\s+)?(?:please\s+)?(?:help me\s+)?(?:where is|where s|wheres|locate|find)\s+(.+)$/u },
+      { kind: "location", strength: "service_object", pattern: /^(?:kat|di) mana\s+(.+)$/u },
+      { kind: "information", strength: "identity", pattern: /^(?:tell me about|information about)\s+(.+)$/u },
+      { kind: "information", strength: "identity", pattern: /^(?:what|how) about\s+(.+)$/u },
+      { kind: "services", strength: "identity", pattern: /^(?:what|which)(?:\s+.+?)?\s+(?:does|do)\s+(.+?)\s+(?:provide|offer|have|stock|sell)(?:\s+.*)?$/u },
+      { kind: "services", strength: "identity", pattern: /^(?:what|which)\s+(?:is|are)\s+(.+?)\s+(?:used for|for|about)(?:\s+.*)?$/u },
+      { kind: "rules", strength: "identity", pattern: /^(?:can|may)\s+.+?\s+(?:go to|enter|use|visit)\s+(.+?)(?:\s+(?:after|before|at)\s+.+)?$/u },
+      { kind: "information", strength: "service_object", pattern: /^(?:i|we)\s+(?:need|want|require)\s+(.+)$/u },
+      { kind: "location", strength: "identity", pattern: /^i need (?:directions to|to (?:find|locate|reach|get to))\s+(.+)$/u },
+      { kind: "navigation", strength: "identity", pattern: /^how (?:do|can) i (?:get|go) to\s+(.+)$/u },
+      { kind: "navigation", strength: "identity", pattern: /^how to find\s+(.+)$/u },
+      { kind: "navigation", strength: "identity", pattern: /^(?:boleh\s+)?(?:tunjuk|papar|letak pin)(?:\s+lokasi(?:\s+tepat)?)?\s+(.+?)(?:\s+(?:dalam|di|pada)\s+(?:echo\s+)?map)?$/u },
+      { kind: "hours", strength: "identity", pattern: /^tell me (?:the )?(?:most likely )?(.+?)\s+(?:closing|opening) time$/u },
+      { kind: "location", strength: "service_object", pattern: /^where (?:should|might|could|can) i (?:go|head)(?:\s+to)?\s+for\s+(.+)$/u },
+      { kind: "location", strength: "service_object", pattern: /^where (?:might|could|can) i get\s+(.+)$/u },
+      { kind: "hours", strength: "identity", pattern: /^(?:what time|when)\s+(?:does|do|is|are)\s+(.+?)\s+(?:open|close|closing|operating|available)(?:\s+.*)?$/u },
+      { kind: "hours", strength: "identity", pattern: /^(?:is|are)\s+(.+?)\s+(?:open|closed|operating|available)(?:\s+.*)?$/u },
+      { kind: "fees", strength: "identity", pattern: /^(?:how much|what)\s+(?:is|are)\s+(?:the\s+)?(.+?)\s+(?:usage\s+)?(?:fee|fees|cost|price)(?:\s+.*)?$/u },
+      { kind: "location", strength: "service_object", pattern: /^(.+?)\s+(?:kat|di) mana$/u },
+      { kind: "location", strength: "service_object", pattern: /^(.+?)(?:在哪里|在哪儿|怎么去|如何去|的位置)(?:借|洗|打印|复印)?$/u },
+      { kind: "nearby", strength: "identity", pattern: /^(.+?)(?:附近|周边)(?:有)?(?:什么|哪些).*$/u },
+      { kind: "hours", strength: "identity", pattern: /^(.+?)(?:今天|明天)?(?:几点|什么时候)(?:开门|关门|关闭|关)$/u },
+      { kind: "hours", strength: "identity", pattern: /^(.+?)(?:星期|周)[一二三四五六日天].*(?:开门|关门|开放|关闭|开|关)(?:\s*(?:对吗|吗|呢))?$/u },
     ];
-    for (const descriptor of targetPatterns) {
-      const match = query.match(descriptor.pattern);
+    for (const descriptor of patterns) {
+      const match = descriptor.pattern.exec(query);
       if (!match) continue;
-      const target = cleanTarget(match[1]);
-      if (target) return Object.freeze({
-        target,
-        kind: GENERIC_DISCOVERY_TARGET.test(target) ? "discovery" : descriptor.kind,
-        strength: GENERIC_DISCOVERY_TARGET.test(target) ? "category" : descriptor.strength,
+      const rawTarget = match[1];
+      const target = cleanTarget(rawTarget);
+      if (!target) continue;
+      const normalizedStart = match.index + match[0].indexOf(rawTarget);
+      const normalizedEnd = normalizedStart + rawTarget.length;
+      const category = GENERIC_TARGETS[target] || "";
+      return deepFreeze({
+        text: target,
+        span: originalSpan(view, normalizedStart, normalizedEnd),
+        kind: category ? "discovery" : descriptor.kind,
+        strength: category ? "category" : descriptor.strength,
+        category,
       });
     }
     return null;
   }
 
-  function catalog() {
-    const regular = window.EchoAI.PlaceRegistry.getPlaces().map(place => ({
-      entityId: place.canonicalId,
-      source: "registry",
-      aliases: place.identityAliases || place.aliases || [],
-      primaryAliases: [place.title, place.canonicalId, place.id],
-    }));
-    const special = (window.KMK_AI_PHASE3?.specialEntities || []).map(entity => ({
-      entityId: entity.id,
-      source: "special",
-      aliases: entity.aliases || [],
-      primaryAliases: [entity.title, entity.id],
-    }));
-    return [...regular, ...special];
-  }
-
-  function comparableTokens(value) {
-    return window.EchoAI.Normalizer.tokens(value).filter(token => !SAFE_TARGET_MODIFIERS.has(token));
-  }
-
-  function wholeTargetMatchesAlias(target, alias) {
-    const targetTokens = comparableTokens(target);
-    const aliasTokens = comparableTokens(alias);
-    if (!targetTokens.length || targetTokens.length !== aliasTokens.length) return false;
-    return aliasTokens.every((aliasToken, index) => targetTokens[index] === aliasToken
-      || window.EchoAI.Normalizer.isConservativeTypoMatch(targetTokens[index], aliasToken));
-  }
-
-  function uniqueBest(matches) {
-    const best = new Map();
-    matches.forEach(match => {
-      const current = best.get(match.entityId);
-      if (!current || match.score > current.score || (match.score === current.score && (match.index ?? 0) < (current.index ?? 0))) best.set(match.entityId, match);
-    });
-    return [...best.values()].sort((left, right) => (right.score - left.score) || ((left.index ?? 0) - (right.index ?? 0)) || left.entityId.localeCompare(right.entityId, "en"));
-  }
-
-  function exactTargetMatches(target) {
+  function wholeAliasMatches(target) {
+    const targetView = unicodeView(cleanTarget(target));
     const matches = [];
-    catalog().forEach(entry => {
-      entry.aliases.forEach(alias => {
-        const normalizedAlias = window.EchoAI.Normalizer.normalize(alias);
-        if (!normalizedAlias || !wholeTargetMatchesAlias(target, normalizedAlias)) return;
-        const exact = window.EchoAI.Normalizer.normalize(target) === normalizedAlias;
-        const shortCode = /^[a-z]\d{1,2}$/.test(normalizedAlias);
-        const primary = entry.primaryAliases.some(value => window.EchoAI.Normalizer.normalize(value) === normalizedAlias);
-        matches.push({ ...entry, alias: normalizedAlias, score: (exact ? 200 : 160) + normalizedAlias.length + (primary ? 30 : 0) + (shortCode && entry.source === "special" ? 40 : 0) });
-      });
+    aliasCatalog().forEach(record => {
+      if (targetView.folded === record.normalized) {
+        matches.push(Object.freeze({ ...record, matchKind: "EXACT", score: 300 + record.normalized.length + (record.primary ? 30 : 0) + (/^[a-z]\d{1,2}$/.test(record.normalized) ? 40 : 0) }));
+        return;
+      }
+      const targetTokens = targetView.folded.split(" ").filter(Boolean);
+      const aliasTokens = record.normalized.split(" ").filter(Boolean);
+      if (record.script !== "LATIN" || targetTokens.length !== aliasTokens.length) return;
+      const covered = aliasTokens.every((aliasToken, index) => targetTokens[index] === aliasToken
+        || window.EchoAI.Normalizer.isConservativeTypoMatch(targetTokens[index], aliasToken));
+      const typo = aliasTokens.some((aliasToken, index) => targetTokens[index] !== aliasToken);
+      if (covered && typo) matches.push(Object.freeze({ ...record, matchKind: "APPROXIMATE", score: 150 + record.normalized.length + (record.primary ? 20 : 0) }));
     });
-    return uniqueBest(matches);
+    const byEntity = new Map();
+    matches.forEach(item => {
+      const current = byEntity.get(item.entityId);
+      if (!current || item.score > current.score) byEntity.set(item.entityId, item);
+    });
+    const sorted = [...byEntity.values()].sort((left, right) => right.score - left.score || left.entityId.localeCompare(right.entityId, "en"));
+    if (!sorted.length) return [];
+    const topScore = sorted[0].score;
+    return sorted.filter(item => item.score === topScore);
   }
 
-  function occurrenceMatches(query) {
-    const matches = [];
-    catalog().forEach(entry => {
-      entry.aliases.forEach(alias => {
-        const normalizedAlias = window.EchoAI.Normalizer.normalize(alias);
-        if (!normalizedAlias) return;
-        let index = phraseIndex(query, normalizedAlias);
-        let approximate = false;
-        if (index < 0 && !/[^\x00-\x7f]/.test(normalizedAlias)) {
-          const queryTokens = window.EchoAI.Normalizer.tokens(query);
-          const aliasTokens = window.EchoAI.Normalizer.tokens(normalizedAlias);
-          for (let offset = 0; offset <= queryTokens.length - aliasTokens.length; offset += 1) {
-            const windowTokens = queryTokens.slice(offset, offset + aliasTokens.length);
-            const typoCount = aliasTokens.filter((aliasToken, tokenIndex) => window.EchoAI.Normalizer.isConservativeTypoMatch(windowTokens[tokenIndex], aliasToken)).length;
-            const covered = aliasTokens.every((aliasToken, tokenIndex) => windowTokens[tokenIndex] === aliasToken
-              || window.EchoAI.Normalizer.isConservativeTypoMatch(windowTokens[tokenIndex], aliasToken));
-            if (!covered || !typoCount) continue;
-            index = queryTokens.slice(0, offset).join(" ").length;
-            approximate = true;
-            break;
-          }
-        }
-        if (index < 0) return;
-        const shortCode = /^[a-z]\d{1,2}$/.test(normalizedAlias);
-        const primary = entry.primaryAliases.some(value => window.EchoAI.Normalizer.normalize(value) === normalizedAlias);
-        matches.push({ ...entry, alias: normalizedAlias, index, score: (approximate ? 80 : 100) + normalizedAlias.length + (primary ? 30 : 0) + (shortCode && entry.source === "special" ? 40 : 0) });
-      });
-    });
-    return uniqueBest(matches);
+  function containsEvidence(target, evidence) {
+    const folded = unicodeView(target).folded;
+    return evidence.matches.some(match => folded.includes(match.normalized)
+      || (match.matchKind === "APPROXIMATE" && folded.split(" ").some(token => window.EchoAI.Normalizer.isConservativeTypoMatch(token, match.normalized))));
   }
 
-  function lexicalTokens(message) {
-    const tokens = [];
-    const expression = /[A-Za-z0-9]+|[\u3400-\u9fff]+/gu;
+  function compoundAttachment(message, match) {
     const source = String(message || "");
-    let match;
-    while ((match = expression.exec(source))) {
-      tokens.push({ raw: match[0], normalized: window.EchoAI.Normalizer.normalize(match[0]), start: match.index, end: expression.lastIndex });
+    const before = source.slice(0, match.span.start);
+    const after = source.slice(match.span.end);
+    const beforeCharacter = [...before].pop() || "";
+    const afterCharacter = [...after][0] || "";
+    const directBefore = isWordCharacter(beforeCharacter);
+    const directAfter = isWordCharacter(afterCharacter);
+    const runPattern = /[\p{L}\p{N}]/u;
+    let runStart = match.span.start;
+    let runEnd = match.span.end;
+    while (runStart > 0) {
+      const previous = [...source.slice(0, runStart)].pop() || "";
+      if (!runPattern.test(previous)) break;
+      runStart -= previous.length;
     }
-    return tokens;
-  }
-
-  function hasHardBoundary(message, left, right) {
-    return /[.!?;:。！？；：]/u.test(String(message || "").slice(left, right));
-  }
-
-  function looksLikeNameToken(token) {
-    if (!token || !/^[A-Za-z0-9]+$/.test(token.raw) || LOCAL_GRAMMAR_BOUNDARIES.has(token.normalized)) return false;
-    if (SAFE_TARGET_MODIFIERS.has(token.normalized)) return false;
-    return /^[A-Z][a-z0-9]+/.test(token.raw) || /^[A-Z0-9]{2,}$/.test(token.raw);
-  }
-
-  function isLocalContentToken(token) {
-    return Boolean(token && /^[A-Za-z0-9]+$/.test(token.raw)
-      && !LOCAL_GRAMMAR_BOUNDARIES.has(token.normalized)
-      && !SAFE_TARGET_MODIFIERS.has(token.normalized));
-  }
-
-  function localAliasSpan(message, occurrence) {
-    const tokens = lexicalTokens(message);
-    const aliasTokens = window.EchoAI.Normalizer.tokens(occurrence.alias);
-    const aliasHasCjk = /[^\x00-\x7f]/.test(occurrence.alias);
-    for (let offset = 0; offset < tokens.length; offset += 1) {
-      let length = aliasTokens.length;
-      let covered = false;
-      if (aliasHasCjk) {
-        covered = tokens[offset].normalized.includes(occurrence.alias);
-        length = 1;
-      } else if (offset + length <= tokens.length) {
-        covered = aliasTokens.every((aliasToken, index) => tokens[offset + index].normalized === aliasToken
-          || window.EchoAI.Normalizer.isConservativeTypoMatch(tokens[offset + index].normalized, aliasToken));
-      }
-      if (!covered) continue;
-      const first = tokens[offset];
-      const last = tokens[offset + length - 1];
-      const left = tokens[offset - 1];
-      const right = tokens[offset + length];
-      const afterRight = tokens[offset + length + 1];
-      const leftNamed = left && !hasHardBoundary(message, left.end, first.start) && looksLikeNameToken(left);
-      const rightNamed = right && !hasHardBoundary(message, last.end, right.start) && looksLikeNameToken(right);
-      const leftContent = left && !hasHardBoundary(message, left.end, first.start) && isLocalContentToken(left);
-      const rightContent = right && !hasHardBoundary(message, last.end, right.start) && isLocalContentToken(right);
-      const rightClosesSpan = rightContent && (!afterRight || LOCAL_GRAMMAR_BOUNDARIES.has(afterRight.normalized)
-        || hasHardBoundary(message, right.end, afterRight.start));
-      const tokenBeforeLeft = tokens[offset - 2];
-      const tokenBeforeSubject = tokens[offset - 3];
-      const predicateBeforeAlias = leftContent && (SUBJECT_REFERENCE_TOKENS.has(tokenBeforeLeft?.normalized)
-        || IDENTITY_ACTION_TOKENS.has(left.normalized)
-        || (tokenBeforeLeft && PREDICATE_AUXILIARIES.has(tokenBeforeSubject?.normalized)));
-      const lowercaseClosedWrapper = leftContent && rightContent && rightClosesSpan && !predicateBeforeAlias;
-      const lowercasePrefixWrapper = leftContent && !right && !predicateBeforeAlias;
-      const leftAttached = leftNamed || lowercaseClosedWrapper || lowercasePrefixWrapper;
-      const rightAttached = rightNamed || lowercaseClosedWrapper;
-      let localStart = leftAttached ? offset - 1 : offset;
-      let localEnd = rightAttached ? offset + length : offset + length - 1;
-      while (localStart > 0 && looksLikeNameToken(tokens[localStart - 1])
-        && !hasHardBoundary(message, tokens[localStart - 1].end, tokens[localStart].start)) localStart -= 1;
-      while (localEnd + 1 < tokens.length && looksLikeNameToken(tokens[localEnd + 1])
-        && !hasHardBoundary(message, tokens[localEnd].end, tokens[localEnd + 1].start)) localEnd += 1;
-      const cjkAliasOffset = aliasHasCjk ? tokens[offset].normalized.indexOf(occurrence.alias) : -1;
-      const cjkWrappedOnBothSides = cjkAliasOffset > 0
-        && cjkAliasOffset + occurrence.alias.length < tokens[offset].normalized.length;
-      const latinQualifierTouchesCjk = aliasHasCjk && (leftAttached || rightAttached);
-      return {
-        qualified: Boolean(leftAttached || rightAttached || latinQualifierTouchesCjk || cjkWrappedOnBothSides),
-        target: String(message || "").slice(tokens[localStart].start, tokens[localEnd].end).trim(),
-      };
+    while (runEnd < source.length) {
+      const next = [...source.slice(runEnd)][0] || "";
+      if (!runPattern.test(next)) break;
+      runEnd += next.length;
     }
-    return { qualified: false, target: "" };
+    return deepFreeze({ directBefore, directAfter, text: source.slice(runStart, runEnd), span: Object.freeze({ start: runStart, end: runEnd }) });
   }
 
-  function fallbackQualifiedIdentity(message, occurrences) {
-    for (const occurrence of occurrences) {
-      const shadowedBySpecificAlias = occurrences.some(other => other !== occurrence
-        && other.index === occurrence.index
-        && other.alias.length > occurrence.alias.length
-        && other.alias.includes(occurrence.alias));
-      if (shadowedBySpecificAlias) continue;
-      const local = localAliasSpan(message, occurrence);
-      if (local.qualified) {
-        const knownLocalTarget = exactTargetMatches(local.target).some(match => match.entityId === occurrence.entityId);
-        if (!knownLocalTarget) return local;
-      }
-    }
-    return null;
+  function targetState(state, slot = null, entityId = "", matchKind = "NONE") {
+    return deepFreeze({ state, span: slot?.span || null, text: slot?.text || "", entityId, matchKind });
   }
 
-  function fallbackNamedSpan(message, options = {}) {
-    const tokens = lexicalTokens(message);
-    const focusTokens = new Set(options.namedSpanFocusTokens || []);
-    const caseInsensitive = Boolean(options.detectUnaliasedNamedSpan && focusTokens.size);
-    let runStart = -1;
-    for (let index = 0; index <= tokens.length; index += 1) {
-      const token = tokens[index];
-      const belongsToSpan = caseInsensitive ? (focusTokens.has(token?.normalized) || isLocalContentToken(token)) : looksLikeNameToken(token);
-      if (belongsToSpan) {
-        if (runStart < 0) runStart = index;
-        continue;
-      }
-      const runLength = runStart < 0 ? 0 : index - runStart;
-      const hasFocus = !focusTokens.size || tokens.slice(runStart, index).some(item => focusTokens.has(item.normalized));
-      if (runLength >= (caseInsensitive ? 2 : 3) && hasFocus) {
-        return String(message || "").slice(tokens[runStart].start, tokens[index - 1].end).trim();
-      }
-      runStart = -1;
-    }
+  function noMap() {
+    return deepFreeze({ confidence: "NONE", eligible: false, placeId: "", buildingId: "", targetType: "UNMAPPED" });
+  }
+
+  function mapDecision(entityId, basis, matchKind) {
+    if (basis !== "EXACT_TARGET" || matchKind !== "EXACT") return noMap();
+    const place = window.EchoAI.PlaceRegistry.getById(entityId);
+    if (!window.EchoAI.PlaceRegistry.hasMapTarget(place)) return noMap();
+    return deepFreeze({
+      confidence: place.mapState === "PARENT_ONLY" ? "VERIFIED_PARENT_TARGET" : "EXACT",
+      eligible: true,
+      placeId: entityId,
+      buildingId: place.buildingId,
+      targetType: place.mapState || "EXACT",
+      labelTarget: place.mapState === "PARENT_ONLY" ? place.parentTitle || place.title : place.title,
+    });
+  }
+
+  function canonical(state = "NONE", entityId = "", basis = "NONE", confidence = 0, entityIds = []) {
+    return deepFreeze({ state, entityId, entityIds: Object.freeze(entityIds), basis, confidence });
+  }
+
+  function emptyContext() {
+    return deepFreeze({ state: "NONE", entityId: "" });
+  }
+
+  function serviceResult(analysis, state = analysis.state) {
+    const first = analysis.frames[0] || null;
+    return deepFreeze({ state, action: first?.action || "", object: first?.object || "", frames: analysis.frames, evidence: analysis.evidence });
+  }
+
+  function serviceFrameHasSafeTarget(slot, analysis) {
+    if (analysis.frames.some(frame => !frame.inferred)) return true;
+    let remaining = unicodeView(slot?.text).folded;
+    const frameEvidence = [...new Set(analysis.frames.flatMap(frame => frame.evidence))];
+    frameEvidence.forEach(item => {
+      if (item.text) remaining = remaining.replace(item.text, " ");
+    });
+    remaining = remaining
+      .replace(/\b(?:i|we|my|our|me|us|a|an|the|any|some|do|does|did|can|could|may|might|where|to|be|being|for|from|at|in|on|that|please|students?|residents?)\b/gu, " ")
+      .replace(/(?:我|我们|我的|请|问|可以|能|要|在|去|有|吗|呢|哪里|哪儿|什么|学生|宿舍)/gu, " ")
+      .replace(/\b(?:kat|di|mana|boleh|nak|ada|untuk|saya|kami|pelajar|asrama)\b/gu, " ")
+      .replace(/[^\p{L}\p{N}]+/gu, "")
+      .trim();
+    return !remaining;
+  }
+
+  function discoveryCategory(slot, message) {
+    if (slot?.category) return slot.category;
+    const normalized = unicodeView(message).folded;
+    if (/\b(?:cafeterias?|cafes?|dining|places? to eat|where (?:can|could) i (?:eat|get food)|kafeteria|kafe|tempat makan)\b|食堂|餐厅|咖啡厅/u.test(normalized)) return "dining";
+    if (/\b(?:sport facilities|sports facilities|places? to exercise|kemudahan sukan|tempat sukan|dewan sukan)\b|体育设施|运动设施/u.test(normalized)) return "sports";
     return "";
   }
 
-  function unknownEvidence(slot) {
-    return Object.freeze({ status: "unknown_qualified", entityId: "", matches: Object.freeze([]), target: slot.target, targetKind: slot.kind, confidence: 0 });
+  function isExplicitlyDelimitedMention(message, match) {
+    const source = String(message || "");
+    const before = source.slice(0, match.span.start).trim();
+    const after = source.slice(match.span.end).trim();
+    const followsDelimiter = /^[:;\u2014\u2013-]/u.test(after);
+    const wrapped = /[([{]\s*$/u.test(before) && /^\s*[)\]}]/u.test(after);
+    return (!before && followsDelimiter) || wrapped;
   }
 
-  function analyzeIdentityEvidence(message, options = {}) {
-    const query = window.EchoAI.Normalizer.normalize(message);
+  const PREDICATE_CUES = Object.freeze({
+    campus_hours: /^(?:(?:now|today|tomorrow|tonight|currently|cuma|sekarang)\s+)?(?:open|opens|opening|close|closes|closing|closed|hours?|operating|available|berfungsi|buka|tutup|waktu|pukul|jam|confirm)\b/u,
+    campus_services: /^(?:provide|provides|offer|offers|stock|stocks|sell|sells|have|has|buat)\b/u,
+    campus_rules: /^(?:allow|allows|permit|permits|accept|accepts|require|requires|have|has)\b/u,
+    campus_fees: /^(?:cost|costs|charge|charges|fee|fees|price|prices|bayaran|harga)\b/u,
+    campus_nearby: /^(?:near|nearby|dekat|around|beside|next to)\b/u,
+    campus_navigation: /^(?:(?:可以|boleh)\s*)?(?:show|open|tunjuk|has|have|map|mapped|located|situated)\b/u,
+    campus_location: /^(?:located|situated|location|near|nearby|dekat)\b/u,
+  });
+
+  function isStructurallyBoundedMention(message, match, intent) {
+    if (isExplicitlyDelimitedMention(message, match)) return true;
+    const source = unicodeView(message).folded.replace(/[?!.。,，！？；;:]+$/u, "").trim();
+    const before = source.slice(0, match.normalizedSpan.start).trim();
+    const after = source.slice(match.normalizedSpan.end).trim();
+    const cue = PREDICATE_CUES[intent];
+    if (!before && cue?.test(after)) return true;
+    return !after && /\b(?:near|nearby|at|into|inside|within|around|to|of|for|dekat|dalam)(?:\s+the)?\s*$/u.test(before);
+  }
+
+  function result(input) {
+    return deepFreeze({
+      intent: input.intent,
+      target: input.target,
+      mentions: Object.freeze(input.mentions || []),
+      service: input.service,
+      context: input.context || emptyContext(),
+      canonical: input.canonical,
+      map: input.map || noMap(),
+      category: input.category || "",
+      candidateEntityIds: Object.freeze(input.candidateEntityIds || []),
+      aliasEvidence: input.aliasEvidence,
+    });
+  }
+
+  function resolve(message, options = {}) {
+    const intent = options.intent || window.EchoAI.IntentRouter.classify(message);
     const slot = extractTargetSlot(message);
-    const occurrences = occurrenceMatches(query);
+    const aliasEvidence = collectAliasEvidence(message);
+    const serviceAnalysis = window.EchoAI.IntentRouter.analyzeServiceFrame(message);
+    const service = serviceResult(serviceAnalysis);
+    const occurrences = aliasEvidence.matches;
+    const serviceEntityIds = new Set(serviceAnalysis.frames.map(frame => SERVICE_ENTITY_BY_FRAME[frame.kind]).filter(Boolean));
+    const overlapsServiceEvidence = match => serviceAnalysis.evidence.some(item => item.span.start < match.normalizedSpan.end && item.span.end > match.normalizedSpan.start);
+    const identityOccurrences = serviceAnalysis.state === "COMPLETE"
+      ? occurrences.filter(match => !overlapsServiceEvidence(match))
+      : occurrences;
+    const category = discoveryCategory(slot, message);
 
-    if (slot) {
-      if (slot.strength === "category") {
-        return Object.freeze({ status: "none", entityId: "", matches: Object.freeze([]), target: slot.target, targetKind: slot.kind, confidence: 0 });
-      }
-      if (CONTEXT_REFERENCE_TARGET.test(slot.target)) {
-        return Object.freeze({ status: "none", entityId: "", matches: Object.freeze([]), target: "", targetKind: slot.kind, confidence: 0 });
-      }
-      const exact = exactTargetMatches(slot.target);
-      if (exact.length) {
-        const topScore = exact[0].score;
-        const top = exact.filter(match => match.score === topScore);
-        if (top.length > 1) return Object.freeze({ status: "ambiguous", entityId: "", matches: Object.freeze(top), target: slot.target, targetKind: slot.kind, confidence: 0.4 });
-        return Object.freeze({ status: "known", entityId: exact[0].entityId, matches: Object.freeze(exact), target: slot.target, targetKind: slot.kind, confidence: 0.99 });
-      }
-
-      if (options.allowMultiple && occurrences.length >= 2 && COMPARISON_CONNECTOR.test(query)) {
-        return Object.freeze({ status: "known_multiple", entityId: occurrences[0].entityId, matches: Object.freeze(occurrences), target: slot.target, targetKind: slot.kind, confidence: 0.96 });
-      }
-
-      const targetContainsKnownAlias = occurrences.some(match => phraseIndex(slot.target, match.alias) >= 0);
-      const targetTokenCount = window.EchoAI.Normalizer.tokens(slot.target).length;
-      const actionTarget = (slot.strength === "object" && ACTION_LED_TARGET.test(slot.target))
-        || (slot.strength === "clause" && ACTION_IN_CLAUSE.test(slot.target));
-      if (slot.strength === "identity" || targetContainsKnownAlias || (targetTokenCount >= 2 && !actionTarget)) return unknownEvidence(slot);
+    if (slot?.strength === "category" || category && !identityOccurrences.length && serviceAnalysis.state === "NONE") {
+      const ids = DISCOVERY_IDS[category] || [];
+      return result({ intent: "campus_discovery", target: targetState(STATES.NONE, slot), mentions: [], service, canonical: canonical("MULTIPLE", "", "DISCOVERY", 0.94, ids), category, candidateEntityIds: ids, aliasEvidence });
     }
 
-    if (!occurrences.length) {
-      const namedSpan = fallbackNamedSpan(message, options);
-      if (namedSpan) return unknownEvidence({ target: namedSpan, kind: slot?.kind || "location" });
-      return Object.freeze({ status: "none", entityId: "", matches: Object.freeze([]), target: slot?.target || "", targetKind: slot?.kind || "", confidence: 0 });
+    if (slot && CONTEXT_TARGET.test(slot.text)) {
+      if (options.previousEntityId) {
+        return result({ intent, target: targetState(STATES.NONE, slot), mentions: [], service, context: deepFreeze({ state: STATES.CONTEXT_REFERENCE, entityId: options.previousEntityId }), canonical: canonical("RESOLVED", options.previousEntityId, "CONTEXT", 0.82), aliasEvidence });
+      }
+      return result({ intent, target: targetState(STATES.NONE, slot), mentions: [], service, canonical: canonical(), aliasEvidence });
     }
 
-    if (options.allowMultiple && occurrences.length >= 2 && COMPARISON_CONNECTOR.test(query)) {
-      return Object.freeze({ status: "known_multiple", entityId: occurrences[0].entityId, matches: Object.freeze(occurrences), target: "", targetKind: "", confidence: 0.96 });
-    }
-
-    if (options.detectUnaliasedNamedSpan) {
-      const namedSpan = fallbackNamedSpan(message, options);
-      if (namedSpan && !exactTargetMatches(namedSpan).length) {
-        return unknownEvidence({ target: namedSpan, kind: slot?.kind || "location" });
+    if (slot && slot.strength !== "category") {
+      const exact = wholeAliasMatches(slot.text);
+      if (exact.length === 1) {
+        const match = exact[0];
+        const basis = match.matchKind === "EXACT" ? "EXACT_TARGET" : "APPROXIMATE_TARGET";
+        const state = match.matchKind === "EXACT" ? STATES.EXACT_TARGET : STATES.KNOWN_MENTION;
+        const targetIntent = slot.kind === "information" ? "campus_info" : `campus_${slot.kind}`;
+        return result({ intent: targetIntent, target: targetState(state, slot, match.entityId, match.matchKind), mentions: [match], service, canonical: canonical("RESOLVED", match.entityId, basis, match.matchKind === "EXACT" ? 0.99 : 0.76), map: mapDecision(match.entityId, basis, match.matchKind), aliasEvidence });
+      }
+      if (exact.length > 1) {
+        return result({ intent, target: targetState(STATES.AMBIGUOUS_REFERENCE, slot), mentions: [], service: serviceResult(serviceAnalysis, "BLOCKED_BY_AMBIGUITY"), canonical: canonical("AMBIGUOUS", "", "AMBIGUOUS_TARGET", 0.35), aliasEvidence });
+      }
+      const contextualTopic = slot.kind === "information" && options.contextReference && !occurrences.length;
+      const serviceObject = slot.strength === "service_object" && serviceAnalysis.state === "COMPLETE"
+        && serviceFrameHasSafeTarget(slot, serviceAnalysis)
+        && !identityOccurrences.some(match => !serviceEntityIds.has(match.entityId) && unicodeView(slot.text).folded.includes(match.normalized));
+      if (!serviceObject && !contextualTopic) {
+        return result({ intent, target: targetState(STATES.UNRESOLVED_TARGET, slot), mentions: [], service: serviceResult(serviceAnalysis, "BLOCKED_BY_TARGET"), canonical: canonical("UNRESOLVED", "", "UNRESOLVED_TARGET", 0), aliasEvidence });
       }
     }
 
-    const qualifiedFallback = fallbackQualifiedIdentity(message, occurrences);
-    if (qualifiedFallback) {
-      return unknownEvidence({ target: qualifiedFallback.target, kind: slot?.kind || "location" });
+    const whole = wholeAliasMatches(message);
+    if (whole.length === 1) {
+      const match = whole[0];
+      const basis = match.matchKind === "EXACT" ? "EXACT_TARGET" : "APPROXIMATE_TARGET";
+      const state = match.matchKind === "EXACT" ? STATES.EXACT_TARGET : STATES.KNOWN_MENTION;
+      return result({ intent, target: targetState(state, { text: cleanTarget(message), span: Object.freeze({ start: 0, end: String(message || "").length }) }, match.entityId, match.matchKind), mentions: [match], service, canonical: canonical("RESOLVED", match.entityId, basis, match.matchKind === "EXACT" ? 0.99 : 0.76), map: mapDecision(match.entityId, basis, match.matchKind), aliasEvidence });
     }
 
-    const firstIndex = Math.min(...occurrences.map(match => match.index));
-    const first = occurrences.filter(match => match.index === firstIndex).sort((left, right) => right.score - left.score);
-    const topScore = first[0].score;
-    const top = first.filter(match => match.score === topScore);
-    if (top.length > 1) return Object.freeze({ status: "ambiguous", entityId: "", matches: Object.freeze(top), target: "", targetKind: "", confidence: 0.4 });
-    return Object.freeze({ status: "known", entityId: top[0].entityId, matches: Object.freeze(occurrences), target: slot?.target || "", targetKind: slot?.kind || "", confidence: 0.98 });
+    const hasSpecificHostelCode = identityOccurrences.some(match => /^blok-[a-z]\d{1,2}$/.test(match.entityId));
+    const prioritizedOccurrences = hasSpecificHostelCode ? identityOccurrences.filter(match => match.entityId !== "blok-kediaman") : identityOccurrences;
+    const uniqueEntities = [...new Set(prioritizedOccurrences.map(match => match.entityId))];
+    if (intent === "campus_comparison" && uniqueEntities.length >= 2 && COMPARISON_CONNECTOR.test(aliasEvidence.view.folded)) {
+      return result({ intent, target: targetState(STATES.KNOWN_MENTION), mentions: prioritizedOccurrences, service, canonical: canonical("MULTIPLE", "", "COMPARISON", 0.9, uniqueEntities), candidateEntityIds: uniqueEntities, aliasEvidence });
+    }
+
+    if (identityOccurrences.length) {
+      const attachmentPairs = identityOccurrences.map(match => ({ match, attachment: compoundAttachment(message, match) }));
+      const compounded = attachmentPairs.find(item => item.attachment.directBefore || item.attachment.directAfter);
+      if (compounded) {
+        const compoundSlot = { text: compounded.attachment.text, span: compounded.attachment.span };
+        return result({ intent, target: targetState(STATES.UNRESOLVED_TARGET, compoundSlot), mentions: [], service: serviceResult(serviceAnalysis, "BLOCKED_BY_TARGET"), canonical: canonical("UNRESOLVED", "", "UNRESOLVED_TARGET", 0), aliasEvidence });
+      }
+      if (uniqueEntities.length > 1) {
+        return result({ intent, target: targetState(STATES.AMBIGUOUS_REFERENCE), mentions: identityOccurrences, service: serviceResult(serviceAnalysis, "BLOCKED_BY_AMBIGUITY"), canonical: canonical("AMBIGUOUS", "", "MULTIPLE_MENTIONS", 0.35), aliasEvidence });
+      }
+      const boundedMatches = identityOccurrences.filter(match => isStructurallyBoundedMention(message, match, intent));
+      if (!boundedMatches.length) {
+        return result({ intent, target: targetState(STATES.AMBIGUOUS_REFERENCE), mentions: identityOccurrences, service: serviceResult(serviceAnalysis, "BLOCKED_BY_AMBIGUITY"), canonical: canonical("AMBIGUOUS", "", "AMBIGUOUS_MENTION", 0.35), aliasEvidence });
+      }
+      const match = [...boundedMatches].sort((left, right) => right.score - left.score || right.normalized.length - left.normalized.length)[0];
+      return result({ intent, target: targetState(STATES.KNOWN_MENTION), mentions: identityOccurrences, service, canonical: canonical("RESOLVED", match.entityId, match.matchKind === "EXACT" ? "MENTION" : "APPROXIMATE_MENTION", match.matchKind === "EXACT" ? 0.9 : 0.72), aliasEvidence });
+    }
+
+    if (intent === "campus_comparison" && serviceAnalysis.frames.length >= 2) {
+      const ids = [...new Set(serviceAnalysis.frames.map(frame => SERVICE_ENTITY_BY_FRAME[frame.kind]).filter(Boolean))];
+      if (ids.length >= 2) return result({ intent, target: targetState(STATES.NONE), mentions: [], service, canonical: canonical("MULTIPLE", "", "SERVICE_COMPARISON", 0.86, ids), candidateEntityIds: ids, aliasEvidence });
+    }
+
+    if (serviceAnalysis.state === "COMPLETE") {
+      const frame = serviceAnalysis.frames.find(item => SERVICE_ENTITY_BY_FRAME[item.kind]);
+      const entityId = frame ? SERVICE_ENTITY_BY_FRAME[frame.kind] : "";
+      if (entityId) return result({ intent, target: targetState(STATES.NONE), mentions: [], service: serviceResult(serviceAnalysis, STATES.SERVICE_NEED), canonical: canonical("RESOLVED", entityId, "SERVICE", 0.92), aliasEvidence });
+      if (serviceAnalysis.frames.some(item => item.kind === "FIND_FOOD")) {
+        const ids = DISCOVERY_IDS.dining;
+        const hunger = /\b(?:hungry|lapar)\b|饿/u.test(aliasEvidence.view.folded);
+        return result({ intent: hunger ? "campus_services" : "campus_discovery", target: targetState(STATES.NONE), mentions: [], service: serviceResult(serviceAnalysis, STATES.SERVICE_NEED), canonical: canonical("MULTIPLE", "", hunger ? "DINING_NEED" : "DISCOVERY", 0.94, ids), category: "dining", candidateEntityIds: ids, aliasEvidence });
+      }
+    }
+
+    const explicitContext = Boolean(options.contextReference);
+    if (explicitContext && options.previousEntityId) {
+      return result({ intent, target: targetState(STATES.NONE), mentions: [], service, context: deepFreeze({ state: STATES.CONTEXT_REFERENCE, entityId: options.previousEntityId }), canonical: canonical("RESOLVED", options.previousEntityId, "CONTEXT", 0.82), aliasEvidence });
+    }
+
+    return result({ intent, target: targetState(STATES.NONE), mentions: [], service, canonical: canonical(), aliasEvidence });
   }
 
-  function resolve(message, contextEntityId = "") {
-    const evidence = analyzeIdentityEvidence(message);
-    if (evidence.status === "known") {
-      const place = window.EchoAI.PlaceRegistry.getById(evidence.entityId);
-      if (place) return Object.freeze({ status: "resolved", place, candidates: Object.freeze([place]), confidence: evidence.confidence });
-    }
-    if (evidence.status === "ambiguous") {
-      const candidates = evidence.matches.map(match => window.EchoAI.PlaceRegistry.getById(match.entityId)).filter(Boolean);
-      return Object.freeze({ status: "ambiguous", place: null, candidates: Object.freeze(candidates), confidence: 0.4 });
-    }
-    const contextPlace = evidence.status === "none" && contextEntityId ? window.EchoAI.PlaceRegistry.getById(contextEntityId) : null;
-    return contextPlace ? Object.freeze({ status: "resolved_context", place: contextPlace, candidates: Object.freeze([contextPlace]), confidence: 0.82 })
-      : Object.freeze({ status: "unknown", place: null, candidates: Object.freeze([]), confidence: 0 });
-  }
-
-  function resolveMany(message) {
-    const evidence = analyzeIdentityEvidence(message, { allowMultiple: true });
-    if (!["known", "known_multiple"].includes(evidence.status)) return [];
-    return evidence.matches.map(match => window.EchoAI.PlaceRegistry.getById(match.entityId)).filter(Boolean)
-      .filter((place, index, all) => all.findIndex(item => item.canonicalId === place.canonicalId) === index);
-  }
-
-  window.EchoAI.Retriever = Object.freeze({ analyzeIdentityEvidence, extractTargetSlot, resolve, resolveMany });
+  window.EchoAI.CanonicalResolver = Object.freeze({ STATES, resolve });
+  window.EchoAI.Retriever = Object.freeze({ collectAliasEvidence, extractTargetSlot });
 }());

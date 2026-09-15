@@ -1,5 +1,26 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-16 - Phase 5 single canonical resolver
+
+- Consolidated per-turn identity authority into one immutable resolution
+  record with separate target, mention, service, context, canonical, and Map
+  decisions.
+- Unified normal and special aliases in the PlaceRegistry catalog and replaced
+  heuristic local-name authority with Unicode offset evidence plus conservative
+  bounded target/mention states. Syntactically undecidable text now fails as
+  safe ambiguity rather than guessing.
+- Converted service routing to action/object concepts. Canonical service IDs
+  are assigned only after target ambiguity checks, while complete frames allow
+  ordinary predicate modifiers without a query-wide allowlist.
+- Made exact resolver provenance mandatory for Map actions; approximate,
+  mention, service, context, discovery, ambiguous, and unresolved results have
+  no exact action path.
+- Added compact permanent invariant and static authority tests. Phase 5 passes
+  **275/275**; fresh implementation diagnostics pass **220/220** with zero
+  false identities or Map actions. Campus, Map, Phase 4, all 27 test scripts,
+  active syntax, Pages/artifact, URL, static, portable, seeds, and diff checks
+  pass.
+
 ## 2026-09-15 - Phase 5 capitalization-neutral identity spans
 
 - Replaced capitalization as the deciding lowercase-name signal with bounded

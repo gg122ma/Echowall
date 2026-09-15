@@ -119,7 +119,7 @@ for (const typo of ["libary", "librery"]) {
 reply = await ask("Where is cafee A?");
 check("cafee typo resolves Cafe A", hasPlace(reply, "cafe-a"));
 reply = await ask("Take me to serammbi");
-check("serammbi typo resolves Serambi", hasPlace(reply, "serambi") && reply.actions.length === 1);
+check("serammbi typo resolves Serambi without exact Map provenance", hasPlace(reply, "serambi") && reply.actions.length === 0);
 reply = await ask("Where is the cafe?");
 check("generic Cafe query remains ambiguous", reply.premise === "AMBIGUOUS" && reply.actions.length === 0 && reply.resolvedPlaces.length > 1);
 
@@ -340,7 +340,7 @@ await ask("Where is the cafeteria?", discoverySession);
 reply = await ask("Cafe B", discoverySession);
 check("specific Cafe B selection overrides dining discovery", hasPlace(reply, "cafe-b") && reply.actions[0]?.buildingId === "B_KAFETERIA_B" && reply.actions[0]?.targetType === "EXACT");
 reply = await ask("Where is it?", discoverySession);
-check("Cafe B becomes the active refer-back after category selection", hasPlace(reply, "cafe-b") && reply.context?.activeEntityId === "cafe-b" && reply.actions[0]?.buildingId === "B_KAFETERIA_B");
+check("Cafe B becomes the active refer-back without context-derived Map provenance", hasPlace(reply, "cafe-b") && reply.context?.activeEntityId === "cafe-b" && reply.actions.length === 0);
 reply = await ask("Where is Astaka?");
 check("explicit Astaka overrides sports category routing", reply.intent === "campus_location" && hasPlace(reply, "astaka") && reply.actions[0]?.buildingId === "B_ASTAKA");
 
@@ -446,7 +446,8 @@ check("Stor Basikal resolves to the existing bicycle service without a duplicate
 check("AMBIGUOUS Map state cannot create an action", window.EchoAI.MapAction.create(window.EchoAI.PlaceRegistry.getById("hostel-laundry")) === null);
 check("UNMAPPED Map state cannot create an action", window.EchoAI.MapAction.create(window.EchoAI.PlaceRegistry.getById("resource-centre")) === null);
 check("DISABLED Map state cannot create an action", window.EchoAI.MapAction.create(window.EchoAI.KnowledgeEngine.getSpecialEntity("surau")) === null);
-const parentAction = window.EchoAI.MapAction.create(window.EchoAI.KnowledgeEngine.getSpecialEntity("blok-a1"));
+const parentResolution = window.EchoAI.CanonicalResolver.resolve("Where is A1?", { intent: "campus_location" });
+const parentAction = window.EchoAI.MapAction.create(parentResolution.map);
 check("PARENT_ONLY Map action validates only with the verified parent target", parentAction?.buildingId === "B_SERI_PALAS" && window.EchoAI.MapAction.validate(parentAction));
 check("PARENT_ONLY action cannot be relabelled as EXACT", !window.EchoAI.MapAction.validate({ ...parentAction, targetType: "EXACT" }));
 const assistantSource = read("services/ai-assistant.js");

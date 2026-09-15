@@ -132,7 +132,8 @@ const { window, providerState } = buildSandbox({ campusRendering: true });
 
 function buildPlanFor(targetWindow, question, language = "en") {
   const intent = targetWindow.EchoAI.IntentRouter.classify(question);
-  const resolution = targetWindow.EchoAI.KnowledgeEngine.resolve(question);
+  const canonical = targetWindow.EchoAI.CanonicalResolver.resolve(question, { intent });
+  const resolution = targetWindow.EchoAI.KnowledgeEngine.resolve(canonical);
   const place = resolution.place;
   const premise = place ? targetWindow.EchoAI.PremiseChecker.check(question, place, []) : { status: "UNKNOWN", day: "" };
   const plan = targetWindow.EchoAI.AnswerPlanner.plan({ question, language, intent, resolution, previous: null, premise, asOf: undefined });

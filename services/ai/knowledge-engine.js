@@ -61,84 +61,53 @@
     return conflicts;
   }
 
-  function entityFromDefinition(definition) {
-    if (!definition) return null;
-    const building = definition.buildingId
-      ? (window.CAMPUS_BUILDINGS || []).find(item => item.id === definition.buildingId) || null
-      : null;
-    return Object.freeze({
-      ...definition,
-      canonicalId: definition.id,
-      building,
-      aliases: definition.aliases || Object.freeze([]),
-      sourceRecords: Object.freeze([]),
-    });
-  }
-
   function getSpecialEntity(entityId) {
-    return entityFromDefinition((window.KMK_AI_PHASE3?.specialEntities || []).find(item => item.id === entityId));
+    return window.EchoAI.PlaceRegistry.getSpecialPlaces().find(item => item.canonicalId === entityId) || null;
   }
 
   function getEntity(entityId) {
-    return window.EchoAI.PlaceRegistry.getById(entityId) || getSpecialEntity(entityId);
+    return window.EchoAI.PlaceRegistry.getById(entityId);
   }
 
-  const DISCOVERY_CATEGORIES = Object.freeze({
-    dining: Object.freeze(["cafe-a", "cafe-b", "cafe-c", "cafe-admin"]),
-    sports: Object.freeze(["astaka", "basketball-court", "sports-equipment-store"]),
-  });
-
-  function discoveryCategory(message) {
-    const text = String(message || "");
-    const dining = /\b(?:cafeterias?|cafes?|dining|where (?:can|could) i (?:eat|get food)|where to eat|places? to eat|what places serve food|what cafes? are there|show me (?:cafeterias?|cafes?)|kafeteria|kafe|tempat makan|mana boleh makan)\b|食堂|餐厅|咖啡厅|哪里可以吃饭|哪(?:里|儿)能吃饭|吃东西/i;
-    if (dining.test(text)) return "dining";
-    const sports = /\b(?:sport facilities|sports facilities|what sports facilities are there|show me sports facilities|places? to exercise|where (?:can|could) i (?:play sports|exercise)|kemudahan sukan|tempat sukan|dewan sukan|mana boleh bersukan)\b|体育设施|运动设施|哪里可以运动|运动场地/i;
-    return sports.test(text) ? "sports" : "";
+  function resolve(resolution) {
+    if (!resolution || typeof resolution !== "object" || !resolution.canonical) throw new TypeError("KnowledgeEngine.resolve requires a canonical resolution result");
+    const ids = resolution.canonical.entityIds || [];
+    const candidates = Object.freeze(ids.map(getEntity).filter(place => place && place.status !== "UNSUPPORTED"));
+    if (resolution.canonical.state === "MULTIPLE") {
+      return Object.freeze({
+        status: resolution.category === "dining" && resolution.canonical.basis === "DINING_NEED" ? "dining" : resolution.category ? "discovery" : "multiple",
+        category: resolution.category || "",
+        place: null,
+        candidates,
+        confidence: resolution.canonical.confidence,
+        resolutionType: "MULTIPLE",
+        canonicalResolution: resolution,
+      });
+    }
+    if (resolution.canonical.state === "RESOLVED") {
+      const place = getEntity(resolution.canonical.entityId);
+      if (place) return Object.freeze({
+        status: resolution.canonical.basis === "CONTEXT" ? "resolved_context" : "resolved",
+        place,
+        candidates: Object.freeze([place]),
+        confidence: resolution.canonical.confidence,
+        resolutionType: place.mapState || "UNMAPPED",
+        canonicalResolution: resolution,
+      });
+    }
+    return Object.freeze({
+      status: resolution.canonical.state === "AMBIGUOUS" ? "ambiguous" : "unknown",
+      place: null,
+      candidates: Object.freeze([]),
+      confidence: resolution.canonical.confidence || 0,
+      resolutionType: resolution.canonical.state === "AMBIGUOUS" ? "AMBIGUOUS" : "UNMAPPED",
+      canonicalResolution: resolution,
+    });
   }
 
-  function discoveryCandidates(category) {
-    const approvedIds = DISCOVERY_CATEGORIES[category] || [];
-    return approvedIds.map(getEntity).filter(place => place && place.status !== "UNSUPPORTED");
-  }
-
-  function resolve(message, contextEntityId = "") {
-    const evidence = window.EchoAI.Retriever.analyzeIdentityEvidence(message);
-    const serviceEntityId = window.EchoAI.IntentRouter.serviceNeedEntityId(message);
-    if (evidence.status === "known") {
-      const preferredId = serviceEntityId && !evidence.target ? serviceEntityId : evidence.entityId;
-      const place = getEntity(preferredId);
-      if (place) return Object.freeze({ status: "resolved", place, candidates: Object.freeze([place]), confidence: evidence.confidence, resolutionType: place.mapState || "UNMAPPED", identityEvidenceStatus: evidence.status });
-    }
-    if (evidence.status === "ambiguous") {
-      const candidates = evidence.matches.map(match => getEntity(match.entityId)).filter(Boolean);
-      return Object.freeze({ status: "ambiguous", place: null, candidates: Object.freeze(candidates), confidence: 0.4, resolutionType: "AMBIGUOUS", identityEvidenceStatus: evidence.status });
-    }
-    if (evidence.status === "unknown_qualified") {
-      return Object.freeze({ status: "unknown", place: null, candidates: Object.freeze([]), confidence: 0, resolutionType: "UNMAPPED", identityEvidenceStatus: evidence.status });
-    }
-    if (serviceEntityId) {
-      const place = getEntity(serviceEntityId);
-      if (place) return Object.freeze({ status: "resolved", place, candidates: Object.freeze([place]), confidence: 0.96, resolutionType: place.mapState || "UNMAPPED", identityEvidenceStatus: evidence.status });
-    }
-    const contextPlace = contextEntityId ? getEntity(contextEntityId) : null;
-    if (contextPlace) return Object.freeze({ status: "resolved_context", place: contextPlace, candidates: Object.freeze([contextPlace]), confidence: 0.82, resolutionType: contextPlace.mapState || "UNMAPPED" });
-    const diningNeed = /\b(?:i(?:'m| am)? hungry|hungry|saya lapar|lapar)\b|我饿了|饿了/i.test(String(message || ""));
-    if (diningNeed) return Object.freeze({ status: "dining", category: "dining", place: null, candidates: Object.freeze(discoveryCandidates("dining")), confidence: 0.94, resolutionType: "MULTIPLE" });
-    const category = discoveryCategory(message);
-    if (category) return Object.freeze({ status: "discovery", category, place: null, candidates: Object.freeze(discoveryCandidates(category)), confidence: 0.94, resolutionType: "MULTIPLE" });
-    return Object.freeze({ status: "unknown", place: null, candidates: Object.freeze([]), confidence: 0, resolutionType: "UNMAPPED", identityEvidenceStatus: evidence.status });
-  }
-
-  function resolveMany(message) {
-    const normalized = window.EchoAI.Normalizer.normalize(message);
-    const evidence = window.EchoAI.Retriever.analyzeIdentityEvidence(message, { allowMultiple: true });
-    const identityMatches = ["known", "known_multiple"].includes(evidence.status)
-      ? evidence.matches.map(match => getEntity(match.entityId)).filter(Boolean)
-      : [];
-    const descriptiveMatches = normalized === "which place can print and which sells daily items"
-      ? [getEntity("pos-mini"), getEntity("koop-mart")].filter(Boolean)
-      : [];
-    return [...new Map([...identityMatches, ...descriptiveMatches].map(place => [place.canonicalId, place])).values()];
+  function resolveMany(resolution) {
+    if (!resolution || typeof resolution !== "object" || !resolution.canonical) throw new TypeError("KnowledgeEngine.resolveMany requires a canonical resolution result");
+    return (resolution.canonical.entityIds || []).map(getEntity).filter(Boolean);
   }
 
   function factTypesForIntent(intent) {
@@ -180,7 +149,6 @@
     detectConflicts,
     getEntity,
     getSpecialEntity,
-    discoveryCategory,
     resolve,
     resolveMany,
     selectFacts,

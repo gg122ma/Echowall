@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-09-16 - KMK AI PHASE 5 CANONICAL RESOLVER
+
+- Replaced the fragmented identity, service, special-entity, context, and Map
+  authority paths with one immutable per-turn `CanonicalResolver` result.
+- Added offset-preserving Unicode alias evidence and one typed alias catalog
+  for regular and special entities. Exact targets, bounded mentions,
+  unresolved names, ambiguity, service frames, context, and Map provenance are
+  now distinct states.
+- Reduced service routing to semantic action/object frames; only the canonical
+  resolver maps a completed frame to a source-backed entity, and competing
+  unresolved or ambiguous target evidence blocks the route.
+- Restricted Map actions to exact alias targets with verified destinations,
+  including the existing verified-parent hostel mappings. Mentions,
+  approximate matches, services, context, discovery, and ambiguity cannot
+  acquire exact Map provenance.
+- Added 17 Phase 5 invariant scenarios and a 27-assertion architecture guard.
+  Phase 5 is **275 scenarios / 319 turns**, all passing. A disposable fresh
+  diagnostic passed **220/220** with zero false canonical resolutions and zero
+  false Map actions.
+- Final validation: Campus 199/199, Map 21/21, Phase 4 89/89, all 27 test
+  scripts, the established 116-file active syntax scope, and every release
+  validator pass. Source truth and Phase 4 architecture are unchanged.
+
 ## 2026-09-15 - KMK AI PHASE 5 QUICK-BLOCKER IDENTITY SPAN
 
 - Made local unknown-name evidence independent of capitalization and treated

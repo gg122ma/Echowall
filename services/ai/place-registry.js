@@ -18,7 +18,7 @@
 
   const EXTRA_ALIASES = Object.freeze({
     library: Object.freeze(["pustaka", "perpustakaan", "lib", "图书馆"]),
-    "koop-mart": Object.freeze(["koop", "koop mart", "koperasi", "koperasi mart"]),
+    "koop-mart": Object.freeze(["koop", "co op", "koop mart", "koperasi", "koperasi mart"]),
     serambi: Object.freeze(["hep", "hal ehwal pelajar", "student affairs"]),
     "dewan-kuliah": Object.freeze(["lecture hall", "dk", "dewan kuliah", "讲堂", "讲座厅"]),
     masjid: Object.freeze(["mosque", "masjid", "清真寺"]),
@@ -142,8 +142,31 @@
     return places;
   }
 
+  function entityFromDefinition(definition) {
+    if (!definition) return null;
+    const building = definition.buildingId
+      ? (window.CAMPUS_BUILDINGS || []).find(item => item.id === definition.buildingId) || null
+      : null;
+    return Object.freeze({
+      ...definition,
+      canonicalId: definition.id,
+      building,
+      aliases: Object.freeze(unique([definition.title, ...(definition.aliases || [])])),
+      identityAliases: Object.freeze(unique([definition.title, ...(definition.aliases || [])])),
+      sourceRecords: Object.freeze([]),
+    });
+  }
+
+  function getSpecialPlaces() {
+    return (window.KMK_AI_PHASE3?.specialEntities || []).map(entityFromDefinition).filter(Boolean);
+  }
+
+  function getIdentityPlaces() {
+    return [...getPlaces(), ...getSpecialPlaces()];
+  }
+
   function getById(canonicalId) {
-    return getPlaces().find(place => place.canonicalId === canonicalId) || null;
+    return getIdentityPlaces().find(place => place.canonicalId === canonicalId) || null;
   }
 
   function hasGeographicMapTarget(place) {
@@ -181,5 +204,5 @@
     return getPlaces().length;
   }
 
-  window.EchoAI.PlaceRegistry = Object.freeze({ getPlaces, getById, hasMapTarget, getNearby, getNearbyDetails, getMasterEntityCount });
+  window.EchoAI.PlaceRegistry = Object.freeze({ getPlaces, getSpecialPlaces, getIdentityPlaces, getById, hasMapTarget, getNearby, getNearbyDetails, getMasterEntityCount });
 }());

@@ -238,27 +238,17 @@
     }
 
     const previous = window.EchoAI.ConversationContext.get(sessionId);
-    let resolution = window.EchoAI.KnowledgeEngine.resolve(question);
-    const clearReference = window.EchoAI.ConversationContext.referencesPrevious(question)
-      || window.EchoAI.ConversationContext.isEllipticalFollowUp(question);
-    const independentReferent = (resolution.status === "resolved" && resolution.confidence >= 0.95)
-      || ["dining", "discovery"].includes(resolution.status);
-    const newIdentityEvidence = resolution.identityEvidenceStatus && resolution.identityEvidenceStatus !== "none";
-    if (previous && clearReference && !independentReferent && !newIdentityEvidence) {
-      const contextPlace = window.EchoAI.KnowledgeEngine.getEntity(previous.activeEntityId || previous.entityId);
-      if (contextPlace) {
-        resolution = Object.freeze({
-          status: "resolved_context",
-          place: contextPlace,
-          candidates: Object.freeze([contextPlace]),
-          confidence: 0.82,
-          resolutionType: contextPlace.mapState || "UNMAPPED",
-        });
-      }
-    }
+    const clearReference = window.EchoAI.ConversationContext.isEllipticalFollowUp(question);
+    const canonicalResolution = window.EchoAI.CanonicalResolver.resolve(question, {
+      intent,
+      previousEntityId: previous?.activeEntityId || previous?.entityId || "",
+      contextReference: clearReference,
+    });
+    intent = canonicalResolution.intent;
+    const resolution = window.EchoAI.KnowledgeEngine.resolve(canonicalResolution);
 
     if (intent === "campus_comparison") {
-      const places = window.EchoAI.KnowledgeEngine.resolveMany(question);
+      const places = window.EchoAI.KnowledgeEngine.resolveMany(canonicalResolution);
       if (places.length < 2) return response({ answer: ambiguousAnswer(language, places), intent, confidence: 0.35, places: places.map(resolvedPlace), answerPlan: { mode: "AMBIGUOUS", selectedFactIds: [], actionAllowed: false } });
       if (isLatestSessionRequest(sessionId, requestGeneration)) {
         window.EchoAI.ConversationContext.clear(sessionId);
@@ -267,9 +257,7 @@
     }
 
     const place = resolution.place;
-    if (resolution.status === "dining") intent = "campus_services";
-    else if (resolution.status === "discovery") intent = "campus_discovery";
-    else if (place && intent === "general") intent = (window.EchoAI.ConversationContext.isMoreFollowUp(question) || window.EchoAI.ConversationContext.isEllipticalFollowUp(question)) && previous
+    if (place && intent === "general") intent = (window.EchoAI.ConversationContext.isMoreFollowUp(question) || window.EchoAI.ConversationContext.isEllipticalFollowUp(question)) && previous
       ? previous.activeIntent || previous.intent || "campus_info"
       : "campus_info";
     if (place && intent === "campus_nearby") {
@@ -291,7 +279,7 @@
         : intent === "campus_rules" || intent === "campus_services" ? detailsAnswer(language, place, intent)
           : detailsAnswer(language, place, "campus_info");
       if (legacyAnswer && legacyAnswer !== unknownAnswer(language)) {
-        const legacyAction = window.EchoAI.IntentRouter.requestsMapAction(intent) ? window.EchoAI.MapAction.create(place, language) : null;
+        const legacyAction = window.EchoAI.IntentRouter.requestsMapAction(intent) ? window.EchoAI.MapAction.create(canonicalResolution.map, language) : null;
         plan = Object.freeze({ ...plan, answerMode: "DIRECT", action: legacyAction, premise: "SUPPORTED" });
         answer = legacyAnswer;
       }
@@ -302,7 +290,10 @@
       else if (!place && ["dining", "discovery"].includes(resolution.status)) {
         window.EchoAI.ConversationContext.clear(sessionId);
         contextState = null;
-      } else if (!place && resolution.status !== "ambiguous") window.EchoAI.ConversationContext.clear(sessionId);
+      } else if (!place) {
+        window.EchoAI.ConversationContext.clear(sessionId);
+        contextState = null;
+      }
     }
 
     const answerPremise = plan.answerMode === "CORRECTION" ? "CONTRADICTED"

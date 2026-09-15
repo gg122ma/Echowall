@@ -41,7 +41,7 @@
   }
 
   function isConservativeTypoMatch(queryToken, aliasToken) {
-    if (queryToken.length < 5 || aliasToken.length < 5) return false;
+    if (Math.max(queryToken.length, aliasToken.length) < 5 || Math.min(queryToken.length, aliasToken.length) < 4) return false;
     if (queryToken[0] !== aliasToken[0]) return false;
     const limit = Math.min(queryToken.length, aliasToken.length) >= 8 ? 2 : 1;
     return Math.abs(queryToken.length - aliasToken.length) <= limit && editDistance(queryToken, aliasToken) <= limit;

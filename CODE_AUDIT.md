@@ -1,5 +1,32 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-16 - PHASE 5 CANONICAL RESOLVER AUDIT
+
+- `CanonicalResolver.resolve()` is the only per-turn authority that assigns a
+  canonical entity. `IntentRouter` emits intent and semantic service concepts;
+  `KnowledgeEngine` materializes facts from the canonical result;
+  `ConversationContext`, `AnswerPlanner`, and `MapAction` cannot substitute an
+  entity independently.
+- Alias evidence preserves source offsets across Latin, CJK, and mixed script.
+  Exact and approximate matches remain typed separately. Occurrence-only
+  evidence is non-authoritative unless structurally bounded; undecidable
+  free-form references become deterministic `AMBIGUOUS` results.
+- Special identities use the PlaceRegistry identity catalog. Legacy
+  `localAliasSpan`, qualified/fallback named-span inference, subject/auxiliary/
+  action token authority, safe-target modifiers, and direct service-ID routing
+  are removed.
+- Map construction requires resolver provenance with `EXACT_TARGET` and an
+  exact alias match. Verified parent targets remain allowed for A1/A2, B1/B2,
+  and C2; P5 remains unmapped.
+- Static/runtime architecture coverage is **27/27**. Phase 5 is **275/275**;
+  fresh diagnostics are **220/220** across exact targets, mentions,
+  intentional ambiguity, fictional identities, services, multilingual,
+  context, and Map cases, with zero unsafe identities/actions.
+- Audit result: Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all test
+  scripts **27/27**, active syntax **116/116**, and all build/release gates
+  pass. No source truth, production data, UI design, or Phase 4 contract was
+  changed.
+
 ## 2026-09-15 - PHASE 5 QUICK-BLOCKER IDENTITY-SPAN AUDIT
 
 - Lowercase qualifiers no longer depend on `looksLikeNameToken()` casing.

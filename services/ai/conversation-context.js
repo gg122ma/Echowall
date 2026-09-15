@@ -48,6 +48,9 @@
     const normalized = window.EchoAI.Normalizer.normalize(message);
     if (!normalized) return false;
     return /^(?:more|what else|anything else|what about|how about|kalau|apa lagi|lagi)\b/.test(normalized)
+      || /^(?:what|which|how|when|where|can|could|may|is|are)\b.*\b(?:it|this|there|that place)\b/.test(normalized)
+      || /^tell me more about (?:it|that|that place)$/.test(normalized)
+      || /^(?:那里|那边|它)(?:附近|周围|怎么|如何|还有|有什么)/u.test(String(message || "").trim())
       || /^(?:what time|where exactly|show (?:me|it)(?: on (?:the )?map)?|which source is correct|just choose one|(?:really )?just pick (?:the )?(?:later|earlier) one)$/.test(normalized)
       || /^so \d{1,2}(?::\d{2})?(?:am|pm)? (?:or|atau) \d{1,2}(?::\d{2})?(?:am|pm)?$/.test(normalized)
       || /^(?:还有呢|还有吗|还有什么|再说一点|更多)[？?。.!！]?$/.test(String(message || "").trim())

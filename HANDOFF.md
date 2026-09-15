@@ -1,3 +1,46 @@
+# KMK AI PHASE 5 CANONICAL RESOLVER HANDOFF (2026-09-16)
+
+Status: **IMPLEMENTED; READY FOR CLAUDE FINAL REVIEW**.
+
+This architecture reset starts from
+`e6ad631e1af06180c58653222d60de009045c029`. One immutable per-turn
+`CanonicalResolver` result now owns target, mention, service, context,
+canonical, and Map decisions. `IntentRouter` supplies intent and semantic
+service frames only; `KnowledgeEngine` supplies source facts only; context is
+applied once inside the resolver; `AnswerPlanner` and `MapAction` consume the
+same provenance.
+
+The identity catalog now includes regular and special entities. Alias evidence
+is case-insensitive, offset-preserving, and Unicode-safe for Latin, CJK, and
+mixed-script spans. Exact target, bounded mention, unresolved larger target,
+and undecidable ambiguity are explicit states. The resolver no longer uses the
+old local-span/fallback named-span authority, capitalization, trailing word
+counts, subject/auxiliary/action lists, or safe-target modifiers to select an
+entity.
+
+Service analysis emits action/object concepts rather than canonical IDs. The
+resolver alone maps complete source-backed frames after ruling out competing
+target ambiguity. Map confidence is independent of answer confidence: only an
+exact registered target can produce an exact action, with verified parent
+destinations retained for A1/A2, B1/B2, and C2. P5 stays unmapped.
+
+Permanent Phase 5 coverage is **275 scenarios / 319 turns / 275 passed**. The
+new architecture test passes **27/27** and proves the non-resolver modules
+cannot select service IDs or manufacture Map provenance. A removed temporary
+diagnostic passed **220/220**: 30 exact targets, 25 mentions, 25 intentional
+ambiguities, 50 fictional identities, 35 services, 25 multilingual cases, 15
+context cases, and 15 Map cases. False canonical resolutions: **0**. False Map
+actions: **0**.
+
+Final gates: Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all test
+scripts **27/27**, active syntax **116/116**, Pages build/artifact, production
+URL, static, portable, Pustaka seed, showcase seed, and diff checks all pass.
+No source truth, Supabase/auth/database/production data, UI design, or Phase 4
+architecture changed. Roll back by reverting the forthcoming canonical
+resolver commit. Do not merge PR #2 until independent review passes.
+
+---
+
 # KMK AI PHASE 5 QUICK-BLOCKER IDENTITY SPAN HANDOFF (2026-09-15)
 
 Status: **IMPLEMENTED; TARGETED GATE PASS**.
