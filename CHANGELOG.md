@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-09-15 - KMK AI PHASE 5 QUICK-BLOCKER IDENTITY SPAN
+
+- Made local unknown-name evidence independent of capitalization and treated
+  pure-CJK aliases wrapped on both sides as part of a larger unknown identity.
+- Added bounded short-name/named-reference evidence without restoring a
+  query-wide scaffold list or facility-suffix blacklist.
+- Required the laundry, printing, bicycle, sports-equipment, and ironing
+  routes to pass the shared identity boundary, then validated action/object
+  semantics across object-first, subject-first, and passive word order.
+- Added eight compact permanent regressions; Phase 5 is now **258/258**. A
+  disposable final-tree quick gate passed **24/24** with zero fictional Map
+  actions; the 175+ final-review suite was deliberately not started.
+- Final validation: Campus 199/199, Map 21/21, Phase 4 89/89, all 26 tests,
+  116 active syntax checks, and every release validator pass. Source truth,
+  production data, UI, and Phase 4 architecture are unchanged.
+
 ## 2026-09-15 - KMK AI PHASE 5 UNTEMPLATED FALLBACK SAFETY
 
 - Replaced the slot-null alias-occurrence trust path with local identity-span

@@ -8,11 +8,14 @@
   const ACTION_IN_CLAUSE = /\b(?:print|photocopy|wash|borrow|rent|hire|study|eat|buy|cetak|fotostat|basuh|pinjam|sewa|belajar|makan|beli)\b|打印|复印|洗衣|借|租|学习|吃/i;
   const GENERIC_DISCOVERY_TARGET = /^(?:cafeterias?|cafes?|sports facilities|dewan sukan(?: besar)?)$/i;
   const CONTEXT_REFERENCE_TARGET = /^(?:it|there|this|that|that place|the place|me)$/i;
+  const SUBJECT_REFERENCE_TOKENS = new Set(["i", "im", "we", "you", "he", "she", "they", "saya", "kami", "kita", "awak", "dia", "mereka"]);
+  const PREDICATE_AUXILIARIES = new Set(["can", "could", "did", "do", "does", "may", "might", "must", "shall", "should", "will", "would"]);
+  const IDENTITY_ACTION_TOKENS = new Set(["enter", "find", "go", "locate", "reach", "visit", "cari", "masuk", "pergi"]);
   const LOCAL_GRAMMAR_BOUNDARIES = new Set([
-    "a", "an", "the", "and", "or", "but", "about", "at", "by", "for", "from", "in", "near", "of", "on", "to", "with",
+    "a", "an", "the", "and", "or", "but", "about", "at", "by", "for", "from", "in", "inside", "into", "near", "beside", "of", "on", "to", "with",
     "am", "are", "is", "was", "were", "be", "been", "being", "can", "could", "did", "do", "does", "had", "has", "have",
     "may", "might", "must", "shall", "should", "will", "would", "how", "what", "when", "where", "which", "who", "why",
-    "any", "assume", "compare", "pretend",
+    "any", "some", "these", "those", "assume", "compare", "pretend", "i", "im", "me", "my", "we", "our", "you", "your",
     "ada", "adakah", "boleh", "dekat", "di", "dengan", "dan", "dari", "ke", "kat", "mana", "untuk",
   ]);
 
@@ -177,6 +180,12 @@
     return /^[A-Z][a-z0-9]+/.test(token.raw) || /^[A-Z0-9]{2,}$/.test(token.raw);
   }
 
+  function isLocalContentToken(token) {
+    return Boolean(token && /^[A-Za-z0-9]+$/.test(token.raw)
+      && !LOCAL_GRAMMAR_BOUNDARIES.has(token.normalized)
+      && !SAFE_TARGET_MODIFIERS.has(token.normalized));
+  }
+
   function localAliasSpan(message, occurrence) {
     const tokens = lexicalTokens(message);
     const aliasTokens = window.EchoAI.Normalizer.tokens(occurrence.alias);
@@ -196,18 +205,34 @@
       const last = tokens[offset + length - 1];
       const left = tokens[offset - 1];
       const right = tokens[offset + length];
-      const leftAttached = left && !hasHardBoundary(message, left.end, first.start) && looksLikeNameToken(left);
-      const rightAttached = right && !hasHardBoundary(message, last.end, right.start) && looksLikeNameToken(right);
+      const afterRight = tokens[offset + length + 1];
+      const leftNamed = left && !hasHardBoundary(message, left.end, first.start) && looksLikeNameToken(left);
+      const rightNamed = right && !hasHardBoundary(message, last.end, right.start) && looksLikeNameToken(right);
+      const leftContent = left && !hasHardBoundary(message, left.end, first.start) && isLocalContentToken(left);
+      const rightContent = right && !hasHardBoundary(message, last.end, right.start) && isLocalContentToken(right);
+      const rightClosesSpan = rightContent && (!afterRight || LOCAL_GRAMMAR_BOUNDARIES.has(afterRight.normalized)
+        || hasHardBoundary(message, right.end, afterRight.start));
+      const tokenBeforeLeft = tokens[offset - 2];
+      const tokenBeforeSubject = tokens[offset - 3];
+      const predicateBeforeAlias = leftContent && (SUBJECT_REFERENCE_TOKENS.has(tokenBeforeLeft?.normalized)
+        || IDENTITY_ACTION_TOKENS.has(left.normalized)
+        || (tokenBeforeLeft && PREDICATE_AUXILIARIES.has(tokenBeforeSubject?.normalized)));
+      const lowercaseClosedWrapper = leftContent && rightContent && rightClosesSpan && !predicateBeforeAlias;
+      const lowercasePrefixWrapper = leftContent && !right && !predicateBeforeAlias;
+      const leftAttached = leftNamed || lowercaseClosedWrapper || lowercasePrefixWrapper;
+      const rightAttached = rightNamed || lowercaseClosedWrapper;
       let localStart = leftAttached ? offset - 1 : offset;
       let localEnd = rightAttached ? offset + length : offset + length - 1;
       while (localStart > 0 && looksLikeNameToken(tokens[localStart - 1])
         && !hasHardBoundary(message, tokens[localStart - 1].end, tokens[localStart].start)) localStart -= 1;
       while (localEnd + 1 < tokens.length && looksLikeNameToken(tokens[localEnd + 1])
         && !hasHardBoundary(message, tokens[localEnd].end, tokens[localEnd + 1].start)) localEnd += 1;
-      const cjkTokenHasExtraText = aliasHasCjk && tokens[offset].normalized !== occurrence.alias;
+      const cjkAliasOffset = aliasHasCjk ? tokens[offset].normalized.indexOf(occurrence.alias) : -1;
+      const cjkWrappedOnBothSides = cjkAliasOffset > 0
+        && cjkAliasOffset + occurrence.alias.length < tokens[offset].normalized.length;
       const latinQualifierTouchesCjk = aliasHasCjk && (leftAttached || rightAttached);
       return {
-        qualified: Boolean(leftAttached || rightAttached || (cjkTokenHasExtraText && latinQualifierTouchesCjk)),
+        qualified: Boolean(leftAttached || rightAttached || latinQualifierTouchesCjk || cjkWrappedOnBothSides),
         target: String(message || "").slice(tokens[localStart].start, tokens[localEnd].end).trim(),
       };
     }
@@ -230,16 +255,21 @@
     return null;
   }
 
-  function fallbackNamedSpan(message) {
+  function fallbackNamedSpan(message, options = {}) {
     const tokens = lexicalTokens(message);
+    const focusTokens = new Set(options.namedSpanFocusTokens || []);
+    const caseInsensitive = Boolean(options.detectUnaliasedNamedSpan && focusTokens.size);
     let runStart = -1;
     for (let index = 0; index <= tokens.length; index += 1) {
       const token = tokens[index];
-      if (looksLikeNameToken(token)) {
+      const belongsToSpan = caseInsensitive ? (focusTokens.has(token?.normalized) || isLocalContentToken(token)) : looksLikeNameToken(token);
+      if (belongsToSpan) {
         if (runStart < 0) runStart = index;
         continue;
       }
-      if (runStart >= 0 && index - runStart >= 3) {
+      const runLength = runStart < 0 ? 0 : index - runStart;
+      const hasFocus = !focusTokens.size || tokens.slice(runStart, index).some(item => focusTokens.has(item.normalized));
+      if (runLength >= (caseInsensitive ? 2 : 3) && hasFocus) {
         return String(message || "").slice(tokens[runStart].start, tokens[index - 1].end).trim();
       }
       runStart = -1;
@@ -283,13 +313,20 @@
     }
 
     if (!occurrences.length) {
-      const namedSpan = fallbackNamedSpan(message);
+      const namedSpan = fallbackNamedSpan(message, options);
       if (namedSpan) return unknownEvidence({ target: namedSpan, kind: slot?.kind || "location" });
       return Object.freeze({ status: "none", entityId: "", matches: Object.freeze([]), target: slot?.target || "", targetKind: slot?.kind || "", confidence: 0 });
     }
 
     if (options.allowMultiple && occurrences.length >= 2 && COMPARISON_CONNECTOR.test(query)) {
       return Object.freeze({ status: "known_multiple", entityId: occurrences[0].entityId, matches: Object.freeze(occurrences), target: "", targetKind: "", confidence: 0.96 });
+    }
+
+    if (options.detectUnaliasedNamedSpan) {
+      const namedSpan = fallbackNamedSpan(message, options);
+      if (namedSpan && !exactTargetMatches(namedSpan).length) {
+        return unknownEvidence({ target: namedSpan, kind: slot?.kind || "location" });
+      }
     }
 
     const qualifiedFallback = fallbackQualifiedIdentity(message, occurrences);

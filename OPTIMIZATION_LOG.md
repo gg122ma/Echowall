@@ -1,5 +1,21 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-15 - Phase 5 capitalization-neutral identity spans
+
+- Replaced capitalization as the deciding lowercase-name signal with bounded
+  local-span structure: complete short noun phrases and named-reference
+  contexts are inspected around the alias.
+- Used alias offsets inside contiguous CJK runs so unknown text on both sides
+  cannot resolve through the embedded real identity or create a Map action.
+- Kept service safety at the shared Retriever boundary, then reduced genuine
+  service clauses to their action/object core. Object-first, grammatical
+  subject, and trailing passive structures work without phrase templates;
+  unknown facility-name residues still block routing.
+- Permanent benchmark: **258/258**. Final-tree targeted gate: **24/24**, zero
+  fictional actions. Campus, Map, Phase 4, all tests, syntax, build, artifact,
+  URL, static, portable, seeds, and diff validation all pass. The 175+ final
+  review remains deferred as required.
+
 ## 2026-09-15 - Phase 5 untemplated local-span fallback
 
 - Kept the bounded target-slot parser, but removed the assumption that a null

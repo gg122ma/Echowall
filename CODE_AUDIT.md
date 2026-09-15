@@ -1,5 +1,24 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-15 - PHASE 5 QUICK-BLOCKER IDENTITY-SPAN AUDIT
+
+- Lowercase qualifiers no longer depend on `looksLikeNameToken()` casing.
+  Local complete short names and named-reference contexts classify a known
+  alias inside a larger target as unknown-qualified.
+- Pure-CJK runs use the alias offset inside the run; text on both sides is
+  sufficient larger-name evidence without requiring an adjacent Latin token.
+- Service candidates consult `Retriever.analyzeIdentityEvidence()` with a
+  local service focus. Semantic clause validation distinguishes actions and
+  objects from unknown name qualifiers and supports object-first/passive
+  grammar without sentence-template enumeration.
+- Permanent evidence: Phase 5 **258/258**. Final-tree targeted evidence:
+  **24/24**, covering all requested script/case/service classes with zero
+  fictional Map actions. Full regression is Campus **199/199**, Map **21/21**,
+  Phase 4 **89/89**, all tests **26/26**, and active syntax **116/116**.
+- Audit result: all release validators pass; source facts, authority, map
+  truth, Supabase/auth/database/production state, UI, and Phase 4 contracts
+  are unchanged.
+
 ## 2026-09-15 - PHASE 5 SLOT-NULL FALLBACK AUDIT
 
 - Slot-null resolution no longer accepts an alias occurrence without local

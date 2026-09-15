@@ -1,3 +1,37 @@
+# KMK AI PHASE 5 QUICK-BLOCKER IDENTITY SPAN HANDOFF (2026-09-15)
+
+Status: **IMPLEMENTED; TARGETED GATE PASS**.
+
+This focused PR #2 correction starts from
+`9f5d72dbf06d95cf5e5957b3fd748645bcbde5f0`. Local identity-span evidence is
+now capitalization-neutral for bounded lowercase wrappers, and pure-CJK
+aliases embedded between unknown prefix/suffix text are unknown-qualified.
+Short untemplated noun phrases and named-reference speech acts use the same
+Retriever boundary; ordinary predicate text remains outside the identity
+span without a query-wide vocabulary allowlist.
+
+Service routing asks that boundary before selecting laundry, printing,
+bicycle, sports-equipment, or ironing facilities. It permits genuine
+action/object clauses in action-first, object-first, grammatical-subject, and
+trailing-passive order only when the semantic core fits the selected service.
+Unknown facility qualifiers remain blocking evidence, including names that
+also contain a real campus alias.
+
+Permanent Phase 5 coverage is **258/258 scenarios**. Disposable targeted
+gates covered lowercase, Title Case, pure CJK, mixed-script, two- and
+three-token service facilities, genuine needs, real controls, and Map safety;
+the final-tree gate passed **24/24** with zero fictional Map actions. The
+requested 175+ full review was intentionally not run before this gate.
+
+Final validation: Campus **199/199**, Map **21/21**, Phase 4 **89/89**, Phase
+5 **258/258**, all tests **26/26**, active syntax **116/116**, and all Pages,
+artifact, URL, static, portable, seed, and diff gates pass. No source truth,
+production data, UI, or Phase 4 architecture changed. Roll back by reverting
+the quick-blocker identity-span commit; do not merge PR #2 until independent
+review passes.
+
+---
+
 # KMK AI PHASE 5 UNTEMPLATED FALLBACK SAFETY HANDOFF (2026-09-15)
 
 Status: **IMPLEMENTED; READY FOR CLAUDE FINAL RE-REVIEW**.
