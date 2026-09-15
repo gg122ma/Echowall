@@ -88,6 +88,30 @@ const fakeService = resolve("I need Alder Print Studio.");
 check("fictional service-like target blocks service fallback", fakeService.target.state === "UNRESOLVED_NAMED_TARGET" && !fakeService.canonical.entityId && !fakeService.map.eligible);
 const contextual = resolve("What time does it close?", { previousEntityId: "library", contextReference: true });
 check("context is applied once and never gains exact Map provenance", contextual.context.state === "CONTEXT_REFERENCE" && contextual.canonical.basis === "CONTEXT" && contextual.canonical.entityId === "library" && !contextual.map.eligible);
+const unknownContextPayload = resolve("What about Cloudmere Grocery Arcade?", { previousEntityId: "koop-mart", contextReference: true });
+check("an arbitrary what-about payload blocks stale entity context", unknownContextPayload.target.state === "UNRESOLVED_NAMED_TARGET" && !unknownContextPayload.canonical.entityId && unknownContextPayload.context.state === "NONE" && !unknownContextPayload.map.eligible);
+const unknownServiceContextPayload = resolve("How about Alderbrook Print Loft?", { previousEntityId: "pos-mini", contextReference: true });
+check("an arbitrary service-like payload blocks stale service context", unknownServiceContextPayload.target.state === "UNRESOLVED_NAMED_TARGET" && !unknownServiceContextPayload.canonical.entityId && unknownServiceContextPayload.context.state === "NONE" && !unknownServiceContextPayload.map.eligible);
+const temporalContext = resolve("What about Thursday?", { previousEntityId: "library", contextReference: true });
+check("a bounded temporal follow-up remains provably context-relative", temporalContext.context.state === "CONTEXT_REFERENCE" && temporalContext.canonical.entityId === "library" && temporalContext.canonical.basis === "CONTEXT" && !temporalContext.map.eligible);
+const describedPrintFacility = resolve("A venue called Pinewick Print Loft handles documents.");
+check("a service capability description cannot become a service request", describedPrintFacility.service.requestState === "NONE" && !describedPrintFacility.canonical.entityId && !describedPrintFacility.map.eligible);
+const describedCjkFacility = resolve("有人提到 Cedarwick 打印角落能打印文件。");
+check("a mixed-script capability description cannot bypass target safety", describedCjkFacility.service.requestState === "NONE" && !describedCjkFacility.canonical.entityId && !describedCjkFacility.map.eligible);
+const requestedServices = [
+  ["printing", "My documents need printing.", "pos-mini"],
+  ["laundry", "My clothes need washing.", "hostel-laundry"],
+  ["bicycle", "I need to borrow a bicycle.", "bicycle-service"],
+  ["sports equipment", "I need sporting equipment.", "sports-equipment-store"],
+].map(([label, question, entityId]) => ({ label, entityId, result: resolve(question) }));
+requestedServices.forEach(({ label, entityId, result }) => {
+  check(`${label} need has positive request provenance and central service mapping`, result.service.requestState === "REQUESTED" && result.canonical.entityId === entityId && result.canonical.basis === "SERVICE" && !result.map.eligible);
+});
+const bareDewan = resolve("Where is the Dewan?");
+const bareHall = resolve("Locate Hall.");
+check("generic Dewan and Hall labels are not exact canonical identities", !bareDewan.canonical.entityId && !bareDewan.map.eligible && !bareHall.canonical.entityId && !bareHall.map.eligible);
+const exactDewan = resolve("Where is Dewan Mahawangsa?");
+check("the source-verified Dewan Mahawangsa identity retains exact Map provenance", exactDewan.target.state === "EXACT_KNOWN_TARGET" && exactDewan.canonical.entityId === "dewan-mahawangsa" && exactDewan.map.eligible && exactDewan.map.buildingId === "B_DEWAN_MAHAWANGSA");
 const approximate = resolve("Locate libary.");
 check("approximate target may resolve for facts but never for Map", approximate.canonical.basis === "APPROXIMATE_TARGET" && approximate.canonical.entityId === "library" && !approximate.map.eligible);
 const special = resolve("Locate Reading Room.");

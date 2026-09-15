@@ -416,5 +416,26 @@
     ,{ "id": "P5-273", "category": "canonical_resolver", "language": "en", "question": "Locate Reading Room.", "expect": { "expectedEntity": "reading-room", "expectedAnswerMode": "UNSUPPORTED", "expectedMapState": "DISABLED", "expectedActionAllowed": false, "expectedLanguage": "EN" } }
     ,{ "id": "P5-274", "category": "canonical_resolver", "language": "en", "question": "Locate amberfold library annex.", "expect": { "expectedAnswerMode": "UNSUPPORTED", "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["library"], "noFabricatedLocation": true, "expectedLanguage": "EN" } }
     ,{ "id": "P5-275", "category": "canonical_resolver", "language": "en", "question": "Locate AMBERFOLD LIBRARY ANNEX.", "expect": { "expectedAnswerMode": "UNSUPPORTED", "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["library"], "noFabricatedLocation": true, "expectedLanguage": "EN" } }
+    ,{ "id": "P5-276", "category": "context_safety", "language": "en", "turns": [
+      { "question": "Where is KOOP?", "expectedEntity": "koop-mart", "expectedActiveEntityAfterTurn": "koop-mart" },
+      { "question": "What about Frostvale Grocery Nook?", "expectedAnswerMode": "UNSUPPORTED", "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["koop-mart"], "expectedContextCleared": true }
+    ] }
+    ,{ "id": "P5-277", "category": "context_safety", "language": "en", "turns": [
+      { "question": "I need to print a document.", "expectedEntity": "pos-mini", "expectedActiveEntityAfterTurn": "pos-mini" },
+      { "question": "How about Riverstone Print Studio?", "expectedAnswerMode": "UNSUPPORTED", "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["pos-mini"], "expectedContextCleared": true }
+    ] }
+    ,{ "id": "P5-278", "category": "context_safety", "language": "en", "turns": [
+      { "question": "Where is Library?", "expectedEntity": "library", "expectedActiveEntityAfterTurn": "library" },
+      { "question": "What about tomorrow?", "expectedEntity": "library", "expectedIntent": "campus_hours", "expectedActionAllowed": false, "expectedActiveEntityAfterTurn": "library" }
+    ] }
+    ,{ "id": "P5-279", "category": "service_safety", "language": "en", "question": "Somewhere called Emberlight Print Corner handles documents.", "expect": { "expectedAnswerMode": "UNSUPPORTED", "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["pos-mini"], "noFabricatedLocation": true, "expectedLanguage": "EN" } }
+    ,{ "id": "P5-280", "category": "service_safety", "coverage": ["zh", "code_switch"], "language": "mixed", "question": "有人说 Emberlight 打印角落能打印文件。", "expect": { "expectedAnswerMode": "UNSUPPORTED", "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["pos-mini"], "noFabricatedLocation": true, "expectedLanguage": "ZH" } }
+    ,{ "id": "P5-281", "category": "service_safety", "language": "en", "question": "My handouts need printing.", "expect": { "expectedEntity": "pos-mini", "expectedIntent": "campus_services", "expectedActionAllowed": false, "expectedLanguage": "EN" } }
+    ,{ "id": "P5-282", "category": "service_safety", "language": "en", "question": "Where can I wash my uniforms?", "expect": { "expectedEntity": "hostel-laundry", "expectedIntent": "campus_services", "expectedActionAllowed": false, "expectedLanguage": "EN" } }
+    ,{ "id": "P5-283", "category": "service_safety", "language": "ms", "question": "Di mana saya boleh pinjam basikal?", "expect": { "expectedEntity": "bicycle-service", "expectedIntent": "campus_services", "expectedActionAllowed": false, "expectedLanguage": "ACCEPT_MIXED" } }
+    ,{ "id": "P5-284", "category": "service_safety", "coverage": ["zh"], "language": "zh", "question": "我需要借运动器材。", "expect": { "expectedEntity": "sports-equipment-store", "expectedIntent": "campus_services", "expectedActionAllowed": false, "expectedLanguage": "ZH" } }
+    ,{ "id": "P5-285", "category": "alias_safety", "language": "en", "question": "Where is the Dewan?", "expect": { "expectedAnswerMode": "UNSUPPORTED", "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["dewan-mahawangsa"], "noFabricatedLocation": true, "expectedLanguage": "EN" } }
+    ,{ "id": "P5-286", "category": "alias_safety", "language": "en", "question": "Locate Hall.", "expect": { "expectedAnswerMode": "UNSUPPORTED", "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["dewan-mahawangsa"], "noFabricatedLocation": true, "expectedLanguage": "EN" } }
+    ,{ "id": "P5-287", "category": "alias_safety", "language": "en", "question": "Where is Dewan Mahawangsa?", "expect": { "expectedEntity": "dewan-mahawangsa", "expectedIntent": "campus_location", "expectedActionAllowed": true, "expectedBuildingId": "B_DEWAN_MAHAWANGSA", "expectedLanguage": "EN" } }
   ]
 }

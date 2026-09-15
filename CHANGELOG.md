@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-09-16 - KMK AI PHASE 5 FINAL BLOCKER CLOSURE
+
+- Restricted context reuse to provably context-relative payloads. Arbitrary
+  content after `what about` / `how about` now becomes unresolved rather than
+  inheriting an earlier real or service entity; bounded pronoun, deictic,
+  time/date, and fact-dimension follow-ups remain supported.
+- Added explicit request provenance to semantic service frames. Capability
+  descriptions can expose action/object evidence without authorizing the
+  canonical service mapping, while genuine requests keep order-independent
+  printing, laundry, bicycle, and sports-equipment behavior.
+- Audited the facility source summary: it identifies `Dewan Mahawangsa` on
+  source page 26, but provides no evidence that bare `Dewan` or `Hall` is a
+  verified unique identity. Those two legacy aliases are excluded from exact
+  identity evidence; the full canonical identity and Map target are unchanged.
+- Added 12 compact Phase 5 scenarios and 11 focused architecture assertions.
+  Phase 5 passes **287/287** and resolver architecture passes **40/40**. A
+  removed 80-case fresh gate passed **80/80** across new-target context,
+  legitimate context, fictional capability descriptions, and genuine service
+  needs, with zero false canonical identities and zero false Map actions.
+- Final validation: Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all
+  test scripts **27/27**, active syntax **116/116**, and every requested build,
+  artifact, URL, static, portable, seed, and diff gate passes. Source truth and
+  the approved canonical/Map/Phase 4 architectures are unchanged.
+
 ## 2026-09-16 - KMK AI PHASE 5 CANONICAL RESOLVER FINAL CONVERGENCE
 
 - Finalized the approved conservative ambiguity contract: six safe fictional

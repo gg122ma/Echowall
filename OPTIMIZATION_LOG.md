@@ -1,5 +1,22 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-16 - Phase 5 final blocker closure
+
+- Tightened context gating around semantic evidence rather than a generic
+  `what/how about` prefix: only provably relative payloads reuse the active
+  entity, and uncertain new content safely blocks inheritance.
+- Split complete service concept evidence from positive request provenance.
+  The resolver maps action/object frames only for a genuine need/request, so
+  declarative facility capability text cannot become a campus service entity.
+- De-authorized the legacy bare `Dewan` and `Hall` identity aliases after the
+  owner summary showed only the complete `Dewan Mahawangsa` identity. No
+  canonical source record, fact, or Map mapping changed.
+- Permanent evidence: Phase 5 **287/287**, focused architecture **40/40**,
+  Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all tests **27/27**,
+  syntax **116/116**, and all release validators pass. The disposable fresh
+  gate passed **80/80** with zero false canonical identities and zero false
+  Map actions.
+
 ## 2026-09-16 - Phase 5 canonical resolver final convergence
 
 - Encoded the owner-approved ambiguity migration without adding new

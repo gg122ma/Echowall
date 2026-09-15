@@ -36,6 +36,9 @@
     "blok-p5": Object.freeze([{ alias: "p5 building", kind: "GENERIC_DESCRIPTOR_VARIANT" }]),
     "hostel-laundry": Object.freeze([{ alias: "dobby room", kind: "GENERIC_DESCRIPTOR_VARIANT" }]),
   });
+  const DEAUTHORIZED_IDENTITY_ALIASES = Object.freeze({
+    "dewan-mahawangsa": new Set(["dewan", "hall"]),
+  });
   const SPECIFIC_HOSTEL_CODES = new Set(["a1", "a2", "b1", "b2", "c2", "p5"]);
   const DESCRIPTIVE_ALIAS_PATTERNS = Object.freeze([
     /^(?:campus|student) (?:shop|store)$/,
@@ -84,6 +87,7 @@
   function isIdentityAlias(alias, canonicalId) {
     const normalized = window.EchoAI.Normalizer.normalize(alias);
     if (canonicalId === "blok-kediaman" && SPECIFIC_HOSTEL_CODES.has(normalized)) return false;
+    if (DEAUTHORIZED_IDENTITY_ALIASES[canonicalId]?.has(normalized)) return false;
     return Boolean(normalized) && !DESCRIPTIVE_ALIAS_PATTERNS.some(pattern => pattern.test(normalized));
   }
 

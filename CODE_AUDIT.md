@@ -1,5 +1,31 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-16 - PHASE 5 FINAL BLOCKER CLOSURE AUDIT
+
+- Canonical authority remains exclusive to `CanonicalResolver.resolve()`.
+  The patch changes only evidence gating: context requires a provably relative
+  payload, and service mapping requires an analyzer frame marked `REQUESTED`.
+  No later context or service fallback can bypass target precedence.
+- `IntentRouter.analyzeServiceFrame()` continues to return semantic concepts,
+  never canonical IDs. Capability descriptions may collect concepts but have
+  `requestState: NONE`; positive need/request grammar supplies
+  `requestState: REQUESTED`. Word order remains independent for supported
+  action/object pairs.
+- Place source provenance was reviewed in
+  `KMK_Building_Facility_Source_Summary_EchoWall.docx`. The owner summary uses
+  the complete `DEWAN MAHAWANGSA` identity and points to source page 26; no
+  unique bare `Dewan` or `Hall` identity is documented. Only those generic
+  aliases are filtered from exact evidence. The canonical identity, facts,
+  and verified Map target remain intact.
+- Static/runtime architecture coverage is **40/40**. Phase 5 is **287/287**;
+  a disposable multilingual targeted suite is **80/80** (20 context attacks,
+  20 valid context turns, 20 fictional service descriptions, 20 genuine
+  needs), with zero false canonical identities and zero false Map actions.
+- Audit result: Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all test
+  scripts **27/27**, active syntax **116/116**, Pages/artifact, production URL,
+  static, portable, both seeds, and diff checks pass. Source truth, production
+  data, UI, canonical authority, Map provenance, and Phase 4 are unchanged.
+
 ## 2026-09-16 - PHASE 5 CANONICAL RESOLVER FINAL CONVERGENCE AUDIT
 
 - Canonical authority remains exclusive to `CanonicalResolver.resolve()`.

@@ -12,6 +12,8 @@
     NONE: "NO_ENTITY_EVIDENCE",
   });
   const CONTEXT_TARGET = /^(?:it|there|this|that|that place|the place|me|situ|sana|tempat itu|它|那里|那边)$/u;
+  const CONTEXT_RELATIVE_PAYLOAD = /^(?:today|tomorrow|tonight|now|currently|this (?:morning|afternoon|evening|week|weekend)|next (?:week|sunday|monday|tuesday|wednesday|thursday|friday|saturday)|sunday|monday|tuesday|wednesday|thursday|friday|saturday|ahad|isnin|selasa|rabu|khamis|jumaat|jumat|sabtu|hours?|opening(?: time| hours?)?|closing(?: time| hours?)?|fees?|cost|price|rules?|access|payment|services?|availability|location|nearby|purpose|function|waktu|harga|bayaran|peraturan|akses|lokasi|perkhidmatan|kegunaan|hari ini|esok|malam ini|sekarang|今天|明天|今晚|现在|目前|开放时间|营业时间|费用|规则|位置|附近|服务|用途|(?:星期|周)[一二三四五六日天]|\d{4}[ -]\d{1,2}[ -]\d{1,2})$/u;
+  const CONTEXT_RELATIVE_TURN = /^(?:more|what else|anything else|tell me more about (?:it|that|that place)|where exactly|which source is correct|just choose one|(?:really )?just pick (?:the )?(?:later|earlier) one|apa lagi|lagi)(?: please)?$/u;
   const COMPARISON_CONNECTOR = /\b(?:and|dan|versus|vs)\b|和|与|跟/iu;
   const CLOSED_CLASS_AUXILIARY = /^(?:do|does|did|can|could|may|might|will|would|should|is|are|was|were|has|have|had)\s+(?:the\s+)?/u;
   const GENERIC_TARGETS = Object.freeze({
@@ -78,6 +80,26 @@
     const lastOffset = view.offsets[Math.min(end - 1, view.offsets.length - 1)] ?? originalStart;
     const lastCharacter = [...view.source.slice(lastOffset)][0] || "";
     return Object.freeze({ start: originalStart, end: lastOffset + lastCharacter.length });
+  }
+
+  function isContextRelativePayload(value) {
+    const payload = unicodeView(value).folded
+      .replace(/^(?:and|so|kalau)\s+/u, "")
+      .replace(/\s+(?:then|pula)$/u, "")
+      .replace(/^(?:那么|那)/u, "")
+      .replace(/呢$/u, "");
+    return CONTEXT_TARGET.test(payload) || CONTEXT_RELATIVE_PAYLOAD.test(payload);
+  }
+
+  function isProvablyContextRelativeTurn(message, slot) {
+    if (slot) return isContextRelativePayload(slot.text);
+    const folded = unicodeView(message).folded;
+    return isContextRelativePayload(folded)
+      || CONTEXT_RELATIVE_TURN.test(folded)
+      || /^(?:what|which|how|when|where|can|could|may|is|are)\b.*\b(?:it|this|there|that place)(?:\s+(?:on|in)\s+(?:the\s+)?(?:echo\s+)?map)?(?:\s+ah)?$/u.test(folded)
+      || /^(?:what time|show me(?: on (?:the )?map)?|show it(?: on (?:the )?map)?|where exactly)$/u.test(folded)
+      || /^so \d{1,2}(?::?\d{2})?(?:am|pm)? (?:or|atau) \d{1,2}(?::?\d{2})?(?:am|pm)?$/u.test(folded)
+      || /^(?:还有呢|还有吗|还有什么|再说一点|更多)$/u.test(folded);
   }
 
   function aliasCatalog() {
@@ -359,7 +381,7 @@
 
   function serviceResult(analysis, state = analysis.state) {
     const first = analysis.frames[0] || null;
-    return deepFreeze({ state, action: first?.action || "", object: first?.object || "", frames: analysis.frames, evidence: analysis.evidence });
+    return deepFreeze({ state, requestState: analysis.requestState || "NONE", action: first?.action || "", object: first?.object || "", frames: analysis.frames, evidence: analysis.evidence });
   }
 
   function serviceFrameHasSafeTarget(slot, analysis) {
@@ -451,6 +473,7 @@
     const aliasEvidence = collectAliasEvidence(message);
     const serviceAnalysis = window.EchoAI.IntentRouter.analyzeServiceFrame(message);
     const service = serviceResult(serviceAnalysis);
+    const serviceRequested = serviceAnalysis.requestState === "REQUESTED";
     const occurrences = aliasEvidence.matches;
     const serviceEntityIds = new Set(serviceAnalysis.frames.map(frame => SERVICE_ENTITY_BY_FRAME[frame.kind]).filter(Boolean));
     const overlapsServiceEvidence = match => serviceAnalysis.evidence.some(item => item.span.start < match.normalizedSpan.end && item.span.end > match.normalizedSpan.start);
@@ -485,8 +508,10 @@
       if (exact.length > 1) {
         return result({ intent, target: targetState(STATES.AMBIGUOUS_REFERENCE, slot), mentions: [], service: serviceResult(serviceAnalysis, "BLOCKED_BY_AMBIGUITY"), canonical: canonical("AMBIGUOUS", "", "AMBIGUOUS_TARGET", 0.35), aliasEvidence });
       }
-      const contextualTopic = slot.kind === "information" && options.contextReference && !occurrences.length;
-      const serviceObject = slot.strength === "service_object" && serviceAnalysis.state === "COMPLETE"
+      const contextualTopic = slot.kind === "information" && options.contextReference && !occurrences.length && isContextRelativePayload(slot.text);
+      const serviceObject = (slot.strength === "service_object" || slot.kind === "information" && options.contextReference)
+        && serviceAnalysis.state === "COMPLETE"
+        && serviceRequested
         && serviceFrameHasSafeTarget(slot, serviceAnalysis)
         && !identityOccurrences.some(match => !serviceEntityIds.has(match.entityId) && unicodeView(slot.text).folded.includes(match.normalized));
       if (!serviceObject && !contextualTopic) {
@@ -536,7 +561,7 @@
       if (ids.length >= 2) return result({ intent, target: targetState(STATES.NONE), mentions: [], service, canonical: canonical("MULTIPLE", "", "SERVICE_COMPARISON", 0.86, ids), candidateEntityIds: ids, aliasEvidence });
     }
 
-    if (serviceAnalysis.state === "COMPLETE") {
+    if (serviceAnalysis.state === "COMPLETE" && serviceRequested) {
       const frame = serviceAnalysis.frames.find(item => SERVICE_ENTITY_BY_FRAME[item.kind]);
       const entityId = frame ? SERVICE_ENTITY_BY_FRAME[frame.kind] : "";
       if (entityId) return result({ intent, target: targetState(STATES.NONE), mentions: [], service: serviceResult(serviceAnalysis, STATES.SERVICE_NEED), canonical: canonical("RESOLVED", entityId, "SERVICE", 0.92), aliasEvidence });
@@ -548,7 +573,7 @@
     }
 
     const explicitContext = Boolean(options.contextReference);
-    if (explicitContext && options.previousEntityId) {
+    if (explicitContext && options.previousEntityId && isProvablyContextRelativeTurn(message, slot)) {
       return result({ intent, target: targetState(STATES.NONE), mentions: [], service, context: deepFreeze({ state: STATES.CONTEXT_REFERENCE, entityId: options.previousEntityId }), canonical: canonical("RESOLVED", options.previousEntityId, "CONTEXT", 0.82), aliasEvidence });
     }
 

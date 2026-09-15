@@ -1,3 +1,43 @@
+# KMK AI PHASE 5 FINAL BLOCKER CLOSURE HANDOFF (2026-09-16)
+
+Status: **IMPLEMENTED; READY FOR CLAUDE RE-REVIEW**.
+
+Starting commit: `7a1198ba892265a0bdf5ec7cca3cfc18738964b3`.
+This is a targeted correction on the accepted single-authority resolver. The
+architecture was not refactored: CanonicalResolver still owns entity and Map
+decisions, while IntentRouter emits concepts and request provenance only.
+
+Context now resolves only when the follow-up is provably relative to the
+active entity: a bounded pronoun/deictic, date/time, fact dimension, or known
+elliptical follow-up. Unknown payloads after `what about` and `how about` are
+new unresolved targets, so they cannot inherit either a real entity or a
+service-derived entity. Service frames now distinguish capability evidence
+from positive need/request evidence before the resolver can apply its central
+source-backed mapping.
+
+The owner facility summary names `DEWAN MAHAWANGSA` and points to source page
+26; its photo caption also uses the complete name. It does not verify bare
+`Dewan` or `Hall` as unique campus identities. The registry therefore excludes
+only those two legacy generic labels from exact identity matching. The
+canonical Dewan Mahawangsa record, facts, and `B_DEWAN_MAHAWANGSA` Map target
+remain unchanged.
+
+Permanent results: Phase 5 **287/287**, resolver architecture **40/40**,
+Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all test scripts
+**27/27**, and active syntax **116/116**. A disposable fresh gate passed
+**80/80**: 20 new-target context attacks, 20 legitimate contextual follow-ups,
+20 fictional service capability descriptions, and 20 genuine service needs
+across English, Malay, Chinese, and mixed script. False canonical identities:
+**0**; false Map actions: **0**.
+
+Pages build/artifact (490 files), production URL lock, static, portable,
+Pustaka seed, showcase seed, and diff checks pass. No source facts, production
+data, UI, or Phase 4 behavior changed. Roll back by reverting the forthcoming
+single blocker-closure commit. Do not merge PR #2 before independent review;
+do not start Phase 6.
+
+---
+
 # KMK AI PHASE 5 CANONICAL RESOLVER FINAL CONVERGENCE HANDOFF (2026-09-16)
 
 Status: **IMPLEMENTED; READY FOR CLAUDE FINAL REVIEW**.
