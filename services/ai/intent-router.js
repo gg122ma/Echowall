@@ -13,51 +13,60 @@
     campus_location: /\b(where|where is|wheres|location|locate|find|kat mana|di mana|lokasi)\b|在哪里|哪儿|位置/i,
   });
 
-  const SERVICE_NEEDS = Object.freeze([
-    /\b(?:(?:where (?:do|can|could) (?:i|we|students)?\s*|i need to )borrow (?:sports?|sporting) (?:equipment|gear|stuff)|where (?:can|could) (?:i|students) (?:rent|hire|borrow) (?:a )?(?:bike|bicycle))\b/i,
-    /\b(?:(?:kat|di) mana (?:nak |boleh )?pinjam (?:barang|peralatan) sukan|(?:barang|peralatan) sukan boleh pinjam (?:di|kat) mana|boleh pinjam (?:barang sukan|peralatan sukan) (?:dekat|di|kat) mana|kat mana nak pinjam sports gear|where boleh pinjam sports (?:equipment|gear)|basikal boleh pinjam dekat mana)\b/i,
-    /(?:哪里可以借运动器材|运动器材(?:去)?哪里借|哪里借运动器材|体育器材在哪里借|我去哪里借体育用品|sports gear 哪里 borrow)/i,
-    /\b(?:where (?:can|may) (?:i|students|hostel residents) study (?:in|at) (?:the )?(?:hostel|asrama)|where can hostel residents study|where is there a hostel study space|a place to study in the dorm|any (?:place to study|study room) in (?:the )?hostel|is there somewhere to study in (?:the )?hostel|kat asrama ada study room tak)\b|宿舍(?:哪里可以自习|有自习室吗)/i,
-  ]);
-
   const EXPLICIT_RULE_REQUEST = /^(?:(?:can|may) i (?:bring|eat|borrow|enter|take)|(?:is|are) (?:food|snacks?|eating|this|that|it) allowed|what food can i (?:bring|take))\b/i;
 
   function isHostelStudyNeed(message) {
     const normalized = window.EchoAI.Normalizer.normalize(message);
     const hostelContext = /\b(?:hostel|dorm|dormitory|asrama|hostel residents?|dorm residents?|residents?)\b|宿舍/.test(normalized);
     const studyNeed = /\b(?:study|self study|study space|study room|study area|belajar|ulang kaji)\b|自习|读书|学习/.test(normalized);
-    const serviceQuestion = /\b(?:where|where is|where do|where can|is there|any|place|space|room|area|mana|ada|boleh|tempat)\b|哪里|哪儿|有.+吗/.test(normalized);
+    const serviceQuestion = /\b(?:where|is there|any|place|space|room|area|mana|ada|boleh|tempat)\b|哪里|哪儿|有.+吗/.test(normalized);
     return hostelContext && studyNeed && serviceQuestion;
   }
 
-  function isCompositionalServiceNeed(message) {
+  function serviceNeedEntityId(message) {
     const normalized = window.EchoAI.Normalizer.normalize(message);
-    const identityLookup = /^(?:(?:(?:could|can|would) you )?(?:please )?(?:help me )?(?:where is|wheres|locate|find|show(?: me)?|open|pin|drop a pin for|navigate to|take me to|bring me to)|where can (?:i|we) (?:find|locate)|(?:do you know |(?:please )?tell me )where|i need directions to)\b/.test(normalized);
-    const serviceQuestion = /\b(?:where|where do|where can|where could|where might|go|mana|dekat|need|students?)\b|哪里|哪儿|去哪/.test(normalized);
-    if (!serviceQuestion || identityLookup) return false;
-    const borrowNeed = /\b(?:borrow|loan|rent|hire|pinjam|sewa)\b|借|租/.test(normalized);
-    const sportsConcept = (/\b(?:sport|sports|sporting|sukan)\b/.test(normalized) && /\b(?:equipment|gear|stuff|barang|peralatan)\b/.test(normalized))
-      || /运动器材|体育器材|体育用品/.test(normalized);
-    const bicycleConcept = /\b(?:bike|bicycle|basikal)\b|自行车|脚踏车/.test(normalized);
-    const laundryNeed = /\b(?:wash|washing|laundry|dobi|basuh)\b|洗衣/.test(normalized);
-    const printingNeed = /\b(?:print|photocopy|cetak|fotostat)\b|打印|复印/.test(normalized);
-    return (borrowNeed && (sportsConcept || bicycleConcept)) || laundryNeed || printingNeed;
-  }
+    const serviceQuestion = /\b(?:where|go|need|somewhere|place|can|could|may|how|about|cost|any|ada|tempat|mana|dekat|boleh|nak|students?)\b|哪里|哪儿|去哪|可以|能|有/.test(normalized)
+      || normalized === "diy laundry";
+    if (!serviceQuestion) return "";
+    if (isHostelStudyNeed(normalized)) return "hostel-study-room";
 
-  function isDirectIdentityLocation(message) {
-    const normalized = window.EchoAI.Normalizer.normalize(message);
-    const target = normalized.replace(/^(?:where is|wheres) (?:the )?/, "");
-    if (!target || target === normalized) return false;
-    return window.EchoAI.PlaceRegistry.getPlaces().some(place => (place.identityAliases || place.aliases || [])
-      .some(alias => window.EchoAI.Normalizer.normalize(alias) === target));
+    const borrowNeed = /\b(?:borrow|loan|rent|hire|pinjam|sewa)\b|借|租/.test(normalized);
+    const equipmentConcept = /\b(?:equipment|gear|stuff|barang|peralatan)\b/.test(normalized) || /器材|用品/.test(normalized);
+    const identityEvidence = window.EchoAI.Retriever.analyzeIdentityEvidence(normalized);
+    const referencedPlace = identityEvidence.status === "known" ? window.EchoAI.PlaceRegistry.getById(identityEvidence.entityId) : null;
+    const sportsConcept = equipmentConcept && (/\b(?:sport|sports|sporting|sukan)\b/.test(normalized)
+      || /运动|体育/.test(normalized) || referencedPlace?.category === "sports");
+    const bicycleConcept = /\b(?:bike|bicycle|basikal)\b|自行车|脚踏车/.test(normalized);
+    const laundryNeed = (/\b(?:wash|washing|laundry|dobi|basuh)\b|洗衣/.test(normalized))
+      && (/\b(?:clothes|clothing|baju|laundry|dobi|basuh|wash|washing)\b|洗衣/.test(normalized));
+    const printingNeed = /\b(?:print|photocopy|cetak|fotostat)\b|打印|复印/.test(normalized);
+    const ironingNeed = /\b(?:iron|ironing)\b|熨衣/.test(normalized);
+    const dailySuppliesNeed = /\b(?:buy|purchase|get)\b[^.!?]{0,40}\b(?:daily (?:things|items|supplies)|groceries|necessities)\b|\bbeli\b[^.!?]{0,40}\b(?:barang|keperluan)\b/.test(normalized);
+
+    if (borrowNeed && sportsConcept) return "sports-equipment-store";
+    if (borrowNeed && bicycleConcept) return "bicycle-service";
+    if (laundryNeed) return "hostel-laundry";
+    if (ironingNeed) return "hostel-iron-room";
+    if (printingNeed) return "pos-mini";
+    if (dailySuppliesNeed) return "koop-mart";
+    return "";
   }
 
   function classify(message) {
     const normalized = window.EchoAI.Normalizer.normalize(message);
     if (!normalized) return "unknown";
-    if (isHostelStudyNeed(normalized) && !isDirectIdentityLocation(normalized)) return "campus_services";
-    if (isCompositionalServiceNeed(normalized)) return "campus_services";
-    if (SERVICE_NEEDS.some(pattern => pattern.test(String(message || "")) || pattern.test(normalized))) return "campus_services";
+    if (patterns.campus_comparison.test(String(message || "")) || patterns.campus_comparison.test(normalized)) return "campus_comparison";
+    const identityEvidence = window.EchoAI.Retriever.analyzeIdentityEvidence(message);
+    if (identityEvidence.targetKind === "discovery") return "campus_discovery";
+    if (identityEvidence.status === "unknown_qualified") {
+      if (identityEvidence.targetKind === "hours") return "campus_hours";
+      if (identityEvidence.targetKind === "navigation") return "campus_navigation";
+      return "campus_location";
+    }
+    if (identityEvidence.status === "known" && identityEvidence.targetKind === "navigation") return "campus_navigation";
+    if (identityEvidence.status === "known" && identityEvidence.targetKind === "location" && identityEvidence.entityId !== "bicycle-service") return "campus_location";
+    if (patterns.campus_fees.test(String(message || "")) || patterns.campus_fees.test(normalized)) return "campus_fees";
+    if (serviceNeedEntityId(normalized)) return "campus_services";
     if (patterns.campus_navigation.test(String(message || "")) || patterns.campus_navigation.test(normalized)) return "campus_navigation";
     if (EXPLICIT_RULE_REQUEST.test(String(message || "").trim()) || EXPLICIT_RULE_REQUEST.test(normalized)) return "campus_rules";
     for (const intent of ["campus_nearby", "campus_comparison", "campus_fees", "campus_services", "campus_rules", "campus_hours", "campus_location"]) {
@@ -71,5 +80,5 @@
     return intent === "campus_navigation" || intent === "campus_location";
   }
 
-  window.EchoAI.IntentRouter = Object.freeze({ classify, requestsMapAction });
+  window.EchoAI.IntentRouter = Object.freeze({ classify, requestsMapAction, serviceNeedEntityId });
 }());

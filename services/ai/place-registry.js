@@ -28,7 +28,9 @@
     "cafe-admin": Object.freeze(["cafe admin", "kafe admin", "admin cafe", "kafeteria pentadbiran"]),
     "bicycle-service": Object.freeze(["stor basikal", "garaj basikal"]),
     "bangunan-langkasuka": Object.freeze(["langkasuka"]),
+    "dewan-mahawangsa": Object.freeze(["main event hall"]),
   });
+  const SPECIFIC_HOSTEL_CODES = new Set(["a1", "a2", "b1", "b2", "c2", "p5"]);
   const DESCRIPTIVE_ALIAS_PATTERNS = Object.freeze([
     /^(?:campus|student) (?:shop|store)$/,
     /^(?:event )?hall$/,
@@ -73,8 +75,9 @@
     return (window.KMK_AI_PHASE3?.entities || []).find(entity => entity.id === canonicalId) || null;
   }
 
-  function isIdentityAlias(alias) {
+  function isIdentityAlias(alias, canonicalId) {
     const normalized = window.EchoAI.Normalizer.normalize(alias);
+    if (canonicalId === "blok-kediaman" && SPECIFIC_HOSTEL_CODES.has(normalized)) return false;
     return Boolean(normalized) && !DESCRIPTIVE_ALIAS_PATTERNS.some(pattern => pattern.test(normalized));
   }
 
@@ -93,9 +96,9 @@
       const buildingId = building?.id || "";
       if (building) usedBuildings.add(building.id);
       const aliases = unique([
-        ...(profile?.aliases || []).filter(isIdentityAlias),
+        ...(profile?.aliases || []).filter(alias => isIdentityAlias(alias, canonicalId)),
         primary.title,
-        ...records.flatMap(record => (record.aliases || []).filter(isIdentityAlias)),
+        ...records.flatMap(record => (record.aliases || []).filter(alias => isIdentityAlias(alias, canonicalId))),
         ...(EXTRA_ALIASES[canonicalId] || []),
         building?.name,
       ]);

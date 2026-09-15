@@ -1,5 +1,22 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-15 - Phase 5 shared target-slot identity evidence
+
+- Chose a single bounded entity-slot parser over expanding global scaffold,
+  suffix, or lead-in lists. Normal vocabulary outside the target is irrelevant
+  to identity confidence; modifiers inside an explicit unknown target block
+  resolution.
+- Unified normal places and special entities in the Retriever catalogue, then
+  made intent/service/knowledge routing consume the same evidence result.
+- Service routing now composes requested actions with source-backed needs only
+  after unresolved named targets are rejected. Sports activity evidence is
+  derived from registry category data.
+- Removed six specific block codes from generic hostel aliases, preserving the
+  existing parent/unmapped truth without hardcoded replacement coordinates.
+- Permanent benchmark: **242/242**. Fresh diagnostics: **150/150**. Campus,
+  Map, Phase 4, all tests, syntax, build, artifact, URL, static, portable,
+  seeds, and diff validation all pass.
+
 ## 2026-09-14 - Phase 5 Round 3 confidence and composition hardening
 
 - Replaced reliance on a closed descriptive-suffix guard with an evidence

@@ -1,3 +1,34 @@
+# KMK AI PHASE 5 ARCHITECTURAL RESOLVER CONSOLIDATION HANDOFF (2026-09-15)
+
+Status: **IMPLEMENTED; READY FOR CLAUDE RE-REVIEW**.
+
+This targeted PR #2 fix starts from
+`7b867ae4e66e4beda48e768d5eb2720ed2e71879`. `Retriever` now exposes the
+single `analyzeIdentityEvidence()` boundary. It extracts bounded entity
+targets, distinguishes known, unknown-qualified, absent, and ambiguous
+identity evidence, and evaluates only that target slot. `KnowledgeEngine` and
+`IntentRouter` consume the result before special-entity or service routing.
+The previous query-wide scaffold vocabulary gate and KnowledgeEngine's
+parallel substring/direct/service shortcuts were removed.
+
+Exact A1/A2/B1/B2/C2/P5 aliases no longer enter the generic
+`blok-kediaman` surface. Their existing source-backed map semantics remain:
+A1/A2 → Seri Palas, B1/B2 → Seri Temin, C2 → Seri Laka, and P5 → UNMAPPED.
+
+Permanent Phase 5 coverage is **242 scenarios / 283 turns / 242 passed**.
+The removed temporary harness passed **150/150 fresh scenarios/sequences**:
+40 legitimate recall, 40 fake identities, 30 service/identity probes, 15
+special-entity cases, 10 hostel/Map cases, 10 multilingual cases, and five
+multi-turn contexts. Final gates: Campus 199/199, Map 21/21, Phase 4 89/89,
+all tests 26/26, active syntax 116/116, Pages build/artifact, production URL,
+static, portable, both seeds, and diff check all pass.
+
+No source truth, Supabase/auth/database/production data, Phase 4 architecture,
+provider configuration, or UI design changed. Rollback is the single new
+consolidation commit; do not merge PR #2 until independent re-review passes.
+
+---
+
 # KMK AI PHASE 5 FINAL HARDENING ROUND 3 HANDOFF (2026-09-14)
 
 Status: **IMPLEMENTED; READY FOR CLAUDE FINAL RE-REVIEW**.

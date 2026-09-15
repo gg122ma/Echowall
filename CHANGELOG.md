@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-09-15 - KMK AI PHASE 5 ARCHITECTURAL RESOLVER CONSOLIDATION
+
+- Replaced query-wide scaffold-word acceptance with shared target-slot identity
+  evidence consumed by regular retrieval, special entities, intent routing,
+  service routing, direct identities, comparisons, and Map resolution.
+- Qualified unknown targets now block service reinterpretation and special
+  substring matches, while arbitrary predicate vocabulary around a verified
+  identity no longer lowers recall.
+- Removed A1/A2/B1/B2/C2/P5 from the generic hostel alias surface so exact
+  codes select their specific PARENT_ONLY or UNMAPPED entities.
+- Added 12 compact permanent equivalence-class regressions; Phase 5 is now
+  **242 scenarios / 283 turns**, all passing. A separate temporary suite ran
+  **150/150 fresh scenarios/sequences** and was removed.
+- Final validation: Campus 199/199, Map 21/21, Phase 4 89/89, Phase 5
+  242/242, all 26 test scripts, 116 active syntax checks, and all Pages,
+  artifact, URL, static, portable, seed, and diff gates pass.
+- Canonical facts, source authority, Supabase/auth/database/production data,
+  Phase 4 provider/fact-lock/concurrency behavior, and UI design are unchanged.
+
 ## 2026-09-14 - KMK AI PHASE 5 FINAL HARDENING ROUND 3
 
 - Prevented fictional Study Hall, Equipment/Printing/Learning Centre, Student

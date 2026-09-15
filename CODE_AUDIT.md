@@ -1,5 +1,24 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-15 - PHASE 5 SHARED IDENTITY-BOUNDARY AUDIT
+
+- `QUERY_SCAFFOLD_WORDS` and query-wide unexplained-token rejection are gone.
+  Verified bounded aliases resolve independently of unrelated predicate words.
+- `Retriever.analyzeIdentityEvidence()` is the one decision boundary for
+  regular and special identities. Explicit unknown targets return no entity
+  and prevent service/discovery reinterpretation or Map actions.
+- KnowledgeEngine's old `aliasMatches`, direct-identity, unresolved-landmark,
+  and phrase-specific service shortcut paths were removed. Service selection
+  is action/need composition after identity evidence, including registry-based
+  sports-category evidence rather than more lead-in phrases.
+- Generic hostel ingestion excludes the six exact special codes. Specific
+  entities retain their original PARENT_ONLY/UNMAPPED targets.
+- Regression evidence: Phase 5 **242/242**, fresh diagnostics **150/150**,
+  Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all tests **26/26**,
+  active syntax **116/116**, and every release validator passes.
+- Audit result: no source fact, authority, effective date, conflict, map target,
+  Supabase/auth/database/production state, UI, or Phase 4 contract changed.
+
 ## 2026-09-14 - KMK AI PHASE 5 FINAL HARDENING ROUND 3 AUDIT
 
 - **Independent-review input:** Claude Sonnet 5 ran 103 adversarial probe
