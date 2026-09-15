@@ -1,5 +1,28 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-15 - PHASE 5 SLOT-NULL FALLBACK AUDIT
+
+- Slot-null resolution no longer accepts an alias occurrence without local
+  identity evidence. Original-text token spans distinguish an exact entity in
+  predicate grammar from an alias embedded in a larger proper name.
+- Conservative typo matching passes through the same local-span check:
+  standalone typos remain usable, while fictional qualified typo identities
+  remain unsupported.
+- Alias-overlap precedence checks the longest verified local identity, so
+  `Dewan Kuliah`, `Bank Rakyat ATM`, and the specific hostel blocks are not
+  rejected because a shorter alias appears inside them.
+- Unknown named spans are evaluated before service routing. Service selection
+  uses action/object composition in either order, including Malay passive
+  morphology, and cannot reinterpret a fictional service facility.
+- Unknown-qualified evidence crosses the KnowledgeEngine boundary and blocks
+  stale conversation inheritance; deictic targets remain context-safe.
+- Regression evidence: Phase 5 **250/250**, fresh diagnostics **202/202 turns**
+  with **201 untemplated**, Campus **199/199**, Map **21/21**, Phase 4
+  **89/89**, all tests **26/26**, active syntax **116/116**, and all release
+  validators pass. Browser automation was unavailable.
+- Audit result: no canonical fact, authority, map target, source truth,
+  Supabase/auth/database/production state, UI, or Phase 4 contract changed.
+
 ## 2026-09-15 - PHASE 5 SHARED IDENTITY-BOUNDARY AUDIT
 
 - `QUERY_SCAFFOLD_WORDS` and query-wide unexplained-token rejection are gone.

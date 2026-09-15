@@ -243,7 +243,8 @@
       || window.EchoAI.ConversationContext.isEllipticalFollowUp(question);
     const independentReferent = (resolution.status === "resolved" && resolution.confidence >= 0.95)
       || ["dining", "discovery"].includes(resolution.status);
-    if (previous && clearReference && !independentReferent) {
+    const newIdentityEvidence = resolution.identityEvidenceStatus && resolution.identityEvidenceStatus !== "none";
+    if (previous && clearReference && !independentReferent && !newIdentityEvidence) {
       const contextPlace = window.EchoAI.KnowledgeEngine.getEntity(previous.activeEntityId || previous.entityId);
       if (contextPlace) {
         resolution = Object.freeze({

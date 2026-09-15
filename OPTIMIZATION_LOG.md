@@ -1,5 +1,25 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-15 - Phase 5 untemplated local-span fallback
+
+- Kept the bounded target-slot parser, but removed the assumption that a null
+  slot makes every alias occurrence trustworthy. Fallback now inspects only
+  the alias's local original-text span and proper-name structure.
+- Reused exact target matching to preserve longer registered identities when
+  shorter aliases overlap, avoiding special-case precedence lists.
+- Added a generic multi-token named-span signal for service-like facility names
+  that contain no catalog alias; no facility suffix or fictional-name list was
+  introduced.
+- Normalized service action morphology and paired actions with domain objects
+  independent of word order. The existing request-led recognizer remains a
+  compatibility fallback after semantic evidence.
+- Repeated target cleanup to a stable boundary and propagated identity status
+  only far enough to prevent stale context inheritance.
+- Permanent benchmark: **250/250**. Fresh diagnostics: **202/202 turns** across
+  187 cases/sequences, including 201 untemplated turns. Campus, Map, Phase 4,
+  all tests, syntax, build, artifact, URL, static, portable, seeds, and diff
+  validation all pass. Browser automation was unavailable in this session.
+
 ## 2026-09-15 - Phase 5 shared target-slot identity evidence
 
 - Chose a single bounded entity-slot parser over expanding global scaffold,

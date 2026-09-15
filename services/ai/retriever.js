@@ -7,6 +7,14 @@
   const ACTION_LED_TARGET = /^(?:print|printing|photocopy|copy|wash|washing|laundry|iron|ironing|borrow|rent|hire|study|eat|buy|collect|cetak|fotostat|basuh|dobi|pinjam|sewa|belajar|makan|beli|打印|复印|洗衣|借|租|学习|吃)/i;
   const ACTION_IN_CLAUSE = /\b(?:print|photocopy|wash|borrow|rent|hire|study|eat|buy|cetak|fotostat|basuh|pinjam|sewa|belajar|makan|beli)\b|打印|复印|洗衣|借|租|学习|吃/i;
   const GENERIC_DISCOVERY_TARGET = /^(?:cafeterias?|cafes?|sports facilities|dewan sukan(?: besar)?)$/i;
+  const CONTEXT_REFERENCE_TARGET = /^(?:it|there|this|that|that place|the place|me)$/i;
+  const LOCAL_GRAMMAR_BOUNDARIES = new Set([
+    "a", "an", "the", "and", "or", "but", "about", "at", "by", "for", "from", "in", "near", "of", "on", "to", "with",
+    "am", "are", "is", "was", "were", "be", "been", "being", "can", "could", "did", "do", "does", "had", "has", "have",
+    "may", "might", "must", "shall", "should", "will", "would", "how", "what", "when", "where", "which", "who", "why",
+    "any", "assume", "compare", "pretend",
+    "ada", "adakah", "boleh", "dekat", "di", "dengan", "dan", "dari", "ke", "kat", "mana", "untuk",
+  ]);
 
   function phraseIndex(query, alias) {
     const index = query.indexOf(alias);
@@ -18,15 +26,23 @@
   }
 
   function cleanTarget(value) {
-    return String(value || "")
-      .replace(/^(?:the|a|an)\s+/, "")
-      .replace(/^(?:the\s+)?(?:exact\s+)?(?:location of\s+)?/, "")
-      .replace(/^tell me (?:the )?(?:most likely )?/, "")
-      .replace(/\s+(?:please|for me)$/, "")
-      .replace(/\s+(?:on|in|using)\s+(?:the\s+)?(?:echo\s+)?map(?:\s+please)?$/, "")
-      .replace(/\s+(?:near|beside|inside|next to)\s+.+$/, "")
-      .replace(/\s+(?:situated|located|exactly)$/, "")
-      .trim();
+    let target = String(value || "").trim();
+    let previous = "";
+    while (target && target !== previous) {
+      previous = target;
+      target = target
+        .replace(/^(?:please\s+|the\s+|a\s+|an\s+)+/, "")
+        .replace(/^exact\s+/, "")
+        .replace(/^(?:exact\s+)?location of\s+/, "")
+        .replace(/^tell me (?:the )?(?:most likely )?/, "")
+        .replace(/\s+(?:please|for me|exactly)$/, "")
+        .replace(/^(?:on|in|using)\s+(?:the\s+)?(?:echo\s+)?map$/, "")
+        .replace(/\s+(?:on|in|using)\s+(?:the\s+)?(?:echo\s+)?map$/, "")
+        .replace(/\s+(?:near|beside|inside|next to)\s+.+$/, "")
+        .replace(/\s+(?:situated|located)$/, "")
+        .trim();
+    }
+    return target;
   }
 
   function extractTargetSlot(message) {
@@ -140,6 +156,97 @@
     return uniqueBest(matches);
   }
 
+  function lexicalTokens(message) {
+    const tokens = [];
+    const expression = /[A-Za-z0-9]+|[\u3400-\u9fff]+/gu;
+    const source = String(message || "");
+    let match;
+    while ((match = expression.exec(source))) {
+      tokens.push({ raw: match[0], normalized: window.EchoAI.Normalizer.normalize(match[0]), start: match.index, end: expression.lastIndex });
+    }
+    return tokens;
+  }
+
+  function hasHardBoundary(message, left, right) {
+    return /[.!?;:。！？；：]/u.test(String(message || "").slice(left, right));
+  }
+
+  function looksLikeNameToken(token) {
+    if (!token || !/^[A-Za-z0-9]+$/.test(token.raw) || LOCAL_GRAMMAR_BOUNDARIES.has(token.normalized)) return false;
+    if (SAFE_TARGET_MODIFIERS.has(token.normalized)) return false;
+    return /^[A-Z][a-z0-9]+/.test(token.raw) || /^[A-Z0-9]{2,}$/.test(token.raw);
+  }
+
+  function localAliasSpan(message, occurrence) {
+    const tokens = lexicalTokens(message);
+    const aliasTokens = window.EchoAI.Normalizer.tokens(occurrence.alias);
+    const aliasHasCjk = /[^\x00-\x7f]/.test(occurrence.alias);
+    for (let offset = 0; offset < tokens.length; offset += 1) {
+      let length = aliasTokens.length;
+      let covered = false;
+      if (aliasHasCjk) {
+        covered = tokens[offset].normalized.includes(occurrence.alias);
+        length = 1;
+      } else if (offset + length <= tokens.length) {
+        covered = aliasTokens.every((aliasToken, index) => tokens[offset + index].normalized === aliasToken
+          || window.EchoAI.Normalizer.isConservativeTypoMatch(tokens[offset + index].normalized, aliasToken));
+      }
+      if (!covered) continue;
+      const first = tokens[offset];
+      const last = tokens[offset + length - 1];
+      const left = tokens[offset - 1];
+      const right = tokens[offset + length];
+      const leftAttached = left && !hasHardBoundary(message, left.end, first.start) && looksLikeNameToken(left);
+      const rightAttached = right && !hasHardBoundary(message, last.end, right.start) && looksLikeNameToken(right);
+      let localStart = leftAttached ? offset - 1 : offset;
+      let localEnd = rightAttached ? offset + length : offset + length - 1;
+      while (localStart > 0 && looksLikeNameToken(tokens[localStart - 1])
+        && !hasHardBoundary(message, tokens[localStart - 1].end, tokens[localStart].start)) localStart -= 1;
+      while (localEnd + 1 < tokens.length && looksLikeNameToken(tokens[localEnd + 1])
+        && !hasHardBoundary(message, tokens[localEnd].end, tokens[localEnd + 1].start)) localEnd += 1;
+      const cjkTokenHasExtraText = aliasHasCjk && tokens[offset].normalized !== occurrence.alias;
+      const latinQualifierTouchesCjk = aliasHasCjk && (leftAttached || rightAttached);
+      return {
+        qualified: Boolean(leftAttached || rightAttached || (cjkTokenHasExtraText && latinQualifierTouchesCjk)),
+        target: String(message || "").slice(tokens[localStart].start, tokens[localEnd].end).trim(),
+      };
+    }
+    return { qualified: false, target: "" };
+  }
+
+  function fallbackQualifiedIdentity(message, occurrences) {
+    for (const occurrence of occurrences) {
+      const shadowedBySpecificAlias = occurrences.some(other => other !== occurrence
+        && other.index === occurrence.index
+        && other.alias.length > occurrence.alias.length
+        && other.alias.includes(occurrence.alias));
+      if (shadowedBySpecificAlias) continue;
+      const local = localAliasSpan(message, occurrence);
+      if (local.qualified) {
+        const knownLocalTarget = exactTargetMatches(local.target).some(match => match.entityId === occurrence.entityId);
+        if (!knownLocalTarget) return local;
+      }
+    }
+    return null;
+  }
+
+  function fallbackNamedSpan(message) {
+    const tokens = lexicalTokens(message);
+    let runStart = -1;
+    for (let index = 0; index <= tokens.length; index += 1) {
+      const token = tokens[index];
+      if (looksLikeNameToken(token)) {
+        if (runStart < 0) runStart = index;
+        continue;
+      }
+      if (runStart >= 0 && index - runStart >= 3) {
+        return String(message || "").slice(tokens[runStart].start, tokens[index - 1].end).trim();
+      }
+      runStart = -1;
+    }
+    return "";
+  }
+
   function unknownEvidence(slot) {
     return Object.freeze({ status: "unknown_qualified", entityId: "", matches: Object.freeze([]), target: slot.target, targetKind: slot.kind, confidence: 0 });
   }
@@ -152,6 +259,9 @@
     if (slot) {
       if (slot.strength === "category") {
         return Object.freeze({ status: "none", entityId: "", matches: Object.freeze([]), target: slot.target, targetKind: slot.kind, confidence: 0 });
+      }
+      if (CONTEXT_REFERENCE_TARGET.test(slot.target)) {
+        return Object.freeze({ status: "none", entityId: "", matches: Object.freeze([]), target: "", targetKind: slot.kind, confidence: 0 });
       }
       const exact = exactTargetMatches(slot.target);
       if (exact.length) {
@@ -173,7 +283,18 @@
     }
 
     if (!occurrences.length) {
+      const namedSpan = fallbackNamedSpan(message);
+      if (namedSpan) return unknownEvidence({ target: namedSpan, kind: slot?.kind || "location" });
       return Object.freeze({ status: "none", entityId: "", matches: Object.freeze([]), target: slot?.target || "", targetKind: slot?.kind || "", confidence: 0 });
+    }
+
+    if (options.allowMultiple && occurrences.length >= 2 && COMPARISON_CONNECTOR.test(query)) {
+      return Object.freeze({ status: "known_multiple", entityId: occurrences[0].entityId, matches: Object.freeze(occurrences), target: "", targetKind: "", confidence: 0.96 });
+    }
+
+    const qualifiedFallback = fallbackQualifiedIdentity(message, occurrences);
+    if (qualifiedFallback) {
+      return unknownEvidence({ target: qualifiedFallback.target, kind: slot?.kind || "location" });
     }
 
     const firstIndex = Math.min(...occurrences.map(match => match.index));

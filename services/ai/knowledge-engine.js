@@ -107,18 +107,18 @@
     if (evidence.status === "known") {
       const preferredId = serviceEntityId && !evidence.target ? serviceEntityId : evidence.entityId;
       const place = getEntity(preferredId);
-      if (place) return Object.freeze({ status: "resolved", place, candidates: Object.freeze([place]), confidence: evidence.confidence, resolutionType: place.mapState || "UNMAPPED" });
+      if (place) return Object.freeze({ status: "resolved", place, candidates: Object.freeze([place]), confidence: evidence.confidence, resolutionType: place.mapState || "UNMAPPED", identityEvidenceStatus: evidence.status });
     }
     if (evidence.status === "ambiguous") {
       const candidates = evidence.matches.map(match => getEntity(match.entityId)).filter(Boolean);
-      return Object.freeze({ status: "ambiguous", place: null, candidates: Object.freeze(candidates), confidence: 0.4, resolutionType: "AMBIGUOUS" });
+      return Object.freeze({ status: "ambiguous", place: null, candidates: Object.freeze(candidates), confidence: 0.4, resolutionType: "AMBIGUOUS", identityEvidenceStatus: evidence.status });
     }
     if (evidence.status === "unknown_qualified") {
-      return Object.freeze({ status: "unknown", place: null, candidates: Object.freeze([]), confidence: 0, resolutionType: "UNMAPPED" });
+      return Object.freeze({ status: "unknown", place: null, candidates: Object.freeze([]), confidence: 0, resolutionType: "UNMAPPED", identityEvidenceStatus: evidence.status });
     }
     if (serviceEntityId) {
       const place = getEntity(serviceEntityId);
-      if (place) return Object.freeze({ status: "resolved", place, candidates: Object.freeze([place]), confidence: 0.96, resolutionType: place.mapState || "UNMAPPED" });
+      if (place) return Object.freeze({ status: "resolved", place, candidates: Object.freeze([place]), confidence: 0.96, resolutionType: place.mapState || "UNMAPPED", identityEvidenceStatus: evidence.status });
     }
     const contextPlace = contextEntityId ? getEntity(contextEntityId) : null;
     if (contextPlace) return Object.freeze({ status: "resolved_context", place: contextPlace, candidates: Object.freeze([contextPlace]), confidence: 0.82, resolutionType: contextPlace.mapState || "UNMAPPED" });
@@ -126,7 +126,7 @@
     if (diningNeed) return Object.freeze({ status: "dining", category: "dining", place: null, candidates: Object.freeze(discoveryCandidates("dining")), confidence: 0.94, resolutionType: "MULTIPLE" });
     const category = discoveryCategory(message);
     if (category) return Object.freeze({ status: "discovery", category, place: null, candidates: Object.freeze(discoveryCandidates(category)), confidence: 0.94, resolutionType: "MULTIPLE" });
-    return Object.freeze({ status: "unknown", place: null, candidates: Object.freeze([]), confidence: 0, resolutionType: "UNMAPPED" });
+    return Object.freeze({ status: "unknown", place: null, candidates: Object.freeze([]), confidence: 0, resolutionType: "UNMAPPED", identityEvidenceStatus: evidence.status });
   }
 
   function resolveMany(message) {

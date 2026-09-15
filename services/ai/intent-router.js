@@ -23,7 +23,7 @@
     return hostelContext && studyNeed && serviceQuestion;
   }
 
-  function serviceNeedEntityId(message) {
+  function legacyServiceNeedEntityId(message) {
     const normalized = window.EchoAI.Normalizer.normalize(message);
     const serviceQuestion = /\b(?:where|go|need|somewhere|place|can|could|may|how|about|cost|any|ada|tempat|mana|dekat|boleh|nak|students?)\b|哪里|哪儿|去哪|可以|能|有/.test(normalized)
       || normalized === "diy laundry";
@@ -50,6 +50,29 @@
     if (printingNeed) return "pos-mini";
     if (dailySuppliesNeed) return "koop-mart";
     return "";
+  }
+
+  function serviceNeedEntityId(message) {
+    const normalized = window.EchoAI.Normalizer.normalize(message);
+    const borrowAction = /\b(?:borrow(?:ed|ing)?|loan|rent(?:ed|al|ing)?|hire(?:d|ing)?|(?:di)?pinjam|sewa)\b|\u501f|\u79df/.test(normalized);
+    const printAction = /\b(?:print(?:ed|ing)?|photocop(?:y|ied|ying)|(?:di)?cetak|fotostat)\b|\u6253\u5370|\u590d\u5370/.test(normalized);
+    const washAction = /\b(?:wash(?:ed|ing)?|launder(?:ed|ing)?|laundry|dobi|(?:di)?basuh)\b|\u6d17\u8863/.test(normalized);
+    const ironAction = /\b(?:iron(?:ed|ing)?|(?:di)?seterika)\b|\u71a8\u8863/.test(normalized);
+    const equipmentConcept = /\b(?:equipment|gear|stuff|barang|peralatan)\b|\u5668\u6750|\u7528\u54c1/.test(normalized);
+    const documentConcept = /\b(?:document|documents|paper|papers|page|pages|sheets?|notes?|assignment|assignments|worksheet|worksheets|dokumen|kertas|nota|tugasan)\b|\u6587\u4ef6|\u8d44\u6599|\u4f5c\u4e1a/.test(normalized);
+    const clothesConcept = /\b(?:clothes|clothing|garments?|laundry|baju|pakaian)\b|\u8863\u670d|\u8863\u7269/.test(normalized);
+    const bicycleConcept = /\b(?:bike|bicycle|basikal)\b|\u81ea\u884c\u8f66|\u811a\u8e0f\u8f66/.test(normalized);
+    const identityEvidence = window.EchoAI.Retriever.analyzeIdentityEvidence(normalized);
+    const referencedPlace = identityEvidence.status === "known" ? window.EchoAI.PlaceRegistry.getById(identityEvidence.entityId) : null;
+    const sportsConcept = equipmentConcept && (/\b(?:sport|sports|sporting|sukan)\b|\u8fd0\u52a8|\u4f53\u80b2/.test(normalized)
+      || referencedPlace?.category === "sports");
+
+    if (borrowAction && sportsConcept) return "sports-equipment-store";
+    if (borrowAction && bicycleConcept) return "bicycle-service";
+    if (washAction && clothesConcept) return "hostel-laundry";
+    if (ironAction && clothesConcept) return "hostel-iron-room";
+    if (printAction && documentConcept) return "pos-mini";
+    return legacyServiceNeedEntityId(normalized);
   }
 
   function classify(message) {

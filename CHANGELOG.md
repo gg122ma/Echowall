@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-09-15 - KMK AI PHASE 5 UNTEMPLATED FALLBACK SAFETY
+
+- Replaced the slot-null alias-occurrence trust path with local identity-span
+  evidence. Proper-name qualifiers around exact or conservative-typo aliases,
+  and multi-token named facilities without catalog aliases, now produce safe
+  unknown-qualified results without Map actions.
+- Propagated identity-evidence status through resolution so a new fictional
+  target cannot inherit the previous conversation entity; genuine pronoun and
+  elliptical follow-ups still use context.
+- Added order-independent action/object service evidence, including normalized
+  English and Malay inflections, before the existing request-led fallback.
+- Made target boundary cleanup repeat to a fixed point so stacked polite and
+  Map fillers are removed consistently without stripping target words.
+- Added eight compact permanent equivalence regressions. Phase 5 is now
+  **250 scenarios / 292 turns**, all passing. A disposable suite passed
+  **202/202 fresh turns** across 187 cases/sequences; 201 turns deliberately
+  bypassed `extractTargetSlot()`.
+- Final validation: Campus 199/199, Map 21/21, Phase 4 89/89, Phase 5
+  250/250, all 26 test scripts, 116 active syntax checks, and every release
+  validator pass. Browser automation was unavailable in this session.
+- Source truth, Supabase/auth/database/production data, UI, and Phase 4
+  provider/fact-lock/concurrency architecture are unchanged.
+
 ## 2026-09-15 - KMK AI PHASE 5 ARCHITECTURAL RESOLVER CONSOLIDATION
 
 - Replaced query-wide scaffold-word acceptance with shared target-slot identity

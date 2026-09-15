@@ -1,3 +1,39 @@
+# KMK AI PHASE 5 UNTEMPLATED FALLBACK SAFETY HANDOFF (2026-09-15)
+
+Status: **IMPLEMENTED; READY FOR CLAUDE FINAL RE-REVIEW**.
+
+This targeted PR #2 hardening starts from
+`4ce5b2aff1aa0e2e6f7ff92ced0d2255a508a8d9`. When explicit target extraction
+returns null, `Retriever.analyzeIdentityEvidence()` now evaluates the local
+alias span in the original message. A known alias surrounded by identity-like
+proper-name tokens, a conservative typo inside such a name, or a multi-token
+named facility without a catalog alias becomes unknown-qualified. Ordinary
+predicate words outside that local span do not participate in confidence.
+
+Knowledge resolution exposes that evidence status to the conversation layer.
+A new unknown-qualified identity blocks old-entity inheritance and clears
+context through the existing unknown path, while true pronoun/elliptical turns
+still resolve the previous entity. Service routing now recognizes normalized
+action/object pairs independent of order, then retains the existing
+request-led behavior for established queries. Repeated fixed-point target
+cleanup handles stacked polite and Map fillers.
+
+Permanent Phase 5 coverage is **250 scenarios / 292 turns / 250 passed**.
+The removed temporary suite passed **202/202 fresh turns** across 187
+cases/sequences: 45 legitimate, 45 fictional, 32 service, 20 multilingual,
+15 typo, 15 two-turn context sequences, and 15 special/Map cases. Of those,
+201 turns did not match an explicit target-slot template. Browser QA was not
+available because no browser connection was exposed in this session.
+
+Final gates: Campus 199/199, Map 21/21, Phase 4 89/89, all tests 26/26,
+active syntax 116/116, Pages build/artifact, production URL, static, portable,
+both seeds, and diff check all pass. No source truth, production data, UI, or
+Phase 4 architecture changed. Roll back by reverting the single forthcoming
+untargeted-fallback hardening commit. Do not merge PR #2 until independent
+re-review passes.
+
+---
+
 # KMK AI PHASE 5 ARCHITECTURAL RESOLVER CONSOLIDATION HANDOFF (2026-09-15)
 
 Status: **IMPLEMENTED; READY FOR CLAUDE RE-REVIEW**.
