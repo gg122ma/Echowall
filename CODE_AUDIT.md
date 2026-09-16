@@ -1,5 +1,17 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-16 - MULTI-COLLEGE MAP PHASE 1 MANUAL QA ACCEPTANCE
+
+- Manual browser QA: **PASS**, approved by the owner.
+- Known accepted issue: college switching no longer shows the previous
+  zoom/fly transition.
+- Classification: `ACCEPTED_NON_BLOCKING_VISUAL_REGRESSION`.
+- Functional college switching, map correctness, polygon interaction,
+  Building Detail, return-to-map state, mobile interaction, and source/data
+  integrity passed. Browser/manual QA otherwise passed.
+- No fix is required for Phase 1. No application code, `fitBounds`, `flyTo`, or
+  restore-state timing was changed for this documentation gate.
+
 ## 2026-09-16 - MULTI-COLLEGE MAP PROVENANCE AUDIT
 
 - KMM: `VERIFIED_OFFICIAL` names dated 2026-05-14; geometry remains

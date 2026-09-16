@@ -3403,3 +3403,20 @@ server was started without adding a repository file; manual QA URLs are
 `http://127.0.0.1:4173/index.html#/org/6/map`.
 
 ---
+
+# MULTI-COLLEGE MAP PHASE 1 MANUAL QA ACCEPTANCE (2026-09-16)
+
+Status: **MANUAL QA PASS; OWNER APPROVED**.
+
+Desktop and mobile browser/manual QA otherwise passed. Functional college
+switching, map correctness, supported polygon interaction, Building Detail,
+return-to-map state, mobile interaction, and source/data integrity are
+correct.
+
+Known accepted issue: college switching no longer shows the previous zoom/fly
+transition. Classification: `ACCEPTED_NON_BLOCKING_VISUAL_REGRESSION`.
+This is visual polish only, the owner accepted it for Phase 1, and no Phase 1
+fix is required. Do not change `fitBounds`, `flyTo`, or restore-state timing as
+part of this acceptance gate.
+
+---

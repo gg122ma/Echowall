@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-16 - MULTI-COLLEGE MAP PHASE 1 MANUAL QA ACCEPTANCE
+
+- Owner manual browser QA passed for Phase 1 map behavior on desktop and
+  mobile.
+- College switching no longer shows the previous zoom/fly transition. This is
+  recorded as `ACCEPTED_NON_BLOCKING_VISUAL_REGRESSION`; functional switching,
+  polygon interaction, Building Detail, return-to-map state, mobile behavior,
+  and data integrity remain correct.
+- No Phase 1 fix is required or included for the accepted visual issue.
+
 ## 2026-09-16 - MULTI-COLLEGE MAP PHASE 1 PROVENANCE CORRECTION
 
 - Refactored clickable map records to require explicit name authority, source
