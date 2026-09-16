@@ -360,6 +360,7 @@ img { max-width: 100%; display: block; }
 .campus-map-layout { display:grid; grid-template-columns:minmax(0,1fr) 320px; grid-template-rows:minmax(0,1fr); gap:16px; min-height:0; }
 .campus-map-frame { position:relative; width:100%; height:clamp(360px,62vh,640px); background:#fff; border:1px solid var(--border); border-radius:22px; overflow:hidden; box-shadow:var(--shadow-lg); }
 #campus-map { width:100%; height:100%; }
+.campus-building-footprint { cursor:pointer; outline:none; }
 .campus-map-floating-controls { position:absolute; top:14px; left:14px; z-index:600; display:flex; gap:8px; }
 .campus-map-control-btn { appearance:none; border:1px solid var(--border); background:rgba(255,255,255,.92); backdrop-filter:blur(10px); min-height:38px; padding:8px 12px; border-radius:11px; cursor:pointer; font-size:.68rem; font-weight:800; color:var(--text); box-shadow:var(--shadow); transition:.18s ease; }
 .campus-map-control-btn:hover { color:var(--primary); border-color:var(--primary-light); transform:translateY(-1px); }

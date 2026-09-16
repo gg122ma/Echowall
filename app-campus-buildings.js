@@ -34,7 +34,7 @@ function renderOrgBuildingRegistry(container, orgId) {
 
   const bodyMarkup = buildings.length
     ? `<div class="building-home-grid">${buildings.map(building => `
-        <button type="button" class="building-home-card" onclick="navigate('#/org/${orgId}/building/${encodeURIComponent(building.buildingId)}')">
+        <button type="button" class="building-home-card" onclick="clearCampusBuildingReturnSource();navigate('#/org/${orgId}/building/${encodeURIComponent(building.buildingId)}')">
           <span aria-hidden="true">🏢</span>
           <div><strong>${escapeHtml(building.name)}</strong>${building.category ? `<small>${escapeHtml(building.category)}</small>` : ""}</div>
           <b aria-hidden="true">→</b>
@@ -75,10 +75,19 @@ function renderOrgBuildingDetail(container, orgId, buildingId) {
   document.title = `${building.name} — Echo Wall`;
   const description = String(building.description || "").trim();
   const knowledge = String(building.knowledge || "").trim();
+  const mapReturn = typeof getCampusBuildingReturnSource === "function"
+    ? getCampusBuildingReturnSource(orgId, building.buildingId)
+    : null;
+  const backAction = mapReturn?.context === "standalone"
+    ? `location.href='map.html?college=${orgId}'`
+    : mapReturn
+      ? `navigate('#/org/${orgId}/map')`
+      : `navigate('#/org/${orgId}/buildings')`;
+  const backLabel = mapReturn ? I18n.t("place.backToMap") : I18n.t("buildingRegistry.back");
 
   container.innerHTML = `
     <div class="container org-page page-reveal">
-      <button class="page-back" onclick="navigate('#/org/${orgId}/buildings')">← ${I18n.t("buildingRegistry.back")}</button>
+      <button class="page-back" onclick="${backAction}">← ${backLabel}</button>
       <header class="campus-registry-hero">
         <p class="eyebrow">${building.category ? escapeHtml(building.category) : I18n.t("buildingRegistry.eyebrow")}</p>
         <h1>${safeName}</h1>
