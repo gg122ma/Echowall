@@ -928,6 +928,12 @@ window.CAMPUS_BUILDINGS = [
     "name": "Serambi Aktiviti Pelajar",
     "category": "hub",
     "zoneId": "student-life",
+    "photos": [
+      { "src": "assets/buildings/B_SERAMBI/cover-01.jpg", "alt": "Serambi Aktiviti Pelajar entrance at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_SERAMBI/gallery-02.jpg", "alt": "Covered walkway at Serambi Aktiviti Pelajar", "fit": "cover" },
+      { "src": "assets/buildings/B_SERAMBI/gallery-03.jpg", "alt": "Serambi Aktiviti Pelajar building and courtyard", "fit": "cover" },
+      { "src": "assets/buildings/B_SERAMBI/gallery-04.jpg", "alt": "Illuminated Serambi sign at night", "fit": "cover" }
+    ],
     "emoji": "✨",
     "description": {
       "zh": "学生活动中心，设有开放式内庭，内设学生事务处（HEP）、辅导室与活动空间。",
@@ -1002,6 +1008,13 @@ window.CAMPUS_BUILDINGS = [
     "name": "Garaj Bas",
     "category": "admin",
     "zoneId": "services",
+    "photos": [
+      { "src": "assets/buildings/B_GARAJ/cover-01.jpg", "alt": "Garaj Bas at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_GARAJ/gallery-02.jpg", "alt": "Front view of the KMK bus garage", "fit": "cover" },
+      { "src": "assets/buildings/B_GARAJ/gallery-03.jpg", "alt": "Bus garage bays at KMK", "fit": "cover" },
+      { "src": "assets/buildings/B_GARAJ/gallery-04.jpg", "alt": "Side view of the KMK bus garage", "fit": "cover" },
+      { "src": "assets/buildings/B_GARAJ/gallery-05.jpg", "alt": "Vehicle bays at Garaj Bas", "fit": "cover" }
+    ],
     "emoji": "🚌",
     "description": {
       "zh": "校车车库与停放处。",
@@ -2447,6 +2460,13 @@ window.CAMPUS_BUILDINGS = [
     "name": "Blok Kediaman Ketua Jabatan",
     "category": "staff_house",
     "zoneId": "services",
+    "photos": [
+      { "src": "assets/buildings/B_BLOK_KETUA_JABATAN/cover-01.jpg", "alt": "Blok Kediaman Ketua Jabatan at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_BLOK_KETUA_JABATAN/gallery-02.jpg", "alt": "Front of Blok Kediaman Ketua Jabatan", "fit": "cover" },
+      { "src": "assets/buildings/B_BLOK_KETUA_JABATAN/gallery-03.jpg", "alt": "Covered entrance at Blok Kediaman Ketua Jabatan", "fit": "cover" },
+      { "src": "assets/buildings/B_BLOK_KETUA_JABATAN/gallery-04.jpg", "alt": "Residential block facade for department heads", "fit": "cover" },
+      { "src": "assets/buildings/B_BLOK_KETUA_JABATAN/gallery-05.jpg", "alt": "Side view of Blok Kediaman Ketua Jabatan", "fit": "cover" }
+    ],
     "emoji": "🏠",
     "description": {
       "zh": "系主任宿舍楼——KMK 各系系主任的官方住所。",
@@ -2581,6 +2601,11 @@ window.CAMPUS_BUILDINGS = [
     "name": "Kediaman Pensyarah P1",
     "category": "staff_house",
     "zoneId": "services",
+    "photos": [
+      { "src": "assets/buildings/B_KP_P1/cover-01.jpg", "alt": "Kediaman Pensyarah P1 at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_KP_P1/gallery-02.jpg", "alt": "Front view of Kediaman Pensyarah P1", "fit": "cover" },
+      { "src": "assets/buildings/B_KP_P1/gallery-03.jpg", "alt": "Residential facade at Kediaman Pensyarah P1", "fit": "cover" }
+    ],
     "emoji": "🏡",
     "description": {
       "zh": "P1 讲师宿舍——位于校园东侧、Jalan Bunga Lawang 沿线的讲师与教职员住所。",
@@ -2699,6 +2724,11 @@ window.CAMPUS_BUILDINGS = [
     "name": "Kediaman Pensyarah P2",
     "category": "staff_house",
     "zoneId": "services",
+    "photos": [
+      { "src": "assets/buildings/B_KP_P2/cover-01.jpg", "alt": "Kediaman Pensyarah P2 at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_KP_P2/gallery-02.jpg", "alt": "Residential block at Kediaman Pensyarah P2", "fit": "cover" },
+      { "src": "assets/buildings/B_KP_P2/gallery-03.jpg", "alt": "Side view of Kediaman Pensyarah P2", "fit": "cover" }
+    ],
     "emoji": "🏡",
     "description": {
       "zh": "P2 讲师宿舍——位于校园东侧、Jalan Bunga Lawang 沿线的讲师与教职员住所。",
@@ -2817,6 +2847,11 @@ window.CAMPUS_BUILDINGS = [
     "name": "Kediaman Pensyarah P3",
     "category": "staff_house",
     "zoneId": "services",
+    "photos": [
+      { "src": "assets/buildings/B_KP_P3/cover-01.jpg", "alt": "Kediaman Pensyarah P3 at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_KP_P3/gallery-02.jpg", "alt": "Front corner of Kediaman Pensyarah P3", "fit": "cover" },
+      { "src": "assets/buildings/B_KP_P3/gallery-03.jpg", "alt": "Residential facade at Kediaman Pensyarah P3", "fit": "cover" }
+    ],
     "emoji": "🏡",
     "description": {
       "zh": "P3 讲师宿舍——位于校园东侧、Jalan Bunga Lawang 沿线的讲师与教职员住所。",
@@ -2935,6 +2970,11 @@ window.CAMPUS_BUILDINGS = [
     "name": "Kediaman Pensyarah P4",
     "category": "staff_house",
     "zoneId": "services",
+    "photos": [
+      { "src": "assets/buildings/B_KP_P4/cover-01.jpg", "alt": "Kediaman Pensyarah P4 at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_KP_P4/gallery-02.jpg", "alt": "Tree-lined view of Kediaman Pensyarah P4", "fit": "cover" },
+      { "src": "assets/buildings/B_KP_P4/gallery-03.jpg", "alt": "Covered entrance at Kediaman Pensyarah P4", "fit": "cover" }
+    ],
     "emoji": "🏡",
     "description": {
       "zh": "P4 讲师宿舍——位于校园东侧、Jalan Bunga Lawang 沿线的讲师与教职员住所。",
@@ -3227,6 +3267,12 @@ window.CAMPUS_BUILDINGS = [
     "name": "Kafeteria B",
     "category": "dining",
     "zoneId": "residence",
+    "photos": [
+      { "src": "assets/buildings/B_KAFETERIA_B/cover-01.jpg", "alt": "Kafeteria B at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_KAFETERIA_B/gallery-02.jpg", "alt": "Dining area inside Kafeteria B", "fit": "cover" },
+      { "src": "assets/buildings/B_KAFETERIA_B/gallery-03.jpg", "alt": "Food counters inside Kafeteria B", "fit": "cover" },
+      { "src": "assets/buildings/B_KAFETERIA_B/gallery-04.jpg", "alt": "Seating area at Kafeteria B", "fit": "cover" }
+    ],
     "emoji": "🍽️",
     "description": {
       "zh": "B 食堂——靠近宿舍的学生食堂，课余时间的热门去处。",
@@ -3328,6 +3374,13 @@ window.CAMPUS_BUILDINGS = [
     "name": "Kafeteria C",
     "category": "dining",
     "zoneId": "residence",
+    "photos": [
+      { "src": "assets/buildings/B_KAFETERIA_C/cover-01.jpg", "alt": "Kafeteria C at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_KAFETERIA_C/gallery-02.jpg", "alt": "Dining tables inside Kafeteria C", "fit": "cover" },
+      { "src": "assets/buildings/B_KAFETERIA_C/gallery-03.jpg", "alt": "Food service area at Kafeteria C", "fit": "cover" },
+      { "src": "assets/buildings/B_KAFETERIA_C/gallery-04.jpg", "alt": "Open seating at Kafeteria C", "fit": "cover" },
+      { "src": "assets/buildings/B_KAFETERIA_C/gallery-05.jpg", "alt": "Interior view of Kafeteria C", "fit": "cover" }
+    ],
     "emoji": "🍽️",
     "description": {
       "zh": "Kafeteria C 是位于 Blok C 宿舍区域附近的校园餐饮设施。",
@@ -3429,6 +3482,12 @@ window.CAMPUS_BUILDINGS = [
     "name": "Kafeteria Pentadbiran",
     "category": "cafe",
     "zoneId": "residence",
+    "photos": [
+      { "src": "assets/buildings/B_KAFETERIA_PENTADBIRAN/cover-01.jpg", "alt": "Dining area at Kafeteria Pentadbiran", "fit": "cover" },
+      { "src": "assets/buildings/B_KAFETERIA_PENTADBIRAN/gallery-02.jpg", "alt": "Food counters at Kafeteria Pentadbiran", "fit": "cover" },
+      { "src": "assets/buildings/B_KAFETERIA_PENTADBIRAN/gallery-03.jpg", "alt": "Covered seating at Kafeteria Pentadbiran", "fit": "cover" },
+      { "src": "assets/buildings/B_KAFETERIA_PENTADBIRAN/gallery-04.jpg", "alt": "Cafeteria Pentadbiran seating and service area", "fit": "cover" }
+    ],
     "emoji": "☕",
     "description": {
       "zh": "Kafeteria Pentadbiran 是校园行政区附近的餐饮设施。地图显示组成同一地点的三个区域。",
@@ -3527,6 +3586,11 @@ window.CAMPUS_BUILDINGS = [
     "name": "Pencawang Elektrik 1",
     "category": "admin",
     "zoneId": "services",
+    "photos": [
+      { "src": "assets/buildings/B_PENCAWANG_1/cover-01.jpg", "alt": "Pencawang Elektrik 1 at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_PENCAWANG_1/gallery-02.jpg", "alt": "Side view of Pencawang Elektrik 1", "fit": "cover" },
+      { "src": "assets/buildings/B_PENCAWANG_1/gallery-03.jpg", "alt": "Exterior of Pencawang Elektrik 1", "fit": "cover" }
+    ],
     "emoji": "⚡",
     "description": {
       "zh": "校园变电站——KMK 的电力供应设施。",
@@ -3586,6 +3650,11 @@ window.CAMPUS_BUILDINGS = [
     "name": "Pencawang Elektrik 2",
     "category": "admin",
     "zoneId": "services",
+    "photos": [
+      { "src": "assets/buildings/B_PENCAWANG_2/cover-01.jpg", "alt": "Pencawang Elektrik 2 at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_PENCAWANG_2/gallery-02.jpg", "alt": "Front corner of Pencawang Elektrik 2", "fit": "cover" },
+      { "src": "assets/buildings/B_PENCAWANG_2/gallery-03.jpg", "alt": "Exterior of Pencawang Elektrik 2", "fit": "cover" }
+    ],
     "emoji": "⚡",
     "description": {
       "zh": "校园变电站——KMK 的电力供应设施。",
@@ -4086,6 +4155,13 @@ window.CAMPUS_BUILDINGS = [
     "name": "Gelanggang Tenis",
     "category": "sports",
     "zoneId": "sports",
+    "photos": [
+      { "src": "assets/buildings/B_TENNIS_NW/cover-01.jpg", "alt": "Gelanggang Tenis at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_TENNIS_NW/gallery-02.jpg", "alt": "KMK tennis court and lighting", "fit": "cover" },
+      { "src": "assets/buildings/B_TENNIS_NW/gallery-03.jpg", "alt": "Wide view of the KMK tennis courts", "fit": "cover" },
+      { "src": "assets/buildings/B_TENNIS_NW/gallery-04.jpg", "alt": "Tennis court beside the KMK buildings", "fit": "cover" },
+      { "src": "assets/buildings/B_TENNIS_NW/gallery-05.jpg", "alt": "Players on the KMK tennis courts", "fit": "cover" }
+    ],
     "emoji": "🎾",
     "description": {
       "zh": "北侧网球场，靠近 Jalan Pelaga。",
@@ -4191,6 +4267,12 @@ window.CAMPUS_BUILDINGS = [
     "name": "Gelanggang Bola Keranjang",
     "category": "sports",
     "zoneId": "sports",
+    "photos": [
+      { "src": "assets/buildings/B_BASKETBALL_NW/cover-01.jpg", "alt": "Gelanggang Bola Keranjang at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_BASKETBALL_NW/gallery-02.jpg", "alt": "Basketball court and hoop at KMK", "fit": "cover" },
+      { "src": "assets/buildings/B_BASKETBALL_NW/gallery-03.jpg", "alt": "Wide view of the KMK basketball court", "fit": "cover" },
+      { "src": "assets/buildings/B_BASKETBALL_NW/gallery-04.jpg", "alt": "Evening view of the KMK basketball court", "fit": "cover" }
+    ],
     "emoji": "??",
     "description": {
       "zh": "????",
@@ -4249,6 +4331,16 @@ window.CAMPUS_BUILDINGS = [
     "aiMapTarget": true,
     "category": "koop",
     "zoneId": "student-life",
+    "photos": [
+      { "src": "assets/buildings/B_KOOP/cover-01.jpg", "alt": "Coop Mart storefront at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_KOOP/gallery-02.jpg", "alt": "Shelves inside Coop Mart", "fit": "cover" },
+      { "src": "assets/buildings/B_KOOP/gallery-03.jpg", "alt": "Refrigerated display inside Coop Mart", "fit": "cover" },
+      { "src": "assets/buildings/B_KOOP/gallery-04.jpg", "alt": "Checkout counter inside Coop Mart", "fit": "cover" },
+      { "src": "assets/buildings/B_KOOP/gallery-05.jpg", "alt": "Entrance to the KMK Pos Mini", "fit": "cover" },
+      { "src": "assets/buildings/B_KOOP/gallery-06.jpg", "alt": "Service area inside the KMK Pos Mini", "fit": "cover" },
+      { "src": "assets/buildings/B_KOOP/gallery-07.jpg", "alt": "Parcel shelves inside the KMK Pos Mini", "fit": "cover" },
+      { "src": "assets/buildings/B_KOOP/gallery-08.jpg", "alt": "Work counter inside the KMK Pos Mini", "fit": "cover" }
+    ],
     "emoji": "🛒",
     "description": {
       "zh": "KMK 学生合作社，兼营书店、文具与校内邮政服务。",
@@ -4306,6 +4398,11 @@ window.CAMPUS_BUILDINGS = [
     "name": "Pondok Pengawal Barat",
     "category": "guard",
     "zoneId": "mobility",
+    "photos": [
+      { "src": "assets/buildings/B_GUARD_W/cover-01.jpg", "alt": "Pondok Pengawal Barat at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_GUARD_W/gallery-02.jpg", "alt": "West guardhouse and vehicle entrance at KMK", "fit": "cover" },
+      { "src": "assets/buildings/B_GUARD_W/gallery-03.jpg", "alt": "KMK entrance landmark near the west guardhouse", "fit": "cover" }
+    ],
     "emoji": "🛡️",
     "description": {
       "zh": "西侧入口警卫亭（Persiaran Kayu Manis）。",
@@ -4360,6 +4457,12 @@ window.CAMPUS_BUILDINGS = [
     "name": "Pondok Pengawal Selatan",
     "category": "guard",
     "zoneId": "mobility",
+    "photos": [
+      { "src": "assets/buildings/B_GUARD_S/cover-01.jpg", "alt": "Pondok Pengawal Selatan at Kolej Matrikulasi Kedah", "fit": "cover" },
+      { "src": "assets/buildings/B_GUARD_S/gallery-02.jpg", "alt": "Front view of Pondok Pengawal Selatan", "fit": "cover" },
+      { "src": "assets/buildings/B_GUARD_S/gallery-03.jpg", "alt": "Roadside view of Pondok Pengawal Selatan", "fit": "cover" },
+      { "src": "assets/buildings/B_GUARD_S/gallery-04.jpg", "alt": "South guardhouse beside the campus road", "fit": "cover" }
+    ],
     "emoji": "🛡️",
     "description": {
       "zh": "南侧入口警卫亭。",
@@ -4703,4 +4806,20 @@ window.getLocalizedBuildingDisplayName = function getLocalizedBuildingDisplayNam
   const canonicalName = window.getBuildingCanonicalName(building);
   const alias = String(window.getLocalizedBuildingText(building, "localizedAlias") || "").trim();
   return alias ? `${canonicalName} (${alias})` : canonicalName;
+};
+
+const CAMPUS_BUILDING_PHOTO_PATTERN = /^assets\/buildings\/B_[A-Z0-9_]+\/[a-z0-9-]+\.(?:jpe?g|png|webp)$/i;
+
+window.getCampusBuildingPhotos = function getCampusBuildingPhotos(building) {
+  if (!building || !Array.isArray(building.photos)) return [];
+  const expectedPrefix = `assets/buildings/${building.id}/`;
+  return building.photos.filter(photo => {
+    const src = String(photo?.src || "").trim();
+    const alt = String(photo?.alt || "").trim();
+    return src.startsWith(expectedPrefix) && CAMPUS_BUILDING_PHOTO_PATTERN.test(src) && alt;
+  }).map(photo => ({
+    src:String(photo.src).trim(),
+    alt:String(photo.alt).trim(),
+    fit:photo.fit === "contain" ? "contain" : "cover",
+  }));
 };

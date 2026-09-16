@@ -156,7 +156,16 @@ async function main() {
   }
 
   const artifactBuildingFiles = files.filter(file => file.startsWith("assets/buildings/"));
-  if (artifactBuildingFiles.length !== 18) fail(`Unexpected Building asset count: ${artifactBuildingFiles.length}`);
+  const buildingSource = await readFile(path.join(ROOT, "data", "campus-buildings.js"), "utf8");
+  const configuredBuildingFiles = [...new Set(
+    [...buildingSource.matchAll(/["'](assets\/buildings\/[^"']+)["']/g)].map(match => match[1])
+  )].sort((a, b) => a.localeCompare(b, "en"));
+  if (artifactBuildingFiles.length !== configuredBuildingFiles.length) {
+    fail(`Building asset count differs from configured photos: ${artifactBuildingFiles.length} vs ${configuredBuildingFiles.length}`);
+  }
+  for (const relativePath of configuredBuildingFiles) {
+    if (!artifactBuildingFiles.includes(relativePath)) fail(`Configured Building photo is absent from artifact: ${relativePath}`);
+  }
 
   // Every artifact byte must match the current parity source, except the intentionally
   // generated public Study projection and the generated .nojekyll marker.

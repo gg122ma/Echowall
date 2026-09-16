@@ -602,7 +602,13 @@ function renderHome(container) {
 
       <section class="container section-block building-home-section">
         <div class="section-heading" data-reveal><div><p class="eyebrow">${I18n.t("places.eyebrow")}</p><h2>${I18n.t("home.buildings.title")}</h2></div><p>${I18n.t("home.buildings.description")}</p></div>
-        <div class="building-home-grid">${CAMPUS_BUILDINGS.slice(0,6).map((building,index) => `<button class="building-home-card reveal-card" data-reveal style="--reveal-delay:${index*55}ms" onclick="setPlaceReturnSource('places','${escapeHtml(building.id)}');navigate('#/place/${encodeURIComponent(building.id)}')"><span>${escapeHtml(building.emoji)}</span><div><strong>${escapeHtml(building.name)}</strong><small data-building-note-count="${escapeHtml(building.id)}">${getBuildingNoteDisplayCount(building.id)} notes · ${escapeHtml(getBuildingZoneName(building))}</small></div><b>→</b></button>`).join("")}</div>
+        <div class="building-home-grid">${CAMPUS_BUILDINGS.slice(0,6).map((building,index) => {
+          const cover = window.getCampusBuildingPhotos?.(building)?.[0];
+          const visual = cover
+            ? `<span class="building-home-photo"><img src="${escapeHtml(cover.src)}" alt="" loading="lazy" decoding="async" onerror="this.parentElement.textContent='${escapeHtml(building.emoji)}';this.parentElement.classList.remove('building-home-photo')" /></span>`
+            : `<span>${escapeHtml(building.emoji)}</span>`;
+          return `<button class="building-home-card reveal-card" data-reveal style="--reveal-delay:${index*55}ms" onclick="setPlaceReturnSource('places','${escapeHtml(building.id)}');navigate('#/place/${encodeURIComponent(building.id)}')">${visual}<div><strong>${escapeHtml(building.name)}</strong><small data-building-note-count="${escapeHtml(building.id)}">${getBuildingNoteDisplayCount(building.id)} notes · ${escapeHtml(getBuildingZoneName(building))}</small></div><b>→</b></button>`;
+        }).join("")}</div>
         <div class="building-home-more"><button class="btn btn-outline btn-lg" onclick="navigate('#/places')">${I18n.t("places.title")} →</button></div>
       </section>
 

@@ -1,5 +1,17 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-16 - Building photo delivery
+
+- Compared a parallel photo registry with extending the existing canonical
+  building records. Reused `photos` so cards, detail, and Map remain aligned.
+- Resized selected copies to a maximum 1600-pixel edge and JPEG quality 84,
+  reducing unusually large 10-13 MB sources without touching the archive.
+- Primary detail and Map-preview images load eagerly; offscreen cards and
+  gallery images use native lazy loading. No dependency or custom loader was
+  added.
+- Kept uncertain facilities outside production assets rather than increasing
+  coverage through guessed mappings.
+
 ## 2026-09-14 - Phase 4 request ordering without provider serialization
 
 - Compared three ways to fix out-of-order provider completions: UI-only

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-16 - KMK BUILDING PHOTO INTEGRATION
+
+- Added 69 web-optimized, owner-provided photos to 17 confirmed KMK building
+  records without changing building facts, AI behavior, or backend data.
+- Reused the canonical `photos` model across Building Stories cards, building
+  detail galleries, and KMK Map previews; five buildings without confirmed
+  photos keep the existing outline fallback.
+- Added eager primary-detail loading, lazy gallery/card loading, responsive
+  crops, accessible alt text, and focused asset/artifact validation.
+- Documented all 18 intentionally unmapped photos in
+  `docs/BUILDING_PHOTOS.md` instead of guessing their canonical identity.
+
 ## 2026-09-14 - KMK AI PHASE 4 PRE-MERGE HARDENING
 
 - Added a per-session latest-started request-generation guard to
