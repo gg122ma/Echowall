@@ -3385,3 +3385,21 @@ desktop/mobile click-through remains a manual QA item. No Supabase, auth, AI,
 deployment, production data, push, or merge operation was performed.
 
 ---
+# MULTI-COLLEGE MAP PHASE 1 PROVENANCE QA GATE (2026-09-16)
+
+Status: **PROVENANCE FIXED; AUTOMATED QA PASS; VISUAL QA NOT AVAILABLE**.
+
+Clickable provenance is now explicit. KMM and KMP retain official name
+authority; KMPK Pusat Sumber and KMPH Dewan Mat Kilau are
+`SECONDARY_CONFIRMED`. KMPH carries no 18 May 2026 source date because that
+plan has not been recovered. Polygon authority remains spatial-crosscheck-only
+and interaction availability is unchanged.
+
+Phase 1 passes **43/43**, Map passes **21/21**, all **28/28** test scripts pass,
+static validation passes, and active JavaScript syntax passes **79/79**. The
+supported browser integration returned no available browser. A temporary
+server was started without adding a repository file; manual QA URLs are
+`http://127.0.0.1:4173/map.html?college=6` and
+`http://127.0.0.1:4173/index.html#/org/6/map`.
+
+---

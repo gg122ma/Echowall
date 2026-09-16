@@ -46,7 +46,19 @@ check("KMPK keeps Blok Pensyarah and Pentadbiran as separate records", Boolean(w
 check("KMM Oasiswa is not silently mapped to another object", window.getCampusBuildingByOrgAndId(6,"KMM_B_OASISWA")?.geometry === null);
 check("KMKT contains no pre-expansion geometry", window.getCampusBuildingRegistry(14).every(item => item.geometry === null));
 check("source retrieval dates are retained internally", clickable.every(item => item.geometry.retrievedAt === "2026-09-16"));
-check("dated KMM owner-source evidence is retained internally", window.getCampusMapBuildings(6).every(item => item.sourceAuthority.nameSourceDate === "2026-05-14"));
+const kmmClickable = window.getCampusMapBuildings(6);
+const kmpClickable = window.getCampusMapBuildings(5);
+const kmpkPusatSumber = window.getCampusBuildingByOrgAndId(4,"KMPK_B_PUSAT_SUMBER");
+const kmphDewanMatKilau = window.getCampusBuildingByOrgAndId(10,"KMPH_B_DEWAN_MAT_KILAU");
+check("all KMM supported names remain VERIFIED_OFFICIAL", kmmClickable.every(item => item.sourceAuthority.name === "VERIFIED_OFFICIAL"));
+check("all KMM supported names retain the 2026-05-14 source date", kmmClickable.every(item => item.sourceAuthority.nameSourceDate === "2026-05-14"));
+check("all KMM supported geometry remains SPATIAL_CROSSCHECK_ONLY", kmmClickable.every(item => item.sourceAuthority.geometry === "SPATIAL_CROSSCHECK_ONLY"));
+check("all KMP supported names use current official-source authority", kmpClickable.every(item => item.sourceAuthority.name === "VERIFIED_OFFICIAL"));
+check("all KMP supported geometry remains SPATIAL_CROSSCHECK_ONLY", kmpClickable.every(item => item.sourceAuthority.geometry === "SPATIAL_CROSSCHECK_ONLY"));
+check("KMPK Pusat Sumber is not promoted beyond secondary evidence", kmpkPusatSumber.sourceAuthority.name === "SECONDARY_CONFIRMED" && kmpkPusatSumber.sourceAuthority.name !== "VERIFIED_OFFICIAL");
+check("KMPK Pusat Sumber geometry remains a spatial cross-check", kmpkPusatSumber.sourceAuthority.geometry === "SPATIAL_CROSSCHECK_ONLY");
+check("KMPH Dewan Mat Kilau is not marked verified from the unrecovered map", kmphDewanMatKilau.sourceAuthority.name === "SECONDARY_CONFIRMED" && kmphDewanMatKilau.sourceAuthority.nameSourceDate === null && /not recovered/i.test(kmphDewanMatKilau.sourceAuthority.nameEvidence));
+check("KMPH Dewan Mat Kilau geometry remains a spatial cross-check", kmphDewanMatKilau.sourceAuthority.geometry === "SPATIAL_CROSSCHECK_ONLY");
 
 const mapSource = read("app-campus-map.js");
 const detailSource = read("app-campus-buildings.js");
@@ -101,6 +113,13 @@ vm.runInContext(mapSource, context, { filename:"app-campus-map.js" });
 const mountCampusMapInteraction = vm.runInContext("mountCampusMapInteraction", context);
 const openCampusBuildingDetail = vm.runInContext("openCampusBuildingDetail", context);
 const getCampusBuildingReturnSource = vm.runInContext("getCampusBuildingReturnSource", context);
+const renderCampusGuideBuildingCards = vm.runInContext("renderCampusGuideBuildingCards", context);
+const publicMapMarkup = campusIds.map(orgId => renderCampusGuideBuildingCards(orgId, window.getCampusMapBuildings(orgId))).join("");
+const internalAuthorityTokens = [
+  ...Object.values(window.CAMPUS_BUILDING_AUTHORITY),
+  ...Object.values(window.CAMPUS_GEOMETRY_STATE),
+];
+check("public map rendering exposes no authority or geometry-state strings", internalAuthorityTokens.every(token => !publicMapMarkup.includes(token)) && !/sourceAuthority|geometryState|nameEvidence/.test(publicMapMarkup));
 const controller = mountCampusMapInteraction(fakeMap, 6, { restoreState:false });
 check("shared engine creates one polygon control per supported KMM object", controller.controls.size === 6);
 const firstControl = controller.controls.get("KMM_B_TUTORAN_1");

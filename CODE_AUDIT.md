@@ -1,5 +1,21 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-16 - MULTI-COLLEGE MAP PROVENANCE AUDIT
+
+- KMM: `VERIFIED_OFFICIAL` names dated 2026-05-14; geometry remains
+  `SPATIAL_CROSSCHECK_ONLY`.
+- KMP: `VERIFIED_OFFICIAL` names from current official sources; geometry
+  remains `SPATIAL_CROSSCHECK_ONLY`.
+- KMPK Pusat Sumber: corrected to `SECONDARY_CONFIRMED` name authority from
+  MPPB/hosted material; geometry remains a spatial cross-check.
+- KMPH Dewan Mat Kilau: corrected to `SECONDARY_CONFIRMED`, with no source date
+  attributed to the unrecovered 18 May 2026 plan; geometry remains a spatial
+  cross-check.
+- Automated audit: Phase 1 **43/43**, Map **21/21**, all **28/28** test scripts,
+  static validation, and **79/79** active JavaScript syntax checks pass.
+  Browser integration exposed no available browser, so visual desktop/mobile
+  status remains NOT AVAILABLE and is not represented as a PASS.
+
 ## 2026-09-16 - MULTI-COLLEGE MAP PHASE 1 AUDIT
 
 - Architecture: KMK remains on its production renderer; all eleven non-KMK

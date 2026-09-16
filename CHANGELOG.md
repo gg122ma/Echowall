@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-09-16 - MULTI-COLLEGE MAP PHASE 1 PROVENANCE CORRECTION
+
+- Refactored clickable map records to require explicit name authority, source
+  date, evidence note, and geometry authority instead of promoting every name
+  to `VERIFIED_OFFICIAL`.
+- Retained official name authority for KMM and KMP, while correcting KMPK
+  Pusat Sumber and KMPH Dewan Mat Kilau to `SECONDARY_CONFIRMED`.
+- Removed the unsupported 18 May 2026 name-source date from KMPH; the original
+  plan is still unrecovered. All clickable polygons remain spatial
+  cross-checks and retain their Phase 1 interaction state.
+- Expanded Phase 1 coverage to 43 assertions; all 28 test scripts, static
+  validation, and 79 active JavaScript syntax checks pass.
+
 ## 2026-09-16 - MULTI-COLLEGE MAP PHASE 1
 
 - Added a reusable data-driven Leaflet interaction engine for all eleven
