@@ -1,5 +1,25 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-16 - MULTI-COLLEGE MAP PHASE 1 AUDIT
+
+- Architecture: KMK remains on its production renderer; all eleven non-KMK
+  colleges share `app-campus-map.js` and data/configuration files.
+- Capability boundary: only org 1 (KMK) has `supportsSubmaps: true`; every
+  non-KMK configuration is false.
+- Geometry boundary: only `PRODUCTION` and `PROVISIONAL_CLICKABLE` records
+  with a closed coordinate ring reach Leaflet. Unsupported, candidate, and
+  historical records all have null geometry.
+- Supported targets: KMM 6, KMP 3, KMPK 1, KMPH 1. KMPK Pensyarah and
+  Pentadbiran remain separate; KMM Oasiswa is not mapped; KMKT has no legacy
+  pre-expansion geometry.
+- Navigation: map source context is separate from Building Registry source;
+  both standalone and SPA Map detail returns restore the college and saved
+  selection/viewport.
+- Safety: no Supabase, auth, Admin, AI, production data, deployment, or global
+  UI architecture files changed. Automated Phase 1 checks are **34/34** and
+  the full existing script suite passes. Visual browser QA was unavailable
+  because no browser instance was exposed to the session.
+
 ## 2026-09-16 - PHASE 5 FINAL SERVICE AND CONTEXT CLOSURE AUDIT
 
 - `CanonicalResolver.resolve()` remains the sole canonical identity authority.

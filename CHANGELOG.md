@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-09-16 - MULTI-COLLEGE MAP PHASE 1
+
+- Added a reusable data-driven Leaflet interaction engine for all eleven
+  non-KMK colleges while retaining the existing KMK production renderer.
+- Added source-backed clickable footprints for KMM (6), KMP (3), KMPK (1),
+  and KMPH (1). Other Phase 1 objects remain registered internally without
+  fabricated map geometry.
+- Added explicit `supportsSubmaps` capabilities: enabled only for KMK.
+- Added college/selection/viewport state persistence and context-aware
+  Map-to-Detail return behavior for SPA and standalone Echo Map entry points.
+- Added 34 focused Phase 1 assertions; the complete existing `test-*.mjs`
+  regression suite and static validation pass.
+
 ## 2026-09-16 - KMK AI PHASE 5 FINAL SERVICE AND CONTEXT CLOSURE
 
 - Centralized service canonicalization eligibility for both target-slot and
