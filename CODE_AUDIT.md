@@ -1,5 +1,53 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-16 - MULTI-COLLEGE MAP PHASE 1 MANUAL QA ACCEPTANCE
+
+- Manual browser QA: **PASS**, approved by the owner.
+- Known accepted issue: college switching no longer shows the previous
+  zoom/fly transition.
+- Classification: `ACCEPTED_NON_BLOCKING_VISUAL_REGRESSION`.
+- Functional college switching, map correctness, polygon interaction,
+  Building Detail, return-to-map state, mobile interaction, and source/data
+  integrity passed. Browser/manual QA otherwise passed.
+- No fix is required for Phase 1. No application code, `fitBounds`, `flyTo`, or
+  restore-state timing was changed for this documentation gate.
+
+## 2026-09-16 - MULTI-COLLEGE MAP PROVENANCE AUDIT
+
+- KMM: `VERIFIED_OFFICIAL` names dated 2026-05-14; geometry remains
+  `SPATIAL_CROSSCHECK_ONLY`.
+- KMP: `VERIFIED_OFFICIAL` names from current official sources; geometry
+  remains `SPATIAL_CROSSCHECK_ONLY`.
+- KMPK Pusat Sumber: corrected to `SECONDARY_CONFIRMED` name authority from
+  MPPB/hosted material; geometry remains a spatial cross-check.
+- KMPH Dewan Mat Kilau: corrected to `SECONDARY_CONFIRMED`, with no source date
+  attributed to the unrecovered 18 May 2026 plan; geometry remains a spatial
+  cross-check.
+- Automated audit: Phase 1 **43/43**, Map **21/21**, all **28/28** test scripts,
+  static validation, and **79/79** active JavaScript syntax checks pass.
+  Browser integration exposed no available browser, so visual desktop/mobile
+  status remains NOT AVAILABLE and is not represented as a PASS.
+
+## 2026-09-16 - MULTI-COLLEGE MAP PHASE 1 AUDIT
+
+- Architecture: KMK remains on its production renderer; all eleven non-KMK
+  colleges share `app-campus-map.js` and data/configuration files.
+- Capability boundary: only org 1 (KMK) has `supportsSubmaps: true`; every
+  non-KMK configuration is false.
+- Geometry boundary: only `PRODUCTION` and `PROVISIONAL_CLICKABLE` records
+  with a closed coordinate ring reach Leaflet. Unsupported, candidate, and
+  historical records all have null geometry.
+- Supported targets: KMM 6, KMP 3, KMPK 1, KMPH 1. KMPK Pensyarah and
+  Pentadbiran remain separate; KMM Oasiswa is not mapped; KMKT has no legacy
+  pre-expansion geometry.
+- Navigation: map source context is separate from Building Registry source;
+  both standalone and SPA Map detail returns restore the college and saved
+  selection/viewport.
+- Safety: no Supabase, auth, Admin, AI, production data, deployment, or global
+  UI architecture files changed. Automated Phase 1 checks are **34/34** and
+  the full existing script suite passes. Visual browser QA was unavailable
+  because no browser instance was exposed to the session.
+
 ## 2026-09-16 - PHASE 5 FINAL SERVICE AND CONTEXT CLOSURE AUDIT
 
 - `CanonicalResolver.resolve()` remains the sole canonical identity authority.

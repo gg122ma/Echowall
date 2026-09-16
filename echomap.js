@@ -712,7 +712,11 @@ window.addEventListener("DOMContentLoaded", async () => {
   BUILDING_INTERACTION_CONFIGS.forEach(createBuildingFootprintControl);
 
   const KMK_ORG_ID = 1;
-  let activeOrgIndex = organizations.findIndex(org => org.id === KMK_ORG_ID);
+  const requestedOrgId = Number(new URLSearchParams(location.search).get("college"));
+  const requestedOrgIndex = organizations.findIndex(org => org.id === requestedOrgId && (org.id === KMK_ORG_ID || window.getCampusMapConfig?.(org.id)));
+  let activeOrgIndex = requestedOrgIndex >= 0
+    ? requestedOrgIndex
+    : organizations.findIndex(org => org.id === KMK_ORG_ID);
   if (activeOrgIndex < 0) activeOrgIndex = 0;
   const collegeSwitcherLabel = document.getElementById("map-college-label");
   const collegePrevButton = document.getElementById("map-college-prev");
@@ -753,11 +757,11 @@ window.addEventListener("DOMContentLoaded", async () => {
   // hashchange listener of its own to react to an in-page hash rewrite).
   function renderNonKmkCampusGuide(orgId) {
     if (!campusFrameworkGuide || typeof renderCampusFrameworkGuideContent !== "function") return;
-    const buildings = typeof getCampusBuildingRegistry === "function" ? getCampusBuildingRegistry(orgId) : [];
+    const buildings = typeof getCampusMapBuildings === "function" ? getCampusMapBuildings(orgId) : [];
     campusFrameworkGuide.innerHTML = renderCampusFrameworkGuideContent(orgId, buildings, "index.html");
   }
 
-  function switchToCollegeIndex(nextIndex) {
+  function switchToCollegeIndex(nextIndex, { animate = true } = {}) {
     const total = organizations.length;
     activeOrgIndex = ((nextIndex % total) + total) % total;
     const org = organizations[activeOrgIndex];
@@ -774,6 +778,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (previewedPlaceId) closePlacePreview({ restoreFocus:false });
 
     if (isKmk) {
+      window.teardownCampusMapInteraction?.();
       if (!map.hasLayer(buildingLayer)) buildingLayer.addTo(map);
       if (buildingSearch) buildingSearch.disabled = false;
       if (buildingEmpty) buildingEmpty.hidden = true;
@@ -800,7 +805,12 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
 
     applyActiveCollegeChrome();
-    fitActiveCollegeView({ animate:true });
+    if (isKmk) {
+      fitActiveCollegeView({ animate });
+    } else {
+      const controller = window.mountCampusMapInteraction?.(map, org.id);
+      if (!controller?.restoredState) fitActiveCollegeView({ animate });
+    }
   }
 
   if (collegePrevButton) collegePrevButton.addEventListener("click", () => switchToCollegeIndex(activeOrgIndex - 1));
@@ -814,14 +824,17 @@ window.addEventListener("DOMContentLoaded", async () => {
     const activeOrg = organizations[activeOrgIndex];
     if (activeOrg && activeOrg.id !== KMK_ORG_ID) renderNonKmkCampusGuide(activeOrg.id);
   });
-  applyActiveCollegeChrome();
+  switchToCollegeIndex(activeOrgIndex, { animate:false });
 
   document.getElementById("fit-campus").addEventListener("click", () => {
     fitActiveCollegeView({ animate:true });
   });
 
-  map.fitBounds(CAMPUS_BOUNDS, { padding:[24,24] });
   map.on("click", () => {
+    if (organizations[activeOrgIndex]?.id !== KMK_ORG_ID) {
+      window.clearActiveCampusMapSelection?.();
+      return;
+    }
     selectedBuildingId = "";
     syncBuildingSelectionState();
     if (previewedPlaceId) closePlacePreview({ restoreFocus:false });
@@ -889,7 +902,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     return true;
   }
 
-  if (!applyPendingAIMapAction()) restoreMapReturnSnapshot();
+  if (organizations[activeOrgIndex]?.id === KMK_ORG_ID) {
+    if (!applyPendingAIMapAction()) restoreMapReturnSnapshot();
+  }
 
   window.EchoMapNoteOverlay?.init({
     map,

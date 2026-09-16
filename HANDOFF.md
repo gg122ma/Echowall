@@ -3356,3 +3356,67 @@ Study Notes V2 (STUDY-V2-003 through FINAL-QA) is complete and browser-accepted.
 Study Notes stage unless the user explicitly asks for one. If a new session needs to interact with
 the app in a real browser, the `mcp__claude-in-chrome` bridge worked in this session — try it before
 assuming it is unavailable.
+
+# MULTI-COLLEGE MAP PHASE 1 HANDOFF (2026-09-16)
+
+Status: **IMPLEMENTED LOCALLY; AUTOMATED QA PASS; VISUAL BROWSER QA UNAVAILABLE**.
+
+Starting commit: `cd8c98ac095f430c64802929ec9864d69424bef5`.
+Work is isolated on `feature/multicollege-map-phase1`. The original worktree
+was clean and was not modified. Rollback protection is
+`backup/pre-multicollege-map-phase1`.
+
+`app-campus-map.js` is the shared non-KMK interaction engine. Campus records
+in `data/campus-building-registry.js` hold source authority, geometry state,
+and exact polygons internally; public rendering filters to supported geometry
+without showing provenance labels. `data/campus-map-config.js` declares KMK
+as the only campus with `supportsSubmaps: true`.
+
+Clickable coverage is KMM 6, KMP 3, KMPK 1, and KMPH 1. All other handoff
+objects have null geometry and cannot create a map target. Map selection,
+viewport, and entry context are stored in session state so Building Detail
+returns to the same college map; Building Registry entry continues to return
+to Building Registry.
+
+Focused Phase 1 tests pass **34/34**, existing Map actions pass **21/21**,
+static validation passes, and the complete existing `scripts/test-*.mjs`
+suite passes. The in-app browser had no available browser instance, so visual
+desktop/mobile click-through remains a manual QA item. No Supabase, auth, AI,
+deployment, production data, push, or merge operation was performed.
+
+---
+# MULTI-COLLEGE MAP PHASE 1 PROVENANCE QA GATE (2026-09-16)
+
+Status: **PROVENANCE FIXED; AUTOMATED QA PASS; VISUAL QA NOT AVAILABLE**.
+
+Clickable provenance is now explicit. KMM and KMP retain official name
+authority; KMPK Pusat Sumber and KMPH Dewan Mat Kilau are
+`SECONDARY_CONFIRMED`. KMPH carries no 18 May 2026 source date because that
+plan has not been recovered. Polygon authority remains spatial-crosscheck-only
+and interaction availability is unchanged.
+
+Phase 1 passes **43/43**, Map passes **21/21**, all **28/28** test scripts pass,
+static validation passes, and active JavaScript syntax passes **79/79**. The
+supported browser integration returned no available browser. A temporary
+server was started without adding a repository file; manual QA URLs are
+`http://127.0.0.1:4173/map.html?college=6` and
+`http://127.0.0.1:4173/index.html#/org/6/map`.
+
+---
+
+# MULTI-COLLEGE MAP PHASE 1 MANUAL QA ACCEPTANCE (2026-09-16)
+
+Status: **MANUAL QA PASS; OWNER APPROVED**.
+
+Desktop and mobile browser/manual QA otherwise passed. Functional college
+switching, map correctness, supported polygon interaction, Building Detail,
+return-to-map state, mobile interaction, and source/data integrity are
+correct.
+
+Known accepted issue: college switching no longer shows the previous zoom/fly
+transition. Classification: `ACCEPTED_NON_BLOCKING_VISUAL_REGRESSION`.
+This is visual polish only, the owner accepted it for Phase 1, and no Phase 1
+fix is required. Do not change `fitBounds`, `flyTo`, or restore-state timing as
+part of this acceptance gate.
+
+---

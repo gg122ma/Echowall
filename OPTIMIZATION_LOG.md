@@ -1,5 +1,25 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-16 - Multi-college Map provenance hardening
+
+- Replaced implicit clickable-object provenance with explicit per-campus
+  evidence configuration.
+- Added anti-inflation tests for KMM, KMP, KMPK, and KMPH plus a public-markup
+  check that rejects internal authority and geometry-state strings.
+- Kept all geometry and interaction behavior unchanged; this pass adds no
+  campuses, polygons, submaps, UI redesign, auth, Supabase, or AI work.
+
+## 2026-09-16 - Multi-college Map Phase 1
+
+- Reused one non-KMK Leaflet controller for dataset mounting, polygon events,
+  keyboard/tap selection, filtering, state persistence, and detail routing.
+- Kept unsupported geometry out of the render path through one centralized
+  `getCampusMapBuildings()` safety filter.
+- Preserved the existing KMK building layer and return snapshot code; only
+  the college switcher now mounts/unmounts the shared non-KMK data layer.
+- Added focused data and interaction coverage instead of introducing a GIS
+  dependency, editor, CMS, or new map technology.
+
 ## 2026-09-16 - Phase 5 final service and context closure
 
 - Replaced separate target-slot and fallback service authorization with one
