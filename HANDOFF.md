@@ -1,3 +1,21 @@
+# KMK BUILDING PHOTO INTEGRATION HANDOFF (2026-09-16)
+
+Status: **IMPLEMENTED; ALL AUTOMATED GATES PASS; INTERACTIVE BROWSER UNAVAILABLE**.
+
+- `data/campus-buildings.js` remains the canonical mapping. Its first `photos`
+  entry is the card/preview image; additional entries form the gallery.
+- 69 owner images are mapped with confirmed identities to 17 buildings and
+  stored under `assets/buildings/<building-id>/`; 18 uncertain/no-record
+  images remain uncommitted and are listed in `docs/BUILDING_PHOTOS.md`.
+- Building Stories, detail, and KMK Map preview share the same data helper.
+  Broken or absent images preserve the current outline/no-photo layout.
+- Rollback: revert the building-photo integration commit. No database,
+  Supabase, auth, production-data, or AI rollback is needed.
+- Validation: all 26 permanent test scripts, 83 active JavaScript syntax
+  checks, Pages build/artifact, production URL, static, portable, and seed
+  validators pass. No browser instance was connected for interactive viewport
+  screenshots; responsive and navigation behavior was audited through the
+  existing CSS and route regression coverage.
 # KMK AI PHASE 5 FINAL SERVICE AND CONTEXT CLOSURE HANDOFF (2026-09-16)
 
 Status: **IMPLEMENTED; READY FOR FINAL CLAUDE RE-REVIEW**.

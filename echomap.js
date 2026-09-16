@@ -486,11 +486,16 @@ window.addEventListener("DOMContentLoaded", async () => {
     const descriptionMarkup = description
       ? '<p class=place-preview-description>' + escapeHtml(description) + '</p>'
       : '';
+    const primaryPhoto = window.getCampusBuildingPhotos?.(building)?.[0];
+    const photoMarkup = primaryPhoto
+      ? '<figure class="place-preview-photo"><img src="' + escapeHtml(primaryPhoto.src) + '" alt="' + escapeHtml(primaryPhoto.alt) + '" decoding="async" fetchpriority="high" onerror="this.parentElement.hidden=true" /></figure>'
+      : '';
     const hoursMarkup = buildHoursMarkup(building.id);
     const moreDetailsMarkup = '<button type="button" class="place-preview-more-row" id="place-preview-more"><span>' + escapeHtml(I18n.t("map.moreDetails")) + '</span><span aria-hidden="true">→</span></button>';
     placePreview.innerHTML =
       '<button id="place-preview-back" class="place-preview-back" type="button">← ' + escapeHtml(I18n.t("map.previewBack")) + '</button>' +
       '<div class="place-preview-body">' +
+        photoMarkup +
         '<span class="place-preview-icon" aria-hidden="true">' + escapeHtml(building.emoji) + '</span>' +
         '<h2>' + escapeHtml(nameParts.displayName) + '</h2>' +
         descriptionMarkup +

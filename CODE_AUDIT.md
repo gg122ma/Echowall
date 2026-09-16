@@ -1,5 +1,16 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-16 - KMK BUILDING PHOTO INTEGRATION
+
+- Audited 88 supplied files: 87 images plus `desktop.ini`; no exact duplicate
+  files were found. Exposed only 69 photos with confirmed canonical matches.
+- Verified centralized paths, meaningful alt text, supported extensions,
+  unique mappings, and source/artifact parity through
+  `scripts/test-building-photos.mjs` and the Pages artifact validator.
+- Preserved the existing responsive card/gallery system and return-source
+  navigation. KMK Map previews now consume the same canonical primary image.
+- No Phase 5/AI, Supabase, auth, database, production-data, or owner-source
+  file was changed.
 ## 2026-09-16 - PHASE 5 FINAL SERVICE AND CONTEXT CLOSURE AUDIT
 
 - `CanonicalResolver.resolve()` remains the sole canonical identity authority.

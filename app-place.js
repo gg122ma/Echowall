@@ -23,20 +23,8 @@ function renderBuildingMiniature(building, className = "") {
   </svg>`;
 }
 
-const BUILDING_PHOTO_SRC_PATTERN = /^assets\/buildings\/B_[A-Z0-9_]+\/[a-z0-9-]+\.(?:jpe?g|png|webp)$/i;
-
 function getBuildingPhotos(building) {
-  if (!building || !Array.isArray(building.photos)) return [];
-  const expectedPrefix = `assets/buildings/${building.id}/`;
-  return building.photos.filter(photo => {
-    const src = String(photo?.src || '').trim();
-    const alt = String(photo?.alt || '').trim();
-    return src.startsWith(expectedPrefix) && BUILDING_PHOTO_SRC_PATTERN.test(src) && alt;
-  }).map(photo => ({
-    src:String(photo.src).trim(),
-    alt:String(photo.alt).trim(),
-    fit:photo.fit === 'contain' ? 'contain' : 'cover',
-  }));
+  return window.getCampusBuildingPhotos?.(building) || [];
 }
 
 function handleBuildingPhotoError(image) {
@@ -58,7 +46,7 @@ function renderBuildingGallery(building) {
   if (!photos.length) return '';
   const multiple = photos.length > 1;
   const slides = photos.map((photo, index) => `<figure class='building-gallery-slide' aria-label='${index + 1} of ${photos.length}'>
-    <img src='${escapeHtml(photo.src)}' alt='${escapeHtml(photo.alt)}' loading='lazy' decoding='async' onerror='handleBuildingPhotoError(this)' />
+    <img src='${escapeHtml(photo.src)}' alt='${escapeHtml(photo.alt)}' loading='${index === 0 ? 'eager' : 'lazy'}'${index === 0 ? " fetchpriority='high'" : ''} decoding='async' onerror='handleBuildingPhotoError(this)' />
     <span class='building-gallery-fallback' data-building-photo-fallback hidden>${renderBuildingMiniature(building)}</span>
   </figure>`).join('');
   const controls = multiple ? `<div class='building-gallery-controls'>
