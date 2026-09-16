@@ -1,5 +1,246 @@
 # Changelog
 
+## 2026-09-16 - KMK AI PHASE 5 FINAL SERVICE AND CONTEXT CLOSURE
+
+- Centralized service canonicalization eligibility for both target-slot and
+  untemplated paths. A complete action/object frame now also needs positive
+  request provenance and a clean competing-target residue before the resolver
+  may map it to a source-backed service entity.
+- Kept weak question/capability grammar out of target-residue removal, so
+  English, Malay, Chinese, and mixed-script named facilities cannot hide
+  inside broad request evidence. Object-first, passive, imperative, and
+  direct genuine needs retain service recall.
+- Expanded resolver-owned context gating from a small whole-sentence list to
+  closed-class anaphora/deixis and bounded fact dimensions. New target
+  evidence still wins, while natural English, Malay, and Chinese pronoun-drop
+  follow-ups reuse context without Map provenance.
+- Added 22 compact Phase 5 scenarios and three focused resolver controls.
+  Phase 5 passes **309/309** and resolver architecture passes **43/43**. A
+  removed 120-probe multilingual gate passed **120/120**: 30 fictional
+  request-shaped facilities, 30 genuine needs, 30 valid context follow-ups,
+  and 30 new-target attacks. Context recall was **30/30**, with zero false
+  identities, Map actions, or context inheritance.
+- Final validation: Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all
+  test scripts **27/27**, active syntax **116/116**, and all Pages, artifact,
+  URL, static, portable, seed, and diff gates pass. Source truth and Phase 4
+  architecture are unchanged.
+
+## 2026-09-16 - KMK AI PHASE 5 FINAL BLOCKER CLOSURE
+
+- Restricted context reuse to provably context-relative payloads. Arbitrary
+  content after `what about` / `how about` now becomes unresolved rather than
+  inheriting an earlier real or service entity; bounded pronoun, deictic,
+  time/date, and fact-dimension follow-ups remain supported.
+- Added explicit request provenance to semantic service frames. Capability
+  descriptions can expose action/object evidence without authorizing the
+  canonical service mapping, while genuine requests keep order-independent
+  printing, laundry, bicycle, and sports-equipment behavior.
+- Audited the facility source summary: it identifies `Dewan Mahawangsa` on
+  source page 26, but provides no evidence that bare `Dewan` or `Hall` is a
+  verified unique identity. Those two legacy aliases are excluded from exact
+  identity evidence; the full canonical identity and Map target are unchanged.
+- Added 12 compact Phase 5 scenarios and 11 focused architecture assertions.
+  Phase 5 passes **287/287** and resolver architecture passes **40/40**. A
+  removed 80-case fresh gate passed **80/80** across new-target context,
+  legitimate context, fictional capability descriptions, and genuine service
+  needs, with zero false canonical identities and zero false Map actions.
+- Final validation: Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all
+  test scripts **27/27**, active syntax **116/116**, and every requested build,
+  artifact, URL, static, portable, seed, and diff gate passes. Source truth and
+  the approved canonical/Map/Phase 4 architectures are unchanged.
+
+## 2026-09-16 - KMK AI PHASE 5 CANONICAL RESOLVER FINAL CONVERGENCE
+
+- Finalized the approved conservative ambiguity contract: six safe fictional
+  references now explicitly expect `AMBIGUOUS`, and the undecidable
+  `Researchers admire Library.` case remains ambiguous with no entity or Map
+  action.
+- Added a bounded closed-class auxiliary subject rule. `AUX + exact alias +
+  arbitrary predicate` now produces a fact-capable known mention without
+  inspecting open-class predicate vocabulary or gaining Map confidence.
+- Made exact alias evidence prefer a longer containing alias and a primary
+  identity over same-span relational aliases. This keeps complete registered
+  identities authoritative without adding descriptor or suffix lists.
+- Retained the 11 owner-approved Map/provenance migration changes and restored
+  every other pre-existing expectation not covered by the approved contract.
+  P5-218 and P5-231 are fixed regressions; Phase 5 is **275/275**.
+- Focused architecture coverage is **29/29**. Final diagnostics pass **200/200**
+  (30 exact, 30 mention, 20 auxiliary, 30 fictional, 25 service, 25
+  multilingual, 20 context, 20 Map), with 35 intentional ambiguities, zero
+  false canonical resolutions, zero false Map actions, and zero unexpected
+  recall regressions.
+- Campus 199/199, Map 21/21, Phase 4 89/89, all 27 test scripts, active syntax
+  116/116, Pages/artifact, production URL, static, portable, both seed
+  validators, and diff checks pass. Source truth and Phase 4 are unchanged.
+
+## 2026-09-16 - KMK AI PHASE 5 CANONICAL RESOLVER
+
+- Replaced the fragmented identity, service, special-entity, context, and Map
+  authority paths with one immutable per-turn `CanonicalResolver` result.
+- Added offset-preserving Unicode alias evidence and one typed alias catalog
+  for regular and special entities. Exact targets, bounded mentions,
+  unresolved names, ambiguity, service frames, context, and Map provenance are
+  now distinct states.
+- Reduced service routing to semantic action/object frames; only the canonical
+  resolver maps a completed frame to a source-backed entity, and competing
+  unresolved or ambiguous target evidence blocks the route.
+- Restricted Map actions to exact alias targets with verified destinations,
+  including the existing verified-parent hostel mappings. Mentions,
+  approximate matches, services, context, discovery, and ambiguity cannot
+  acquire exact Map provenance.
+- Added 17 Phase 5 invariant scenarios and a 27-assertion architecture guard.
+  Phase 5 is **275 scenarios / 319 turns**, all passing. A disposable fresh
+  diagnostic passed **220/220** with zero false canonical resolutions and zero
+  false Map actions.
+- Final validation: Campus 199/199, Map 21/21, Phase 4 89/89, all 27 test
+  scripts, the established 116-file active syntax scope, and every release
+  validator pass. Source truth and Phase 4 architecture are unchanged.
+
+## 2026-09-15 - KMK AI PHASE 5 QUICK-BLOCKER IDENTITY SPAN
+
+- Made local unknown-name evidence independent of capitalization and treated
+  pure-CJK aliases wrapped on both sides as part of a larger unknown identity.
+- Added bounded short-name/named-reference evidence without restoring a
+  query-wide scaffold list or facility-suffix blacklist.
+- Required the laundry, printing, bicycle, sports-equipment, and ironing
+  routes to pass the shared identity boundary, then validated action/object
+  semantics across object-first, subject-first, and passive word order.
+- Added eight compact permanent regressions; Phase 5 is now **258/258**. A
+  disposable final-tree quick gate passed **24/24** with zero fictional Map
+  actions; the 175+ final-review suite was deliberately not started.
+- Final validation: Campus 199/199, Map 21/21, Phase 4 89/89, all 26 tests,
+  116 active syntax checks, and every release validator pass. Source truth,
+  production data, UI, and Phase 4 architecture are unchanged.
+
+## 2026-09-15 - KMK AI PHASE 5 UNTEMPLATED FALLBACK SAFETY
+
+- Replaced the slot-null alias-occurrence trust path with local identity-span
+  evidence. Proper-name qualifiers around exact or conservative-typo aliases,
+  and multi-token named facilities without catalog aliases, now produce safe
+  unknown-qualified results without Map actions.
+- Propagated identity-evidence status through resolution so a new fictional
+  target cannot inherit the previous conversation entity; genuine pronoun and
+  elliptical follow-ups still use context.
+- Added order-independent action/object service evidence, including normalized
+  English and Malay inflections, before the existing request-led fallback.
+- Made target boundary cleanup repeat to a fixed point so stacked polite and
+  Map fillers are removed consistently without stripping target words.
+- Added eight compact permanent equivalence regressions. Phase 5 is now
+  **250 scenarios / 292 turns**, all passing. A disposable suite passed
+  **202/202 fresh turns** across 187 cases/sequences; 201 turns deliberately
+  bypassed `extractTargetSlot()`.
+- Final validation: Campus 199/199, Map 21/21, Phase 4 89/89, Phase 5
+  250/250, all 26 test scripts, 116 active syntax checks, and every release
+  validator pass. Browser automation was unavailable in this session.
+- Source truth, Supabase/auth/database/production data, UI, and Phase 4
+  provider/fact-lock/concurrency architecture are unchanged.
+
+## 2026-09-15 - KMK AI PHASE 5 ARCHITECTURAL RESOLVER CONSOLIDATION
+
+- Replaced query-wide scaffold-word acceptance with shared target-slot identity
+  evidence consumed by regular retrieval, special entities, intent routing,
+  service routing, direct identities, comparisons, and Map resolution.
+- Qualified unknown targets now block service reinterpretation and special
+  substring matches, while arbitrary predicate vocabulary around a verified
+  identity no longer lowers recall.
+- Removed A1/A2/B1/B2/C2/P5 from the generic hostel alias surface so exact
+  codes select their specific PARENT_ONLY or UNMAPPED entities.
+- Added 12 compact permanent equivalence-class regressions; Phase 5 is now
+  **242 scenarios / 283 turns**, all passing. A separate temporary suite ran
+  **150/150 fresh scenarios/sequences** and was removed.
+- Final validation: Campus 199/199, Map 21/21, Phase 4 89/89, Phase 5
+  242/242, all 26 test scripts, 116 active syntax checks, and all Pages,
+  artifact, URL, static, portable, seed, and diff gates pass.
+- Canonical facts, source authority, Supabase/auth/database/production data,
+  Phase 4 provider/fact-lock/concurrency behavior, and UI design are unchanged.
+
+## 2026-09-14 - KMK AI PHASE 5 FINAL HARDENING ROUND 3
+
+- Prevented fictional Study Hall, Equipment/Printing/Learning Centre, Student
+  Facility, Sports Depot, and similar names from becoming real campus
+  identities through one generic token or a referenced landmark.
+- Expanded natural hostel-study handling across English, Bahasa Melayu,
+  Chinese, and code-switching while retaining the partial Study Room answer
+  and never inventing a hostel Map target.
+- Improved source-backed sports borrowing, bicycle, laundry, and printing
+  phrasing without turning service words into place-name aliases.
+- Refined internal-ID refusal so dump/expose, compound navigation, possessive,
+  contextual, and raw `B_*` requests are blocked, while ordinary key
+  facilities/services, dress/QR/postal codes, and Map queries remain usable.
+- Expanded the permanent benchmark to **225 scenarios / 266 turns** and ran a
+  separate **107/107 unseen-query** diagnostic pass. Campus AI 199/199, Map
+  21/21, Phase 4 89/89, Phase 5 225/225, all 26 test scripts, 116 active syntax
+  checks, and every release validator pass.
+- No canonical facts, Supabase, auth, database/production data, provider
+  configuration, or UI were changed. Live provider QA remains not tested.
+
+## 2026-09-14 - KMK AI PHASE 5 FINAL HARDENING ROUND 2
+
+- Prevented multiword service descriptions inside unknown names from resolving
+  as known campus identities or exact Map targets.
+- Routed sports-equipment borrowing to Stor Sukan while keeping explicit
+  bicycle rental/Stor Basikal queries separate; expanded bounded EN, BM, ZH,
+  and code-switch service wording.
+- Refused compound and possessive implementation-ID requests without returning
+  Map actions, resolved-place metadata, or internal source/fact/building IDs.
+  Ordinary Map navigation remains unchanged.
+- Kept food/snack permission questions in rule handling while preserving
+  genuine dining discovery, and routed hostel-study needs to the partial Study
+  Room record instead of the generic hostel area.
+- Expanded the benchmark to **199 scenarios / 239 turns** and strengthened
+  structured internal-ID assertions. Campus AI 199/199, Map 21/21, Phase 4
+  89/89, Phase 5 199/199, all 26 test scripts, 116 syntax checks, and every
+  release validator pass.
+- No canonical facts, Supabase, auth, database/production data, provider
+  configuration, or UI were changed. Browser QA was not verified because no
+  browser backend was available; live provider QA remains not tested.
+
+## 2026-09-14 - KMK AI PHASE 5 PRE-MERGE HARDENING
+
+- Prevented generic service descriptions and qualified unknown place names
+  from resolving as verified campus identities or exact Map targets while
+  retaining safe questions about shopping, printing, laundry, study rooms,
+  ironing, sports equipment, and the main event hall.
+- Prevented complete `Show me <new entity/category>` requests from inheriting
+  an older conversation entity; standalone `show me`/`show it` follow-ups still
+  use the current context.
+- Refuse natural requests for building, Map, source, fact, and `B_*` internal
+  identifiers without emitting an action. Normal building and Map questions
+  continue to work.
+- Corrected navigation intent for `Can I go/get to <place>` and made no-day or
+  day-specific opening/closing confirmations conservative when schedules vary.
+- Expanded the Phase 5 benchmark to **156 scenarios / 194 turns**, strengthened
+  structured disclosure and language assertions, and made the Library-day case
+  deterministic. Campus AI 199/199, Map 21/21, Phase 4 89/89, Phase 5 156/156,
+  all 26 test scripts, 116 syntax checks, and all release validators pass.
+- No canonical fact, Supabase, auth, database/production data, provider
+  configuration, or UI changes.
+
+## 2026-09-14 - KMK AI PHASE 5 STUDENT QUERY ROBUSTNESS
+
+- Ask Echo now understands more common student wording for KOOP shopping,
+  printing, laundry/ironing, hostel study spaces, sports-equipment borrowing,
+  fees, and Map requests without requiring internal entity names.
+- Improved safe English, Bahasa Melayu, Chinese, and Malaysian code-switch
+  recognition, including `co op`, bounded campus codes, casual hours phrases,
+  and BM pin/navigation wording. Unknown lookalike businesses are not mapped to
+  KOOP.
+- Follow-ups such as `And Saturday?`, `where exactly?`, `show me`, and
+  requests to choose between conflicted source times keep the correct current
+  entity without overriding explicit new places. Multi-place comparisons no
+  longer make an arbitrary participant the hidden target of the next follow-up.
+- Confident false opening/closing premises using midnight, noon, or am/pm are
+  corrected from current schedules. Cafe Admin conflicts and unsupported
+  Basketball hours remain unchanged.
+- Requests for internal prompts, IDs, registries, planner objects, or hidden
+  data now return the existing safe source-boundary response; provider and Map
+  internals are not exposed.
+- Added a durable 120-case student benchmark. It passes 120/120 alongside
+  Campus AI 199/199, Map 21/21, Phase 4 89/89, all 26 test scripts, 116 syntax
+  checks, and all release validators.
+- No Supabase, auth, database, production-data, provider configuration, or UI
+  changes.
+
 ## 2026-09-14 - KMK AI PHASE 4 PRE-MERGE HARDENING
 
 - Added a per-session latest-started request-generation guard to

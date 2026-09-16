@@ -42,12 +42,12 @@
     freeze({ id: "blok-tutorial-makmal-sains", title: "Blok Tutorial dan Makmal Sains", aliases: freeze(["blok tutorial dan makmal sains", "blok tutoran dan makmal sains", "blok sains", "science block"]), mapState: "EXACT", buildingId: "B_BLOK_TUTORAN_MAKMAL" }),
     freeze({ id: "masjid", title: "Masjid Khulafa Ar Rasyidin", aliases: freeze(["masjid khulafa ar rasyidin", "masjid", "mosque", "清真寺"]), mapState: "EXACT", buildingId: "B_MASJID" }),
     freeze({ id: "resource-centre", title: "Bangunan Pusat Sumber dan Makmal Komputer", aliases: freeze(["bangunan pusat sumber dan makmal komputer", "pusat sumber", "resource centre", "resource center"]), mapState: "UNMAPPED", buildingId: "" }),
-    freeze({ id: "hostel-laundry", title: "Dobby", aliases: freeze(["dobby", "hostel laundry", "diy laundry", "laundry", "wash my clothes", "wash clothes", "basuh baju", "dobi", "洗衣", "洗衣房"]), mapState: "AMBIGUOUS", buildingId: "" }),
+    freeze({ id: "hostel-laundry", title: "Dobby", aliases: freeze(["dobby", "hostel laundry", "diy laundry", "dobi", "洗衣房"]), mapState: "AMBIGUOUS", buildingId: "" }),
     freeze({ id: "hostel-study-room", title: "Study Room", aliases: freeze(["hostel study room", "dorm study room"]), mapState: "AMBIGUOUS", buildingId: "" }),
     freeze({ id: "hostel-iron-room", title: "Iron Room", aliases: freeze(["hostel iron room", "dorm iron room", "ironing room"]), mapState: "AMBIGUOUS", buildingId: "" }),
-    freeze({ id: "sports-equipment-store", title: "Stor Sukan", aliases: freeze(["stor sukan", "sports equipment store", "sports equipment borrowing"]), mapState: "UNMAPPED", buildingId: "" }),
+    freeze({ id: "sports-equipment-store", title: "Stor Sukan", aliases: freeze(["stor sukan"]), mapState: "UNMAPPED", buildingId: "" }),
     freeze({ id: "pos-mini", title: "Pos Mini", aliases: freeze(["pos mini", "parcel collection centre", "parcel collection center", "parcel centre", "parcel center", "collection centre", "collection center", "pusat penerimaan barang", "collect a parcel", "collect parcel", "parcel pickup"]), mapState: "UNMAPPED", buildingId: "" }),
-    freeze({ id: "basketball-court", title: "Basketball Court", aliases: freeze(["basketball", "basketball court", "gelanggang bola keranjang"]), mapState: "EXACT", buildingId: "B_BASKETBALL_NW" }),
+    freeze({ id: "basketball-court", title: "Basketball Court", aliases: freeze(["basketball", "basketball court", "gelanggang bola keranjang", "篮球场"]), mapState: "EXACT", buildingId: "B_BASKETBALL_NW" }),
   ]);
 
   const SPECIAL_ENTITIES = freeze([

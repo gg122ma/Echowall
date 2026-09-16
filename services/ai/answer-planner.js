@@ -4,11 +4,11 @@
 
   const MODES = Object.freeze(["DIRECT", "CORRECTION", "CONFLICT", "PARTIAL", "UNSUPPORTED", "AMBIGUOUS", "COMPARISON", "FOLLOW_UP"]);
 
-  function createAction(place, intent, question = "", language = "en") {
-    const normalized = window.EchoAI.Normalizer.normalize(question);
-    const bareExactEntity = intent === "campus_info" && (place.aliases || []).some(alias => window.EchoAI.Normalizer.normalize(alias) === normalized);
+  function createAction(resolution, intent, language = "en") {
+    const canonical = resolution.canonicalResolution;
+    const bareExactEntity = intent === "campus_info" && canonical?.canonical?.basis === "EXACT_TARGET";
     if (!window.EchoAI.IntentRouter.requestsMapAction(intent) && !bareExactEntity) return null;
-    return window.EchoAI.MapAction.create(place, language);
+    return window.EchoAI.MapAction.create(canonical?.map, language);
   }
 
   function plan(input) {
@@ -55,7 +55,7 @@
     if (place.mapState === "PARENT_ONLY") return Object.freeze({
       answerMode: "PARTIAL", language, intent,
       content: Object.freeze({ primary: "PARENT_ONLY", secondary: Object.freeze([]), caveat: "PARENT_NOT_EXACT" }),
-      selectedFactIds: Object.freeze([]), facts: Object.freeze([]), conflicts: Object.freeze([]), action: createAction(place, intent, question, language), place,
+      selectedFactIds: Object.freeze([]), facts: Object.freeze([]), conflicts: Object.freeze([]), action: createAction(resolution, intent, language), place,
       candidates: Object.freeze([]),
     });
 
@@ -66,11 +66,15 @@
       candidates: Object.freeze([]),
     });
 
-    const selection = window.EchoAI.KnowledgeEngine.selectFacts(place.canonicalId, isFollowUp ? (previous.activeIntent || previous.intent || intent) : intent, {
-      asOf,
-      servedFactIds: isFollowUp ? previous.servedFactIds || [] : [],
-      limit: intent === "campus_location" || intent === "campus_navigation" ? 2 : (isFollowUp ? 2 : 3),
-    });
+    const unsupportedRuleTopic = intent === "campus_rules"
+      && /\b(?:food|snacks?|eat(?:ing)?)\b|makan|食物|零食|吃/i.test(String(question || ""));
+    const selection = unsupportedRuleTopic
+      ? Object.freeze({ facts: Object.freeze([]), conflicts: Object.freeze([]) })
+      : window.EchoAI.KnowledgeEngine.selectFacts(place.canonicalId, isFollowUp ? (previous.activeIntent || previous.intent || intent) : intent, {
+        asOf,
+        servedFactIds: isFollowUp ? previous.servedFactIds || [] : [],
+        limit: intent === "campus_location" || intent === "campus_navigation" ? 2 : (isFollowUp ? 2 : 3),
+      });
     const facts = selection.facts;
     const conflicts = selection.conflicts;
     let answerMode = isFollowUp ? "FOLLOW_UP" : "DIRECT";
@@ -96,7 +100,7 @@
       caveat = place.mapState === "AMBIGUOUS" ? "AMBIGUOUS_MAP" : place.mapState === "UNMAPPED" && window.EchoAI.IntentRouter.requestsMapAction(intent) ? "NO_EXACT_TARGET" : null;
     }
 
-    const action = answerMode === "UNSUPPORTED" || answerMode === "CONFLICT" ? null : createAction(place, intent, question, language);
+    const action = answerMode === "UNSUPPORTED" || answerMode === "CONFLICT" ? null : createAction(resolution, intent, language);
     return Object.freeze({
       answerMode,
       content: Object.freeze({ primary, secondary: Object.freeze(facts.slice(1).map(item => item.factId)), caveat }),

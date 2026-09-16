@@ -61,72 +61,58 @@
     return conflicts;
   }
 
-  function entityFromDefinition(definition) {
-    if (!definition) return null;
-    const building = definition.buildingId
-      ? (window.CAMPUS_BUILDINGS || []).find(item => item.id === definition.buildingId) || null
-      : null;
-    return Object.freeze({
-      ...definition,
-      canonicalId: definition.id,
-      building,
-      aliases: definition.aliases || Object.freeze([]),
-      sourceRecords: Object.freeze([]),
-    });
-  }
-
   function getSpecialEntity(entityId) {
-    return entityFromDefinition((window.KMK_AI_PHASE3?.specialEntities || []).find(item => item.id === entityId));
+    return window.EchoAI.PlaceRegistry.getSpecialPlaces().find(item => item.canonicalId === entityId) || null;
   }
 
   function getEntity(entityId) {
-    return window.EchoAI.PlaceRegistry.getById(entityId) || getSpecialEntity(entityId);
+    return window.EchoAI.PlaceRegistry.getById(entityId);
   }
 
-  function aliasMatches(normalizedQuery, alias) {
-    const normalizedAlias = window.EchoAI.Normalizer.normalize(alias);
-    if (!normalizedAlias) return false;
-    if (normalizedQuery === normalizedAlias) return true;
-    if (/[^\x00-\x7F]/.test(normalizedAlias)) return normalizedQuery.includes(normalizedAlias);
-    const escaped = normalizedAlias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
-    return new RegExp(`(?:^|\\s)${escaped}(?=$|\\s)`, "i").test(normalizedQuery);
-  }
-
-  const DISCOVERY_CATEGORIES = Object.freeze({
-    dining: Object.freeze(["cafe-a", "cafe-b", "cafe-c", "cafe-admin"]),
-    sports: Object.freeze(["astaka", "basketball-court", "sports-equipment-store"]),
-  });
-
-  function discoveryCategory(message) {
-    const text = String(message || "");
-    const dining = /\b(?:cafeterias?|cafes?|dining|food|where (?:can|could) i eat|where to eat|places? to eat|kafeteria|kafe|tempat makan|mana boleh makan|makan)\b|食堂|餐厅|咖啡厅|哪里可以吃饭|哪(?:里|儿)能吃饭|吃东西/i;
-    if (dining.test(text)) return "dining";
-    const sports = /\b(?:sports?|sport facilities|sports facilities|places? to exercise|where (?:can|could) i (?:play sports|exercise)|kemudahan sukan|tempat sukan|bersukan|mana boleh bersukan)\b|体育设施|运动设施|哪里可以运动|运动场地/i;
-    return sports.test(text) ? "sports" : "";
-  }
-
-  function discoveryCandidates(category) {
-    const approvedIds = DISCOVERY_CATEGORIES[category] || [];
-    return approvedIds.map(getEntity).filter(place => place && place.status !== "UNSUPPORTED");
-  }
-
-  function resolve(message, contextEntityId = "") {
-    const normalized = window.EchoAI.Normalizer.normalize(message);
-    const special = (window.KMK_AI_PHASE3?.specialEntities || []).find(entity => entity.aliases.some(alias => aliasMatches(normalized, alias)));
-    if (special) return Object.freeze({ status: "resolved", place: entityFromDefinition(special), candidates: Object.freeze([]), confidence: 0.99, resolutionType: special.mapState });
-    const resolved = window.EchoAI.Retriever.resolve(message, contextEntityId);
-    if (resolved.status === "resolved" && resolved.confidence >= 0.95) {
-      return Object.freeze({ ...resolved, resolutionType: resolved.place?.mapState || "UNMAPPED" });
+  function resolve(resolution) {
+    if (!resolution || typeof resolution !== "object" || !resolution.canonical) throw new TypeError("KnowledgeEngine.resolve requires a canonical resolution result");
+    const ids = resolution.canonical.entityIds || [];
+    const candidates = Object.freeze(ids.map(getEntity).filter(place => place && place.status !== "UNSUPPORTED"));
+    if (resolution.canonical.state === "MULTIPLE") {
+      return Object.freeze({
+        status: resolution.category === "dining" && resolution.canonical.basis === "DINING_NEED" ? "dining" : resolution.category ? "discovery" : "multiple",
+        category: resolution.category || "",
+        place: null,
+        candidates,
+        confidence: resolution.canonical.confidence,
+        resolutionType: "MULTIPLE",
+        canonicalResolution: resolution,
+      });
     }
-    const diningNeed = /\b(?:i(?:'m| am)? hungry|hungry|saya lapar|lapar)\b|我饿了|饿了/i.test(String(message || ""));
-    if (diningNeed) return Object.freeze({ status: "dining", category: "dining", place: null, candidates: Object.freeze(discoveryCandidates("dining")), confidence: 0.94, resolutionType: "MULTIPLE" });
-    const category = discoveryCategory(message);
-    if (category) return Object.freeze({ status: "discovery", category, place: null, candidates: Object.freeze(discoveryCandidates(category)), confidence: 0.94, resolutionType: "MULTIPLE" });
-    return Object.freeze({ ...resolved, resolutionType: resolved.place?.mapState || (resolved.status === "ambiguous" ? "AMBIGUOUS" : "UNMAPPED") });
+    if (resolution.canonical.state === "RESOLVED") {
+      const place = getEntity(resolution.canonical.entityId);
+      if (place) return Object.freeze({
+        status: resolution.canonical.basis === "CONTEXT" ? "resolved_context" : "resolved",
+        place,
+        candidates: Object.freeze([place]),
+        confidence: resolution.canonical.confidence,
+        resolutionType: place.mapState || "UNMAPPED",
+        canonicalResolution: resolution,
+      });
+    }
+    return Object.freeze({
+      status: resolution.canonical.state === "AMBIGUOUS" ? "ambiguous" : "unknown",
+      place: null,
+      candidates: Object.freeze([]),
+      confidence: resolution.canonical.confidence || 0,
+      resolutionType: resolution.canonical.state === "AMBIGUOUS" ? "AMBIGUOUS" : "UNMAPPED",
+      canonicalResolution: resolution,
+    });
+  }
+
+  function resolveMany(resolution) {
+    if (!resolution || typeof resolution !== "object" || !resolution.canonical) throw new TypeError("KnowledgeEngine.resolveMany requires a canonical resolution result");
+    return (resolution.canonical.entityIds || []).map(getEntity).filter(Boolean);
   }
 
   function factTypesForIntent(intent) {
     if (intent === "campus_hours") return ["hours"];
+    if (intent === "campus_fees") return ["fee"];
     if (intent === "campus_rules") return ["rule"];
     if (intent === "campus_services") return ["service", "purpose", "identity", "fee"];
     if (intent === "campus_location" || intent === "campus_navigation") return ["purpose", "identity", "service"];
@@ -163,8 +149,8 @@
     detectConflicts,
     getEntity,
     getSpecialEntity,
-    discoveryCategory,
     resolve,
+    resolveMany,
     selectFacts,
     validateInventory,
   });

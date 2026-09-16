@@ -1,3 +1,610 @@
+# KMK AI PHASE 5 FINAL SERVICE AND CONTEXT CLOSURE HANDOFF (2026-09-16)
+
+Status: **IMPLEMENTED; READY FOR FINAL CLAUDE RE-REVIEW**.
+
+Starting commit: `eb66de90a76ae8af63ad3564d7cfad80aa688f6c`.
+This targeted patch preserves the accepted CanonicalResolver architecture.
+IntentRouter still emits semantic concepts and provenance only; the resolver's
+single eligibility function is the only path that maps a safe service frame
+to a canonical entity. Both target-slot and untemplated flows consume that
+decision, and weak capability/question grammar cannot erase unexplained named
+target material.
+
+Context is still resolver-owned and cannot independently select an identity.
+New exact, approximate, ambiguous, or unresolved target evidence blocks prior
+context. In its absence, closed-class anaphora/deixis and bounded hours, fees,
+rules, services, location, and nearby queries support natural English, Malay,
+and Chinese pronoun-drop follow-ups. Context-derived answers remain
+Map-ineligible.
+
+Permanent results: Phase 5 **309/309**, resolver architecture **43/43**,
+Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all test scripts
+**27/27**, and active syntax **116/116**. A disposable fresh gate passed
+**120/120** across 30 fictional request-shaped service facilities, 30 genuine
+service needs, 30 valid contextual follow-ups, and 30 context attacks. Valid
+context recall was **30/30**; false canonical identities, false Map actions,
+and false context inheritance were all **0**.
+
+Pages build/artifact (490 files), production URL lock, static, portable,
+Pustaka seed, showcase seed, and diff checks pass. No source truth, production
+data, UI, provider/Phase 4 behavior, Dewan/Hall policy, or hostel mapping
+changed. Roll back by reverting the forthcoming single closure commit. Do not
+merge PR #2 before independent review; do not start Phase 6.
+
+---
+
+# KMK AI PHASE 5 FINAL BLOCKER CLOSURE HANDOFF (2026-09-16)
+
+Status: **IMPLEMENTED; READY FOR CLAUDE RE-REVIEW**.
+
+Starting commit: `7a1198ba892265a0bdf5ec7cca3cfc18738964b3`.
+This is a targeted correction on the accepted single-authority resolver. The
+architecture was not refactored: CanonicalResolver still owns entity and Map
+decisions, while IntentRouter emits concepts and request provenance only.
+
+Context now resolves only when the follow-up is provably relative to the
+active entity: a bounded pronoun/deictic, date/time, fact dimension, or known
+elliptical follow-up. Unknown payloads after `what about` and `how about` are
+new unresolved targets, so they cannot inherit either a real entity or a
+service-derived entity. Service frames now distinguish capability evidence
+from positive need/request evidence before the resolver can apply its central
+source-backed mapping.
+
+The owner facility summary names `DEWAN MAHAWANGSA` and points to source page
+26; its photo caption also uses the complete name. It does not verify bare
+`Dewan` or `Hall` as unique campus identities. The registry therefore excludes
+only those two legacy generic labels from exact identity matching. The
+canonical Dewan Mahawangsa record, facts, and `B_DEWAN_MAHAWANGSA` Map target
+remain unchanged.
+
+Permanent results: Phase 5 **287/287**, resolver architecture **40/40**,
+Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all test scripts
+**27/27**, and active syntax **116/116**. A disposable fresh gate passed
+**80/80**: 20 new-target context attacks, 20 legitimate contextual follow-ups,
+20 fictional service capability descriptions, and 20 genuine service needs
+across English, Malay, Chinese, and mixed script. False canonical identities:
+**0**; false Map actions: **0**.
+
+Pages build/artifact (490 files), production URL lock, static, portable,
+Pustaka seed, showcase seed, and diff checks pass. No source facts, production
+data, UI, or Phase 4 behavior changed. Roll back by reverting the forthcoming
+single blocker-closure commit. Do not merge PR #2 before independent review;
+do not start Phase 6.
+
+---
+
+# KMK AI PHASE 5 CANONICAL RESOLVER FINAL CONVERGENCE HANDOFF (2026-09-16)
+
+Status: **IMPLEMENTED; READY FOR CLAUDE FINAL REVIEW**.
+
+Starting commit: `09a5312be0ec6ddd16335b05c9800cb20be70ab2`.
+The accepted canonical architecture is unchanged. The final convergence adds
+one structural grammar rule: a closed-class auxiliary followed immediately by
+an exact registered alias is a `KNOWN_ENTITY_MENTION`; the arbitrary predicate
+is never inspected. These mentions can supply facts but cannot create Map
+provenance. Longer exact aliases and primary same-span identities also dominate
+contained or relational alias evidence.
+
+Benchmark migration is now explicit. Eleven pre-existing Map/provenance
+expectation changes remain `OWNER_APPROVED_CONTRACT_CHANGE`. P5-243, P5-244,
+P5-248, P5-249, P5-251, and P5-257 are
+`OWNER_APPROVED_CONSERVATIVE_AMBIGUITY`; each has no canonical entity, resolved
+place, action, or inherited stale context. P5-260 is
+`INTENTIONAL_CONSERVATIVE_AMBIGUITY`. P5-218 and P5-231 are
+`REGRESSION_FIXED` as KOOP mentions with no Map confidence. All other
+unapproved pre-existing expectation changes were restored and their resolver
+regressions fixed.
+
+Permanent results: Phase 5 **275/275**, resolver architecture **29/29**,
+Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all test scripts
+**27/27**, and active syntax **116/116**. Final diagnostics passed **200/200**:
+30 exact targets, 30 known mentions, 20 auxiliary mentions, 30 fictional
+identities, 25 service cases, 25 multilingual cases, 20 context turns, and 20
+Map cases. There were 35 intentional safe ambiguities, zero false canonical
+resolutions, zero false Map actions, and zero unexpected recall regressions.
+All Pages, artifact, production URL, static, portable, Pustaka seed, showcase
+seed, and diff checks pass.
+
+No source truth, production data, UI, or Phase 4 behavior changed. Rollback is
+`git revert <final convergence commit>` after it is created. Do not merge PR
+#2 until independent review passes; do not start Phase 6.
+
+---
+
+# KMK AI PHASE 5 CANONICAL RESOLVER HANDOFF (2026-09-16)
+
+Status: **IMPLEMENTED; READY FOR CLAUDE FINAL REVIEW**.
+
+This architecture reset starts from
+`e6ad631e1af06180c58653222d60de009045c029`. One immutable per-turn
+`CanonicalResolver` result now owns target, mention, service, context,
+canonical, and Map decisions. `IntentRouter` supplies intent and semantic
+service frames only; `KnowledgeEngine` supplies source facts only; context is
+applied once inside the resolver; `AnswerPlanner` and `MapAction` consume the
+same provenance.
+
+The identity catalog now includes regular and special entities. Alias evidence
+is case-insensitive, offset-preserving, and Unicode-safe for Latin, CJK, and
+mixed-script spans. Exact target, bounded mention, unresolved larger target,
+and undecidable ambiguity are explicit states. The resolver no longer uses the
+old local-span/fallback named-span authority, capitalization, trailing word
+counts, subject/auxiliary/action lists, or safe-target modifiers to select an
+entity.
+
+Service analysis emits action/object concepts rather than canonical IDs. The
+resolver alone maps complete source-backed frames after ruling out competing
+target ambiguity. Map confidence is independent of answer confidence: only an
+exact registered target can produce an exact action, with verified parent
+destinations retained for A1/A2, B1/B2, and C2. P5 stays unmapped.
+
+Permanent Phase 5 coverage is **275 scenarios / 319 turns / 275 passed**. The
+new architecture test passes **27/27** and proves the non-resolver modules
+cannot select service IDs or manufacture Map provenance. A removed temporary
+diagnostic passed **220/220**: 30 exact targets, 25 mentions, 25 intentional
+ambiguities, 50 fictional identities, 35 services, 25 multilingual cases, 15
+context cases, and 15 Map cases. False canonical resolutions: **0**. False Map
+actions: **0**.
+
+Final gates: Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all test
+scripts **27/27**, active syntax **116/116**, Pages build/artifact, production
+URL, static, portable, Pustaka seed, showcase seed, and diff checks all pass.
+No source truth, Supabase/auth/database/production data, UI design, or Phase 4
+architecture changed. Roll back by reverting the forthcoming canonical
+resolver commit. Do not merge PR #2 until independent review passes.
+
+---
+
+# KMK AI PHASE 5 QUICK-BLOCKER IDENTITY SPAN HANDOFF (2026-09-15)
+
+Status: **IMPLEMENTED; TARGETED GATE PASS**.
+
+This focused PR #2 correction starts from
+`9f5d72dbf06d95cf5e5957b3fd748645bcbde5f0`. Local identity-span evidence is
+now capitalization-neutral for bounded lowercase wrappers, and pure-CJK
+aliases embedded between unknown prefix/suffix text are unknown-qualified.
+Short untemplated noun phrases and named-reference speech acts use the same
+Retriever boundary; ordinary predicate text remains outside the identity
+span without a query-wide vocabulary allowlist.
+
+Service routing asks that boundary before selecting laundry, printing,
+bicycle, sports-equipment, or ironing facilities. It permits genuine
+action/object clauses in action-first, object-first, grammatical-subject, and
+trailing-passive order only when the semantic core fits the selected service.
+Unknown facility qualifiers remain blocking evidence, including names that
+also contain a real campus alias.
+
+Permanent Phase 5 coverage is **258/258 scenarios**. Disposable targeted
+gates covered lowercase, Title Case, pure CJK, mixed-script, two- and
+three-token service facilities, genuine needs, real controls, and Map safety;
+the final-tree gate passed **24/24** with zero fictional Map actions. The
+requested 175+ full review was intentionally not run before this gate.
+
+Final validation: Campus **199/199**, Map **21/21**, Phase 4 **89/89**, Phase
+5 **258/258**, all tests **26/26**, active syntax **116/116**, and all Pages,
+artifact, URL, static, portable, seed, and diff gates pass. No source truth,
+production data, UI, or Phase 4 architecture changed. Roll back by reverting
+the quick-blocker identity-span commit; do not merge PR #2 until independent
+review passes.
+
+---
+
+# KMK AI PHASE 5 UNTEMPLATED FALLBACK SAFETY HANDOFF (2026-09-15)
+
+Status: **IMPLEMENTED; READY FOR CLAUDE FINAL RE-REVIEW**.
+
+This targeted PR #2 hardening starts from
+`4ce5b2aff1aa0e2e6f7ff92ced0d2255a508a8d9`. When explicit target extraction
+returns null, `Retriever.analyzeIdentityEvidence()` now evaluates the local
+alias span in the original message. A known alias surrounded by identity-like
+proper-name tokens, a conservative typo inside such a name, or a multi-token
+named facility without a catalog alias becomes unknown-qualified. Ordinary
+predicate words outside that local span do not participate in confidence.
+
+Knowledge resolution exposes that evidence status to the conversation layer.
+A new unknown-qualified identity blocks old-entity inheritance and clears
+context through the existing unknown path, while true pronoun/elliptical turns
+still resolve the previous entity. Service routing now recognizes normalized
+action/object pairs independent of order, then retains the existing
+request-led behavior for established queries. Repeated fixed-point target
+cleanup handles stacked polite and Map fillers.
+
+Permanent Phase 5 coverage is **250 scenarios / 292 turns / 250 passed**.
+The removed temporary suite passed **202/202 fresh turns** across 187
+cases/sequences: 45 legitimate, 45 fictional, 32 service, 20 multilingual,
+15 typo, 15 two-turn context sequences, and 15 special/Map cases. Of those,
+201 turns did not match an explicit target-slot template. Browser QA was not
+available because no browser connection was exposed in this session.
+
+Final gates: Campus 199/199, Map 21/21, Phase 4 89/89, all tests 26/26,
+active syntax 116/116, Pages build/artifact, production URL, static, portable,
+both seeds, and diff check all pass. No source truth, production data, UI, or
+Phase 4 architecture changed. Roll back by reverting the single forthcoming
+untargeted-fallback hardening commit. Do not merge PR #2 until independent
+re-review passes.
+
+---
+
+# KMK AI PHASE 5 ARCHITECTURAL RESOLVER CONSOLIDATION HANDOFF (2026-09-15)
+
+Status: **IMPLEMENTED; READY FOR CLAUDE RE-REVIEW**.
+
+This targeted PR #2 fix starts from
+`7b867ae4e66e4beda48e768d5eb2720ed2e71879`. `Retriever` now exposes the
+single `analyzeIdentityEvidence()` boundary. It extracts bounded entity
+targets, distinguishes known, unknown-qualified, absent, and ambiguous
+identity evidence, and evaluates only that target slot. `KnowledgeEngine` and
+`IntentRouter` consume the result before special-entity or service routing.
+The previous query-wide scaffold vocabulary gate and KnowledgeEngine's
+parallel substring/direct/service shortcuts were removed.
+
+Exact A1/A2/B1/B2/C2/P5 aliases no longer enter the generic
+`blok-kediaman` surface. Their existing source-backed map semantics remain:
+A1/A2 → Seri Palas, B1/B2 → Seri Temin, C2 → Seri Laka, and P5 → UNMAPPED.
+
+Permanent Phase 5 coverage is **242 scenarios / 283 turns / 242 passed**.
+The removed temporary harness passed **150/150 fresh scenarios/sequences**:
+40 legitimate recall, 40 fake identities, 30 service/identity probes, 15
+special-entity cases, 10 hostel/Map cases, 10 multilingual cases, and five
+multi-turn contexts. Final gates: Campus 199/199, Map 21/21, Phase 4 89/89,
+all tests 26/26, active syntax 116/116, Pages build/artifact, production URL,
+static, portable, both seeds, and diff check all pass.
+
+No source truth, Supabase/auth/database/production data, Phase 4 architecture,
+provider configuration, or UI design changed. Rollback is the single new
+consolidation commit; do not merge PR #2 until independent re-review passes.
+
+---
+
+# KMK AI PHASE 5 FINAL HARDENING ROUND 3 HANDOFF (2026-09-14)
+
+Status: **IMPLEMENTED; READY FOR CLAUDE FINAL RE-REVIEW**.
+
+Round 3 starts from `7b58c18c5a9c19bc37181a490338546aa59bb3ea`
+on PR #2. Claude Sonnet 5 independently ran 103 adversarial probe turns and
+reported four High resolver/disclosure classes plus one Medium disclosure-verb
+gap despite the then-green 199-case suite.
+
+## Round 3 root causes and fixes
+
+- **Identity confidence:** `PlaceRegistry` no longer publishes raw record IDs
+  or Map building IDs as student aliases. It exposes user-facing
+  `identityAliases`. `Retriever` now requires exact bounded identity phrases,
+  bounded short codes, or complete conservative-typo coverage; a unique weak
+  token overlap cannot cross the identity evidence floor. Explicit location
+  targets must be covered by the matched identity apart from harmless
+  modifiers, so a known nearby landmark cannot become the requested target.
+- **Descriptive suffix safety:** the closed suffix guard was removed. Study
+  Hall, Equipment/Printing/Learning Centre, Student Facility, Sports Depot,
+  and other unseen variants fail from insufficient identity evidence rather
+  than phrase blacklists.
+- **Hostel study:** hostel/asrama/dorm/resident context composes with
+  study/self-study/belajar/ulang-kaji/Chinese study concepts. Clear needs route
+  to the existing partial `hostel-study-room`; hostel or study alone does not.
+- **Bounded services:** sports borrowing, bicycle borrowing, laundry, and
+  printing use action + service-concept composition in EN/BM/ZH. Qualified
+  business-name lookups never enter this service path.
+- **Identifier disclosure:** strong ID/code/internal-reference requests are
+  distinguished from ordinary key facilities/services, dress/QR/postal codes,
+  and target-audience wording. Dump/expose, possessive/contextual, compound
+  navigation, and raw `B_*` requests are refused. Defense-in-depth suppression
+  still removes actions, resolved metadata, facts, grounding, resolution,
+  context, and selected IDs.
+
+## Round 3 benchmark and diagnostics
+
+- Permanent benchmark: **225 scenarios / 266 conversational turns / 225
+  passed**.
+- P5-200 through P5-225 cover compositional hostel study, fictional qualified
+  identities, legitimate title controls, disclosure false-positive controls,
+  dump/expose/compound/contextual ID requests, landmark separation, raw `B_*`,
+  and broader service phrasing.
+- A temporary **107-query unseen diagnostic pass** covered 20 fictional
+  identities, 15 legitimate identities, 15 hostel-study paraphrases, 15 ID
+  requests, 10 false-positive controls, 10 EN/BM/ZH service paraphrases, five
+  two-turn contexts, and 12 Map combinations. It finished **107/107** and was
+  removed after representative failures were promoted.
+
+## Round 3 validation and boundaries
+
+- Campus AI: **199/199**; Map actions: **21/21**; Phase 4: **89/89**;
+  Phase 5: **225/225**.
+- All `scripts/test-*.mjs`: **26/26 scripts pass**; active application
+  JavaScript/module syntax: **116/116 pass**. Archived checkpoint and
+  before-rollback snapshots are outside this active syntax scope.
+- Pages build/artifact (**490 files**), production URL lock, static, portable,
+  Pustaka seed, showcase seed, and `git diff --check`: **PASS**.
+- Browser QA and live-provider QA are reported in the final task report; no
+  provider credential or production opt-in was added.
+
+No canonical facts, authority, dates, conflicts, Map states/targets,
+Supabase/auth/database/production data, provider configuration, or UI code
+changed. Phase 4 fact-lock, explicit provider opt-in, deterministic fallback,
+request generation, UI single-flight, provider action prohibition, and
+ResponseValidator remain intact.
+
+Rollback: revert only the Round 3 hardening commit created after
+`7b58c18c5a9c19bc37181a490338546aa59bb3ea`; do not rewrite earlier Phase 4 or
+Phase 5 history.
+
+# KMK AI PHASE 5 FINAL HARDENING ROUND 2 HANDOFF (2026-09-14)
+
+Status: **IMPLEMENTED; READY FOR FINAL PHASE 5 PRE-MERGE REVIEW**.
+
+This follow-up starts from independently reviewed PR #2 SHA
+`a6edc89be8693a26682f6248c8ce6278a899a64b`. It addresses the second-review
+blockers on `feature/kmk-ai-phase5-student-benchmark` without changing
+canonical fact values, source authority, provider configuration, Supabase,
+auth, database/production data, or UI code.
+
+## Second-review findings and fixes
+
+- **Identity versus service concepts:** `PlaceRegistry` now filters descriptive
+  aliases from every Phase 3/legacy record source, and unmatched Map-only
+  buildings expose only their name and ID as identity aliases. Generic
+  multiword phrases such as sports equipment, printing service, laundry,
+  student shop, and event hall can no longer win Retriever substring matching.
+  A bounded qualified-descriptive-name guard prevents unknown names such as
+  Nova Sports Equipment or Ocean Laundry Center from inheriting a known
+  entity or Map target.
+- **Sports/bicycle ownership:** the conflicting legacy `sports equipment`
+  concept no longer identifies `bicycle-service`. Bounded service-need routing
+  sends source-supported sports-equipment borrowing to
+  `sports-equipment-store` / Stor Sukan, while explicit bicycle rental and Stor
+  Basikal identity remain with `bicycle-service`. EN, BM, ZH, and conservative
+  code-switch forms are covered without making broad sports words aliases.
+- **Identifier disclosure:** `requestsInternalIdentifier()` combines request,
+  identifier, and implementation-context signals, including possessive and
+  compound navigation forms. Requests such as navigation plus “state its
+  identifier” return deterministic `UNSUPPORTED`, no action, no resolved-place
+  metadata, and no internal IDs. The response-construction boundary also
+  strips actions, resolution, context, grounding, facts, conflicts, and
+  selected IDs for a classified disclosure request.
+- **Intent precedence:** bounded service needs run before generic `can I`
+  rules; explicit food/snack permission requests remain rules and cannot be
+  replaced by dining discovery merely because they contain `food`. Actual
+  discovery questions still return safe dining choices.
+- **Hostel study:** bounded EN/BM/ZH forms resolve the partial, ambiguous
+  `hostel-study-room` record instead of generic `blok-kediaman`; no exact
+  hostel Map target is created.
+- **Benchmark disclosure checks:** `noInternalIdsAnywhere` now scans answer,
+  actions, and resolved-place metadata against `B_*`, fact IDs, and the known
+  source/building/fact identifier inventory. Explicit disclosure cases also
+  require an empty resolved-place surface.
+
+## Benchmark and diagnostics
+
+The permanent benchmark now contains **199 scenarios / 239 conversational
+turns**, all passing. Round 2 added representative regressions for multiword
+qualified aliases, sports-versus-bicycle ownership, compound/possessive
+identifier requests, rule/discovery precedence, multilingual sports borrowing,
+and hostel study. Expectations continue to assert entity, intent, answer mode,
+final action safety, and language rather than full-answer snapshots.
+
+A temporary **58-query unseen diagnostic pass** covered qualified names,
+multiword concepts, sports/bicycle semantics, compound and contextual
+identifier requests, rules versus dining, EN/BM/ZH/code-switch services,
+hostel study, context switching, and Map safety. Initial probes exposed
+additional variants of the same classes; root fixes were applied and one
+representative per class was promoted. The final pass was **58/58**, and the
+temporary diagnostic script was removed.
+
+## Validation and boundaries
+
+- Campus AI: **199/199**; Map actions: **21/21**; Phase 4: **89/89**;
+  Phase 5: **199/199**.
+- All `scripts/test-*.mjs`: **26/26 scripts pass**.
+- Active JavaScript/module syntax: **116/116 pass**.
+- Pages build/artifact (**490 files**), production URL lock, static, portable,
+  Pustaka seed, showcase seed, and `git diff --check`: **PASS**.
+- Browser QA: **NOT VERIFIED** because no browser backend was available.
+- Live OpenRouter QA: **NOT TESTED**; no credential was added and
+  `campusRendering` remains explicit opt-in and disabled in production.
+
+Cafe Admin remains `CONFLICT`; the current Library and KOOP schedules are
+unchanged; the expired Library exception remains excluded; Basketball hours
+and fees remain unsupported; Surau is not Masjid; Reading Room is not
+substituted; Court A/C remain disabled; A1/A2/B1/B2/C2 remain parent-only; and
+P5 remains unmapped. Phase 4 fact-lock, deterministic fallback, provider action
+prohibition, latest-started session generation, UI single-flight, and the final
+ResponseValidator gate are intact.
+
+Remaining limitation: service-need matching is intentionally bounded.
+Unrecognized descriptive wording may return unsupported instead of guessing.
+Rollback by reverting only this Round 2 hardening commit; do not alter source
+data or earlier Phase 4/5 history.
+
+# KMK AI PHASE 5 PRE-MERGE HARDENING HANDOFF (2026-09-14)
+
+Status: **IMPLEMENTED; READY FOR SECOND PHASE 5 PRE-MERGE REVIEW**.
+
+This follow-up starts from reviewed Phase 5 SHA
+`392cbece92b1d19d30e2c5f04382399c55d150cc` on PR #2. It fixes the final
+read-only review findings without changing canonical facts, Supabase, auth,
+database/production data, provider configuration, or UI code.
+
+## Review findings and fixes
+
+- **Alias/Map safety:** descriptive needs are no longer canonical identity
+  aliases. Generic building tags and the known generic legacy aliases
+  `Campus Store`, `Hall`, and `Dewan` no longer participate in identity
+  resolution. A bounded `descriptiveNeedEntity()` path handles only complete,
+  generic service requests such as buying daily items, printing, laundry,
+  hostel study/ironing, sports-equipment borrowing, and the main event hall.
+  Descriptive tokens are ignored during weak token scoring, so qualified names
+  such as Sunrise Campus Shop, Moonlight Student Shop, Galaxy Printing
+  Service, and Lunar Laundry cannot inherit an exact campus entity or Map ID.
+- **Context safety:** `show me` was removed from substring refer-back matching.
+  Standalone `show me`, `show it`, and their Map forms remain exact elliptical
+  follow-ups, while independently resolved entities and dining/sports
+  discovery categories always outrank prior context. `Show me cafeterias`
+  therefore cannot reopen Library or emit `B_PUSTAKA`.
+- **Identifier safety:** natural building/Map/source/fact ID requests and
+  `B_*`/`B_...` code requests take the deterministic unsupported boundary
+  before entity resolution. Normal questions containing `building` or `map`
+  without an identifier request remain usable. Benchmark disclosure checks now
+  scan both answer text and UI-consumed action objects.
+- **Intent safety:** explicit `can I go/get to` and `how can I go/get` wording
+  routes to navigation. Anchored `Can I bring/eat/borrow/enter` forms remain
+  rules, while `Where can I borrow sports equipment?` remains a service need.
+- **Premise safety:** a day-unspecified endpoint is supported only when every
+  scheduled day has the same endpoint. Closed days count as a different state.
+  Day-specific assertions now compare the asserted time to the selected day's
+  actual endpoint. KOOP's canonical schedule was not changed.
+- **Benchmark quality:** the permanent suite grew from 120 scenarios/150 turns
+  to **156 scenarios/194 turns**. New categories cover seven alias-safety, six
+  context-safety, seven intent-safety, and seven premise-safety scenarios;
+  injection cases now total 19 primary/24 cross-category checks. Language
+  assertions require dominant CJK or multiple/dominant Malay signals, and the
+  former date-dependent Library `today` case now asks explicitly about Sunday.
+
+## Diagnostic pass and validation
+
+A separate **27-query** diagnostic pass covered qualified generic names,
+context switching, standalone `show` forms, building/Map/source/fact IDs,
+normal navigation/rule wording, and no-day/day-specific schedule assertions.
+It found two further instances of the same weak descriptive-token class
+(Galaxy Printing Service and Lunar Laundry); both were fixed and promoted as
+permanent cases. The existing Chinese laundry regression was preserved through
+an anchored service-need rule rather than restoring a generic alias.
+
+- Campus AI: **199/199**; Map actions: **21/21**; Phase 4: **89/89**;
+  Phase 5: **156/156**.
+- All `scripts/test-*.mjs`: **26/26 scripts pass**.
+- Active JavaScript/module syntax: **116/116 pass**.
+- Pages build/artifact (**490 files**), production URL lock, static, portable,
+  Pustaka seed, showcase seed, and `git diff --check`: **PASS**.
+- Browser QA: **NOT VERIFIED** because no browser backend was available.
+- Live OpenRouter QA: **NOT TESTED**; no credential was added and campus
+  provider rendering remains explicit opt-in and disabled in production.
+
+Remaining limitation: service-need resolution is deliberately conservative;
+unrecognized or qualified descriptive names may return unsupported instead of
+guessing. Roll back by reverting only the Phase 5 hardening follow-up commit.
+
+# KMK AI PHASE 5 STUDENT BENCHMARK & ROBUSTNESS HANDOFF (2026-09-14)
+
+Status: **IMPLEMENTED; ALL AUTOMATED GATES PASS; BROWSER QA NOT VERIFIED**.
+
+Phase 4 PR #1 was merged with merge commit
+`7d6cb119a6139ba0f74e742ddd2e4afbbc6916e0`. Phase 5 started from that same
+`origin/main` SHA on `feature/kmk-ai-phase5-student-benchmark` and does not
+change Supabase, auth, database state, production data, provider configuration,
+or the UI.
+
+## Benchmark architecture and coverage
+
+- `data/kmk-ai-phase5-benchmark.json` is a durable, machine-readable set of
+  **120** student scenarios. `scripts/test-kmk-ai-phase5-benchmark.mjs` loads
+  the real CampusAI module stack in an isolated browser-like VM and validates
+  semantic response structure rather than full-string snapshots: entity,
+  intent, answer mode, premise, Map state/action/target, selected/forbidden
+  facts, language, safe text constraints, and conversation state.
+- Primary categories: normal **20**, natural phrasing **12**, follow-up **15**,
+  correction **12**, conflict **8**, unsupported/source gaps **10**, Map safety
+  **12**, typo normalization **8**, injection **10**, comparison **8**, and
+  controlled concurrency **5**. Cross-category coverage brings Map safety to
+  **15** and adversarial/injection boundaries to **15** without duplicating
+  cases.
+- Language buckets: English **82**, Bahasa Melayu **10**, Chinese **8**,
+  Malaysian code-switch **15**, plus **5** language-neutral controlled
+  concurrency cases. Chinese coverage is **10** when the two Chinese-led
+  code-switch cases are included.
+- Multi-turn cases use a stable session per scenario. Five provider-controlled
+  concurrency cases cover both same-session completion orders, independent
+  sessions, follow-up after a superseding request, and context after a real
+  short timeout.
+
+## Bugs discovered and fixed
+
+- Added narrow, source-identity-safe aliases for common student wording around
+  KOOP, printing, laundry fees, hostel study/ironing, sports-equipment loans,
+  Dewan Mahawangsa, and the Chinese Basketball Court name. No canonical fact
+  value or authority record changed.
+- Hardened conservative normalization for `co op`, bounded short campus codes
+  such as ATM/A1/B1, and generic-token scoring so an unknown `Moonlight Mart`
+  cannot become KOOP and a follow-up containing `and` cannot become Track and
+  Field Stadium.
+- Expanded EN/BM/ZH and Malaysian code-switch intent cues for hours, fees,
+  services, rules, comparisons, and safe Map requests including `letak pin`.
+  Provider calls were not added.
+- Fixed contextual day/refusal/Map follow-ups (`And Saturday?`, `where
+  exactly`, `show me`, `which source`, and refusal to choose the later/earlier
+  Cafe Admin conflict). Explicit high-confidence entity mentions still
+  override context, and the Phase 4 latest-started generation guard is intact.
+- Added deterministic no-day opening/closing premise checks for `midnight`,
+  `noon`, and am/pm endpoints, so confident false premises are corrected from
+  selected schedules rather than mirrored.
+- Prevented legacy general-content fallback from turning unsupported fee or
+  dress-code questions into unrelated answers. Explicit requests for system,
+  provider, registry, planner, fact-ID, or building-ID internals now take the
+  existing deterministic injection refusal path.
+- Comparison resolution now includes the existing special safe entities, so
+  A1/B1-style comparisons do not bypass the special-entity registry. A
+  comparison also clears the single-entity refer-back context under the
+  latest-request guard, instead of silently making the second participant own
+  an ambiguous later follow-up.
+
+## Benchmark iteration and source gaps
+
+The initial benchmark exposed **44** failures (76/120); layer-specific fixes
+and expectation corrections brought it to **120/120**. Corrections included
+keeping ambiguous `Dewan sukan besar` ambiguous, preserving the verified
+Library Saturday closure, recognizing Dobby fee answers as `PARTIAL` because
+its Map state remains ambiguous, replacing a substring-based `RM` check that
+accidentally matched the word `information` with a currency pattern, and
+requiring internal-disclosure refusals to return no resolved campus entity.
+
+Source gaps remain explicit: Cafe Admin hours stay `CONFLICT`; Basketball
+hours, Court A/C mapping, Reading Room and Surau exact mapping, Pavilion dress
+code, and Basketball fees stay unsupported; P5 stays unmapped; A1/A2/B1/B2/C2
+remain parent-only. The expired April-May 2026 Library exception stays
+historical. No benchmark expectation was allowed to create a fact.
+
+The required second pass ran **20** temporary diagnostic variations across
+code-switching, follow-up, false premise, Map, and injection handling. It found
+the contextual day, forced-conflict-choice, unknown-Mart, pin-phrasing, and
+internal-disclosure blind spots; **5** representative checks were promoted into
+existing permanent cases. The temporary runner was removed after use.
+
+## Files changed
+
+- Benchmark: `data/kmk-ai-phase5-benchmark.json`,
+  `scripts/test-kmk-ai-phase5-benchmark.mjs`.
+- Robustness: `data/kmk-ai-phase3-knowledge.js`, `services/ai/config.js`,
+  `conversation-context.js`, `index.js`, `intent-router.js`,
+  `knowledge-engine.js`, `language.js`, `normalizer.js`, `place-registry.js`,
+  `premise-checker.js`, and `retriever.js`.
+- Documentation: `HANDOFF.md`, `CODE_AUDIT.md`, `CHANGELOG.md`, and
+  `OPTIMIZATION_LOG.md`.
+
+## Final validation
+
+- Campus AI: **199/199**; Map actions: **21/21**; Phase 4: **89/89**;
+  Phase 5: **120/120**.
+- All `scripts/test-*.mjs`: **26/26 scripts pass**.
+- Active JavaScript/module syntax: **116/116 pass**.
+- Pages build: **490 files**; Pages artifact, production URL lock, static,
+  portable, Pustaka seed, and showcase seed validation: **PASS**.
+- `git diff --check`: **PASS**.
+- Browser QA: **NOT VERIFIED** because the browser runtime had no available
+  browser session. No browser or console-success claim is made.
+- Live OpenRouter QA: **NOT TESTED**. No safe credential was configured,
+  `campusRendering` remains disabled in production, and deterministic campus
+  behavior remains the default.
+
+## Remaining limitations and rollback
+
+The Phase 4 low-severity behavior where an eligible one-clause answer may call
+an explicitly enabled provider remains unchanged; production does not enable
+that path. Language handling remains conservative rather than broadly fuzzy,
+so unknown or collision-prone place names intentionally stay unsupported or
+ambiguous.
+
+Rollback by reverting the Phase 5 branch commits only. This removes the
+benchmark and robustness rules while leaving Phase 4 merge
+`7d6cb119a6139ba0f74e742ddd2e4afbbc6916e0` and all Supabase/auth/database/data
+state untouched.
+
 # KMK AI PHASE 4 PRE-MERGE HARDENING HANDOFF (2026-09-14)
 
 Status: **IMPLEMENTED; ALL LOCAL GATES PASS; BROWSER QA NOT RERUN**.

@@ -1,5 +1,243 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-16 - Phase 5 final service and context closure
+
+- Replaced separate target-slot and fallback service authorization with one
+  resolver eligibility decision: positive request provenance, supported
+  action/object concepts, and no unexplained competing target material.
+- Preserved genuine service word-order variants while preventing broad
+  question grammar from masking fictional facility names, including pure-CJK
+  capability questions.
+- Broadened context recall structurally through closed-class anaphora/deixis
+  and bounded fact dimensions; explicit or uncertain new targets continue to
+  block inheritance and context remains Map-ineligible.
+- Permanent evidence: Phase 5 **309/309**, focused architecture **43/43**,
+  Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all tests **27/27**,
+  syntax **116/116**, and every release validator passes. The disposable
+  multilingual gate passed **120/120**, with context recall **30/30** and zero
+  false identities, Map actions, or context inheritance.
+
+## 2026-09-16 - Phase 5 final blocker closure
+
+- Tightened context gating around semantic evidence rather than a generic
+  `what/how about` prefix: only provably relative payloads reuse the active
+  entity, and uncertain new content safely blocks inheritance.
+- Split complete service concept evidence from positive request provenance.
+  The resolver maps action/object frames only for a genuine need/request, so
+  declarative facility capability text cannot become a campus service entity.
+- De-authorized the legacy bare `Dewan` and `Hall` identity aliases after the
+  owner summary showed only the complete `Dewan Mahawangsa` identity. No
+  canonical source record, fact, or Map mapping changed.
+- Permanent evidence: Phase 5 **287/287**, focused architecture **40/40**,
+  Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all tests **27/27**,
+  syntax **116/116**, and all release validators pass. The disposable fresh
+  gate passed **80/80** with zero false canonical identities and zero false
+  Map actions.
+
+## 2026-09-16 - Phase 5 canonical resolver final convergence
+
+- Encoded the owner-approved ambiguity migration without adding new
+  name-introduction, suffix, capitalization, or open-class vocabulary rules.
+- Added only a closed-class auxiliary operator boundary, allowing an exact
+  entity subject to retain arbitrary predicate text as a known mention while
+  remaining Map-ineligible.
+- Normalized overlapping alias evidence structurally: the longer exact span
+  wins, and a primary identity wins over same-span relational aliases.
+- Kept service analysis concept-only and added the Malay passive morphology
+  `difotostat` to the existing PRINT action concept; canonical service mapping
+  remains exclusive to the resolver.
+- Permanent evidence: Phase 5 **275/275**, focused architecture **29/29**,
+  Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all tests **27/27**,
+  syntax **116/116**, and all release validators pass. Final diagnostics are
+  **200/200**, with zero false identities, zero false Map actions, and zero
+  unexpected recall regressions.
+
+## 2026-09-16 - Phase 5 single canonical resolver
+
+- Consolidated per-turn identity authority into one immutable resolution
+  record with separate target, mention, service, context, canonical, and Map
+  decisions.
+- Unified normal and special aliases in the PlaceRegistry catalog and replaced
+  heuristic local-name authority with Unicode offset evidence plus conservative
+  bounded target/mention states. Syntactically undecidable text now fails as
+  safe ambiguity rather than guessing.
+- Converted service routing to action/object concepts. Canonical service IDs
+  are assigned only after target ambiguity checks, while complete frames allow
+  ordinary predicate modifiers without a query-wide allowlist.
+- Made exact resolver provenance mandatory for Map actions; approximate,
+  mention, service, context, discovery, ambiguous, and unresolved results have
+  no exact action path.
+- Added compact permanent invariant and static authority tests. Phase 5 passes
+  **275/275**; fresh implementation diagnostics pass **220/220** with zero
+  false identities or Map actions. Campus, Map, Phase 4, all 27 test scripts,
+  active syntax, Pages/artifact, URL, static, portable, seeds, and diff checks
+  pass.
+
+## 2026-09-15 - Phase 5 capitalization-neutral identity spans
+
+- Replaced capitalization as the deciding lowercase-name signal with bounded
+  local-span structure: complete short noun phrases and named-reference
+  contexts are inspected around the alias.
+- Used alias offsets inside contiguous CJK runs so unknown text on both sides
+  cannot resolve through the embedded real identity or create a Map action.
+- Kept service safety at the shared Retriever boundary, then reduced genuine
+  service clauses to their action/object core. Object-first, grammatical
+  subject, and trailing passive structures work without phrase templates;
+  unknown facility-name residues still block routing.
+- Permanent benchmark: **258/258**. Final-tree targeted gate: **24/24**, zero
+  fictional actions. Campus, Map, Phase 4, all tests, syntax, build, artifact,
+  URL, static, portable, seeds, and diff validation all pass. The 175+ final
+  review remains deferred as required.
+
+## 2026-09-15 - Phase 5 untemplated local-span fallback
+
+- Kept the bounded target-slot parser, but removed the assumption that a null
+  slot makes every alias occurrence trustworthy. Fallback now inspects only
+  the alias's local original-text span and proper-name structure.
+- Reused exact target matching to preserve longer registered identities when
+  shorter aliases overlap, avoiding special-case precedence lists.
+- Added a generic multi-token named-span signal for service-like facility names
+  that contain no catalog alias; no facility suffix or fictional-name list was
+  introduced.
+- Normalized service action morphology and paired actions with domain objects
+  independent of word order. The existing request-led recognizer remains a
+  compatibility fallback after semantic evidence.
+- Repeated target cleanup to a stable boundary and propagated identity status
+  only far enough to prevent stale context inheritance.
+- Permanent benchmark: **250/250**. Fresh diagnostics: **202/202 turns** across
+  187 cases/sequences, including 201 untemplated turns. Campus, Map, Phase 4,
+  all tests, syntax, build, artifact, URL, static, portable, seeds, and diff
+  validation all pass. Browser automation was unavailable in this session.
+
+## 2026-09-15 - Phase 5 shared target-slot identity evidence
+
+- Chose a single bounded entity-slot parser over expanding global scaffold,
+  suffix, or lead-in lists. Normal vocabulary outside the target is irrelevant
+  to identity confidence; modifiers inside an explicit unknown target block
+  resolution.
+- Unified normal places and special entities in the Retriever catalogue, then
+  made intent/service/knowledge routing consume the same evidence result.
+- Service routing now composes requested actions with source-backed needs only
+  after unresolved named targets are rejected. Sports activity evidence is
+  derived from registry category data.
+- Removed six specific block codes from generic hostel aliases, preserving the
+  existing parent/unmapped truth without hardcoded replacement coordinates.
+- Permanent benchmark: **242/242**. Fresh diagnostics: **150/150**. Campus,
+  Map, Phase 4, all tests, syntax, build, artifact, URL, static, portable,
+  seeds, and diff validation all pass.
+
+## 2026-09-14 - Phase 5 Round 3 confidence and composition hardening
+
+- Replaced reliance on a closed descriptive-suffix guard with an evidence
+  boundary: exact bounded aliases, bounded short codes, or fully covered
+  conservative typos are accepted; a unique partial token is not. This closes
+  suffix families without maintaining fictional-name blacklists.
+- Kept user-facing titles but removed raw record/building IDs from alias
+  ingestion. Explicit target coverage separates the requested place from a
+  known nearby landmark, preserving legitimate relation queries.
+- Used hostel-context + study-need + question-signal composition instead of a
+  longer sentence regex. Applied the same limited approach to source-backed
+  sports borrowing, bicycles, laundry, and printing; unsupported remains
+  preferable when those concepts are incomplete.
+- Split disclosure language into request, strong identifier, implementation
+  context, possessive, direct-code, and human-facing control groups. This is
+  narrower than treating bare `key`, `code`, or `target` as internal and more
+  complete than adding only `dump fact IDs` as a literal exception.
+- Ran 107 unseen diagnostics. Landmark-as-target, raw `B_*`, and broader
+  service variants were fixed at shared boundaries and represented once each;
+  the temporary harness was removed.
+- Final status: Phase 5 **225/225**, Campus AI **199/199**, Map **21/21**,
+  Phase 4 **89/89**, all tests **26/26**, active syntax **116/116**, and all
+  Pages/static/portable/seed/diff gates pass. The existing low-severity,
+  explicit-opt-in single-clause provider-call optimization remains untouched.
+
+## 2026-09-14 - Phase 5 Round 2 hardening by semantic boundary
+
+- Chose alias classification at `PlaceRegistry` ingestion over more stop words
+  or test-name blacklists. This prevents multiword descriptive aliases from
+  reaching Retriever's high-confidence substring path while keeping verified
+  names such as Stor Sukan, Stor Basikal, KOOP, Pustaka, and Astaka intact.
+- Kept service resolution as bounded intent logic. Sports borrowing, bicycle
+  borrowing, and hostel study have separate source-backed routes in EN/BM/ZH
+  and selected code-switch forms; broad sports, bicycle, or hostel tokens do
+  not become identity evidence.
+- Replaced incremental disclosure-regex growth with a semantic helper that
+  composes request, identifier, and implementation-context signals. Added a
+  response-boundary suppression flag as defense in depth so a classified
+  disclosure cannot return actions or identifier-bearing metadata.
+- Preserved service-first routing only for bounded needs and added an explicit
+  rule-request gate for food/snack permission language. This avoids a global
+  intent reorder that had regressed laundry, printing, shopping, and follow-up
+  services.
+- Ran **58 unseen diagnostic queries** rather than promoting every permutation.
+  New equivalence classes received one representative permanent regression;
+  the final benchmark is **199/199 scenarios (239 turns)** and the diagnostic
+  harness was removed.
+- Final status: Campus AI **199/199**, Map **21/21**, Phase 4 **89/89**, all
+  tests **26/26**, syntax **116/116**, and all Pages/static/portable/seed/diff
+  gates pass. Browser QA remained unavailable and live provider QA was not run.
+
+## 2026-09-14 - Phase 5 pre-merge hardening by evidence class
+
+- Classified aliases as identity evidence versus descriptive need cues instead
+  of adding phrase-specific blacklists. Generic building tags and descriptors
+  were removed from identity scoring; exact anchored need rules preserve useful
+  student phrasing without allowing unknown qualifiers to inherit a place.
+- Preferred independent-referent precedence over weakening conversation
+  context globally. Exact ellipsis still works, but new entity and category
+  resolution wins before context substitution.
+- Extended the existing deterministic disclosure boundary rather than adding a
+  new security layer. The benchmark now validates the same student-visible
+  answer/action surface used by the UI.
+- Used universal/day-specific schedule endpoint comparison rather than creating
+  artificial conflicts or changing source facts. Variable schedules receive a
+  correction with the full deterministic schedule.
+- Ran 27 diagnostic variations after the permanent fixes. Two additional weak
+  descriptor matches were found, fixed at token classification, and represented
+  permanently; broader fuzzy resolution was intentionally avoided.
+- Final status: Phase 5 **156/156**, Campus AI **199/199**, Map **21/21**,
+  Phase 4 **89/89**, all tests **26/26**, syntax **116/116**, and all release
+  validators pass. Browser QA was unavailable and live provider QA was not run.
+
+## 2026-09-14 - Phase 5 benchmark-led robustness without architectural expansion
+
+- Chose a 120-case semantic benchmark over hundreds of string permutations.
+  Assertions target entity, intent, answer mode, selected facts, premise,
+  validated final Map actions, language, and session state, so punctuation or
+  harmless wording changes do not create noise.
+- Kept fixes in their existing layers: aliases in the canonical entity
+  profiles, token safety in the retriever, cue recognition in the intent and
+  language modules, premise parsing in `PremiseChecker`, and refer-back rules in
+  `ConversationContext`. No parallel AI architecture or provider dependency
+  was introduced.
+- Preferred explicit safe aliases and bounded short-code matching over broad
+  fuzzy search. This supports `co op`, ATM, A1/B1, laundry/printing/student-shop
+  wording, and Chinese Basketball Court while keeping unknown lookalikes such
+  as Moonlight Mart unsupported.
+- Preferred exact elliptical follow-up patterns over sticky context. This
+  prevents weak alias tokens from hijacking `And Saturday?`, but still lets an
+  explicit KOOP or other high-confidence place replace Library immediately.
+  Comparisons clear the single-entity context rather than adding a parallel
+  multi-entity context model during a robustness phase.
+- Extended the existing deterministic injection refusal only for explicit
+  internal-disclosure/override vocabulary. Campus misinformation still reaches
+  premise/conflict logic and receives a useful correction instead of a generic
+  security refusal.
+- Map phrase expansion affects intent classification only. Existing registry,
+  `MapAction`, and `ResponseValidator` ownership still decides whether a target
+  is exact, parent-only, unmapped, or disabled.
+- Left the optional single-clause provider-call optimization unchanged. It is a
+  low-severity, opt-in-only performance issue; changing established Phase 4
+  provider-test behavior was not necessary for Phase 5 correctness.
+- A controlled 20-query second pass was used after the permanent suite first
+  reached green. Five representative blind spots were promoted; the temporary
+  diagnostic harness was then deleted to avoid test-only clutter.
+- Final automated status: Phase 5 **120/120**, all tests **26/26**, syntax
+  **116/116**, and every build/release validator passes. Browser QA was not
+  verified because no browser session was available; no performance claim is
+  made. Live provider QA remains untested and production campus rendering stays
+  disabled.
+
 ## 2026-09-14 - Phase 4 request ordering without provider serialization
 
 - Compared three ways to fix out-of-order provider completions: UI-only
