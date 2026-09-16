@@ -15,7 +15,8 @@
 
   const EXPLICIT_RULE_REQUEST = /^(?:(?:can|may) i (?:bring|eat|borrow|enter|take)|(?:is|are) (?:food|snacks?|eating|this|that|it) allowed|what food can i (?:bring|take))\b/i;
   const DIRECT_NEED_SIGNAL = /\b(?:need|needs|needed|want|wants|wanted|require|requires|required|nak|perlu|hendak)\b|需要|(?:我|我们)(?:要|想)/u;
-  const REQUEST_GRAMMAR_SIGNAL = /^(?:where\b|which\b|how much\b|how\s+(?:can|could|do)\s+(?:i|we)\b|(?:can|could|may)\s+(?:i|we)\b|what about\b|how about\b|any\b|is there\s+(?:a\s+)?(?:place|somewhere)\b)|\b(?:mana|boleh)\b|哪里|哪儿|去哪|(?:可以|能|有).*吗$/u;
+  const DIRECT_REQUEST_GRAMMAR_SIGNAL = /^(?:(?:where|how)\s+(?:(?:can|could|should|might|do)\s+(?:i|we|students?|residents?)|boleh)(?:\s+(?:go|head)\s+to)?\b|(?:can|could|may)\s+(?:i|we)\b|which\s+(?:place|service)\b|any\s+(?:place|somewhere)\s+to\b|(?:di|kat)\s+mana(?:\s+(?:saya|kami|pelajar))?(?:\s+boleh)?\b)|(?:学生)?(?:去)?(?:哪里|哪儿)(?:可以|能)?|去哪/u;
+  const REQUEST_GRAMMAR_SIGNAL = /^(?:where\b|which\b|how much\b|what about\b|how about\b|any\b|is there\s+(?:a\s+)?(?:place|somewhere)\b)|\b(?:mana|boleh)\b|(?:可以|能|有).*吗$/u;
 
   function evidence(regex, text, type) {
     const match = regex.exec(text);
@@ -27,6 +28,7 @@
     if (!text) return Object.freeze({ state: "NONE", requestState: "NONE", frames: Object.freeze([]), evidence: Object.freeze([]) });
     const explicitQuestion = /[?？]\s*$/u.test(String(message || ""));
     const request = evidence(DIRECT_NEED_SIGNAL, text, "NEED")
+      || evidence(DIRECT_REQUEST_GRAMMAR_SIGNAL, text, "DIRECT_REQUEST")
       || evidence(REQUEST_GRAMMAR_SIGNAL, text, "REQUEST")
       || explicitQuestion && evidence(/\b(?:any|ada)\b|有/u, text, "QUESTION");
     const concepts = Object.freeze({
@@ -34,49 +36,59 @@
       print: evidence(/\b(?:print(?:ed|ing)?|photocop(?:y|ied|ying)|(?:di)?cetak|(?:di)?fotostat)\b|打印|复印/u, text, "PRINT"),
       wash: evidence(/\b(?:wash(?:ed|ing)?|launder(?:ed|ing)?|(?:di)?basuh)\b|洗衣/u, text, "WASH"),
       iron: evidence(/\b(?:iron(?:ed|ing)?|(?:di)?seterika)\b|熨衣/u, text, "IRON"),
-      study: evidence(/\b(?:study|self study|belajar|ulang kaji)\b|自习|读书|学习/u, text, "STUDY"),
+      study: evidence(/\b(?:study(?: room)?|self study|belajar|ulang kaji)\b|自习(?:室)?|读书|学习/u, text, "STUDY"),
       buy: evidence(/\b(?:buy|purchase|sell|sells|selling|beli|jual)\b/u, text, "BUY"),
       collect: evidence(/\b(?:collect|pickup|pick up|ambil)\b|取/u, text, "COLLECT"),
-      document: evidence(/\b(?:document|documents|paper|papers|page|pages|sheets?|handouts?|chapters?|thesis|notes?|assignment|assignments|worksheet|worksheets|something|anything|dokumen|kertas|nota|tugasan)\b|文件|资料|作业/u, text, "DOCUMENT"),
+      document: evidence(/\b(?:document|documents|paper|papers|(?:\p{L}+\s+)?handout pages?|page|pages|(?:tutorial\s+)?sheets?|assignments?(?:\s+sheets?)?|handouts?|chapters?|thesis|notes?|worksheet|worksheets|something|anything|dokumen|kertas|nota|tugasan)\b|文件|资料|作业/u, text, "DOCUMENT"),
       clothes: evidence(/\b(?:clothes|clothing|garments?|uniforms?|shirts?|laundry|baju|pakaian)\b|衣服|衣物/u, text, "CLOTHES"),
-      bicycle: evidence(/\b(?:bike|bicycle|basikal)\b|自行车|脚踏车/u, text, "BICYCLE"),
+      bicycle: evidence(/\b(?:bikes?|bicycles?|basikal)\b|自行车|脚踏车/u, text, "BICYCLE"),
       equipment: evidence(/\b(?:equipment|gear|stuff|barang|peralatan)\b|器材|用品/u, text, "EQUIPMENT"),
       sports: evidence(/\b(?:sport|sports|sporting|sukan)\b|运动|体育/u, text, "SPORTS"),
       hostel: evidence(/\b(?:hostel|dorm|dormitory|asrama|hostel residents?|dorm residents?|residents?)\b|宿舍/u, text, "HOSTEL"),
       supplies: evidence(/\b(?:daily (?:things|items|supplies)|groceries|necessities|barang|keperluan)\b|日用品/u, text, "SUPPLIES"),
       parcel: evidence(/\b(?:parcel|package|bungkusan)\b|包裹/u, text, "PARCEL"),
-      laundry: evidence(/\b(?:laundry|dobby|dobi)\b|洗衣房/u, text, "LAUNDRY"),
+      laundry: evidence(/\b(?:diy laundry|laundry|dobby|dobi)\b|洗衣房/u, text, "LAUNDRY"),
       food: evidence(/\b(?:hungry|food|eat|makan|lapar)\b|饿|吃饭/u, text, "FOOD"),
     });
     const relation = evidence(/\b(?:need|needs|needed|require|requires|required)\b|需要/u, text, "RELATION");
-    const imperative = /^(?:borrow|loan|rent|hire|pinjam|sewa|print|photocopy|cetak|fotostat|wash|basuh|iron|seterika)\b|^(?:借|租|打印|复印|洗衣|熨衣)/u.test(text);
+    const imperative = /^(?:please\s+)?(?:borrow|loan|rent|hire|pinjam|sewa|print|photocopy|cetak|fotostat|wash|basuh|iron|seterika)\b|^(?:请)?(?:借|租|打印|复印|洗衣|熨衣)/u.test(text);
     const comparisonSignal = /\b(?:which|compare)\b[^.!?]*\b(?:and|versus|vs)\b/u.test(text);
     const objectFirstRelation = (action, object) => {
       if (!action || !object || object.span.end > action.span.start) return false;
       return /\b(?:to(?: be)?|untuk)\b/u.test(text.slice(object.span.end, action.span.start));
     };
-    const requestsFrame = (action, object) => Boolean(request || relation || imperative || objectFirstRelation(action, object));
+    const requestBasis = (action, object) => relation ? "NEED_RELATION"
+      : imperative ? "IMPERATIVE"
+        : objectFirstRelation(action, object) ? "OBJECT_RELATION"
+          : request?.type === "DIRECT_REQUEST" ? "DIRECT_REQUEST"
+            : request ? "REQUEST_GRAMMAR"
+            : "NONE";
+    const requestsFrame = (action, object) => requestBasis(action, object) !== "NONE";
     const frames = [];
-    const add = (kind, action, object, parts, inferred = false, requested = true) => {
-      if (!frames.some(frame => frame.kind === kind)) frames.push(Object.freeze({ kind, action, object, inferred, requested, evidence: Object.freeze(parts.filter(Boolean)) }));
+    const add = (kind, action, object, parts, inferred = false, requested = true, basis = requested ? "REQUEST_GRAMMAR" : "NONE") => {
+      if (!frames.some(frame => frame.kind === kind)) frames.push(Object.freeze({ kind, action, object, inferred, requested, requestBasis: basis, evidence: Object.freeze(parts.filter(Boolean)) }));
     };
-    if (concepts.print && concepts.document && requestsFrame(concepts.print, concepts.document)) add("PRINT_DOCUMENT", "PRINT", "DOCUMENT", [request, relation, concepts.print, concepts.document]);
-    if (comparisonSignal && concepts.print) add("PRINT_DOCUMENT", "PRINT", "DOCUMENT", [request, concepts.print], true, false);
-    if (concepts.wash && concepts.clothes && requestsFrame(concepts.wash, concepts.clothes)) add("WASH_CLOTHES", "WASH", "CLOTHES", [request, relation, concepts.wash, concepts.clothes]);
-    if (concepts.iron && concepts.clothes && requestsFrame(concepts.iron, concepts.clothes)) add("IRON_CLOTHES", "IRON", "CLOTHES", [request, relation, concepts.iron, concepts.clothes]);
-    if (concepts.borrow && concepts.bicycle && requestsFrame(concepts.borrow, concepts.bicycle)) add("BORROW_BICYCLE", "BORROW", "BICYCLE", [request, relation, concepts.borrow, concepts.bicycle]);
-    if (concepts.borrow && concepts.sports && concepts.equipment && requestsFrame(concepts.borrow, concepts.equipment)) add("BORROW_SPORTS_EQUIPMENT", "BORROW", "SPORTS_EQUIPMENT", [request, relation, concepts.borrow, concepts.sports, concepts.equipment]);
-    if (request && concepts.bicycle && !concepts.sports) add("BORROW_BICYCLE", "BORROW", "BICYCLE", [request, concepts.bicycle], true);
-    if (request && concepts.sports && concepts.equipment) add("BORROW_SPORTS_EQUIPMENT", "BORROW", "SPORTS_EQUIPMENT", [request, concepts.sports, concepts.equipment], true);
-    if (request && concepts.laundry && /\bdo\b/.test(text)) add("WASH_CLOTHES", "WASH", "CLOTHES", [request, concepts.laundry], true);
-    if (request && concepts.wash && /洗衣/u.test(text)) add("WASH_CLOTHES", "WASH", "CLOTHES", [request, concepts.wash], true);
-    if (request && concepts.wash && /\b(?:cost|costs|fee|fees|price|prices)\b/.test(text)) add("WASH_CLOTHES", "WASH", "CLOTHES", [request, concepts.wash], true);
-    if (request && concepts.iron) add("IRON_CLOTHES", "IRON", "CLOTHES", [request, concepts.iron], true);
-    if (text === "diy laundry") add("WASH_CLOTHES", "WASH", "CLOTHES", [concepts.laundry], true);
-    if (request && concepts.study && concepts.hostel) add("HOSTEL_STUDY", "STUDY", "HOSTEL_SPACE", [request, concepts.study, concepts.hostel]);
-    if (request && concepts.buy && concepts.supplies) add("BUY_DAILY_SUPPLIES", "BUY", "DAILY_SUPPLIES", [request, concepts.buy, concepts.supplies]);
-    if (request && concepts.collect && concepts.parcel) add("COLLECT_PARCEL", "COLLECT", "PARCEL", [request, concepts.collect, concepts.parcel]);
-    if (concepts.food && (/\b(?:hungry|lapar)\b|饿/u.test(text) || /\b(?:where|somewhere|place|mana)\b|哪里|哪儿/u.test(text))) add("FIND_FOOD", "FIND", "FOOD", [request, concepts.food], true);
+    if (concepts.print && concepts.document && requestsFrame(concepts.print, concepts.document)) add("PRINT_DOCUMENT", "PRINT", "DOCUMENT", [request, relation, concepts.print, concepts.document], false, true, requestBasis(concepts.print, concepts.document));
+    if (comparisonSignal && concepts.print) add("PRINT_DOCUMENT", "PRINT", "DOCUMENT", [request, concepts.print], true, true, request?.type === "DIRECT_REQUEST" ? "DIRECT_REQUEST" : "REQUEST_GRAMMAR");
+    if (concepts.wash && concepts.clothes && requestsFrame(concepts.wash, concepts.clothes)) add("WASH_CLOTHES", "WASH", "CLOTHES", [request, relation, concepts.wash, concepts.clothes], false, true, requestBasis(concepts.wash, concepts.clothes));
+    if (concepts.iron && concepts.clothes && requestsFrame(concepts.iron, concepts.clothes)) add("IRON_CLOTHES", "IRON", "CLOTHES", [request, relation, concepts.iron, concepts.clothes], false, true, requestBasis(concepts.iron, concepts.clothes));
+    if (concepts.borrow && concepts.bicycle && requestsFrame(concepts.borrow, concepts.bicycle)) add("BORROW_BICYCLE", "BORROW", "BICYCLE", [request, relation, concepts.borrow, concepts.bicycle], false, true, requestBasis(concepts.borrow, concepts.bicycle));
+    if (concepts.borrow && concepts.sports && concepts.equipment && requestsFrame(concepts.borrow, concepts.equipment)) add("BORROW_SPORTS_EQUIPMENT", "BORROW", "SPORTS_EQUIPMENT", [request, relation, concepts.borrow, concepts.sports, concepts.equipment], false, true, requestBasis(concepts.borrow, concepts.equipment));
+    const inferredBasis = relation ? "NEED_RELATION" : request?.type === "DIRECT_REQUEST" ? "DIRECT_REQUEST" : request ? "REQUEST_GRAMMAR" : "NONE";
+    if (request && concepts.bicycle && !concepts.sports) add("BORROW_BICYCLE", "BORROW", "BICYCLE", [request, relation, concepts.bicycle], true, true, inferredBasis);
+    if (request && concepts.sports && concepts.equipment) add("BORROW_SPORTS_EQUIPMENT", "BORROW", "SPORTS_EQUIPMENT", [request, relation, concepts.sports, concepts.equipment], true, true, inferredBasis);
+    if (request && concepts.laundry && /\bdo\b/.test(text)) add("WASH_CLOTHES", "WASH", "CLOTHES", [request, relation, concepts.laundry], true, true, inferredBasis);
+    if (request && concepts.wash && /洗衣/u.test(text)) add("WASH_CLOTHES", "WASH", "CLOTHES", [request, relation, concepts.wash], true, true, inferredBasis);
+    if (request && concepts.wash && /\b(?:cost|costs|fee|fees|price|prices)\b/.test(text)) add("WASH_CLOTHES", "WASH", "CLOTHES", [request, relation, concepts.wash], true, true, inferredBasis);
+    if (request && concepts.iron) add("IRON_CLOTHES", "IRON", "CLOTHES", [request, relation, concepts.iron], true, true, inferredBasis);
+    if (text === "diy laundry") add("WASH_CLOTHES", "WASH", "CLOTHES", [concepts.laundry], true, true, "IMPERATIVE");
+    if (request && concepts.study && concepts.hostel) add("HOSTEL_STUDY", "STUDY", "HOSTEL_SPACE", [request, relation, concepts.study, concepts.hostel], true, true, inferredBasis);
+    if (request && concepts.buy && concepts.supplies) add("BUY_DAILY_SUPPLIES", "BUY", "DAILY_SUPPLIES", [request, relation, concepts.buy, concepts.supplies], true, true, inferredBasis);
+    if (request && concepts.collect && concepts.parcel) add("COLLECT_PARCEL", "COLLECT", "PARCEL", [request, relation, concepts.collect, concepts.parcel], true, true, inferredBasis);
+    if (concepts.food && (/\b(?:hungry|lapar)\b|饿/u.test(text) || /\b(?:where|somewhere|place|mana)\b|哪里|哪儿/u.test(text))) {
+      const hunger = /\b(?:hungry|lapar)\b|饿/u.test(text);
+      add("FIND_FOOD", "FIND", "FOOD", [request, concepts.food], true, true, hunger ? "NEED_RELATION" : inferredBasis);
+    }
     return Object.freeze({ state: frames.length ? "COMPLETE" : "NONE", requestState: frames.some(frame => frame.requested) ? "REQUESTED" : "NONE", frames: Object.freeze(frames), evidence: Object.freeze(Object.values(concepts).filter(Boolean)) });
   }
 

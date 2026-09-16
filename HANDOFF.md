@@ -1,3 +1,38 @@
+# KMK AI PHASE 5 FINAL SERVICE AND CONTEXT CLOSURE HANDOFF (2026-09-16)
+
+Status: **IMPLEMENTED; READY FOR FINAL CLAUDE RE-REVIEW**.
+
+Starting commit: `eb66de90a76ae8af63ad3564d7cfad80aa688f6c`.
+This targeted patch preserves the accepted CanonicalResolver architecture.
+IntentRouter still emits semantic concepts and provenance only; the resolver's
+single eligibility function is the only path that maps a safe service frame
+to a canonical entity. Both target-slot and untemplated flows consume that
+decision, and weak capability/question grammar cannot erase unexplained named
+target material.
+
+Context is still resolver-owned and cannot independently select an identity.
+New exact, approximate, ambiguous, or unresolved target evidence blocks prior
+context. In its absence, closed-class anaphora/deixis and bounded hours, fees,
+rules, services, location, and nearby queries support natural English, Malay,
+and Chinese pronoun-drop follow-ups. Context-derived answers remain
+Map-ineligible.
+
+Permanent results: Phase 5 **309/309**, resolver architecture **43/43**,
+Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all test scripts
+**27/27**, and active syntax **116/116**. A disposable fresh gate passed
+**120/120** across 30 fictional request-shaped service facilities, 30 genuine
+service needs, 30 valid contextual follow-ups, and 30 context attacks. Valid
+context recall was **30/30**; false canonical identities, false Map actions,
+and false context inheritance were all **0**.
+
+Pages build/artifact (490 files), production URL lock, static, portable,
+Pustaka seed, showcase seed, and diff checks pass. No source truth, production
+data, UI, provider/Phase 4 behavior, Dewan/Hall policy, or hostel mapping
+changed. Roll back by reverting the forthcoming single closure commit. Do not
+merge PR #2 before independent review; do not start Phase 6.
+
+---
+
 # KMK AI PHASE 5 FINAL BLOCKER CLOSURE HANDOFF (2026-09-16)
 
 Status: **IMPLEMENTED; READY FOR CLAUDE RE-REVIEW**.

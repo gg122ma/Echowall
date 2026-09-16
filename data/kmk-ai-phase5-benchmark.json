@@ -437,5 +437,57 @@
     ,{ "id": "P5-285", "category": "alias_safety", "language": "en", "question": "Where is the Dewan?", "expect": { "expectedAnswerMode": "UNSUPPORTED", "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["dewan-mahawangsa"], "noFabricatedLocation": true, "expectedLanguage": "EN" } }
     ,{ "id": "P5-286", "category": "alias_safety", "language": "en", "question": "Locate Hall.", "expect": { "expectedAnswerMode": "UNSUPPORTED", "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["dewan-mahawangsa"], "noFabricatedLocation": true, "expectedLanguage": "EN" } }
     ,{ "id": "P5-287", "category": "alias_safety", "language": "en", "question": "Where is Dewan Mahawangsa?", "expect": { "expectedEntity": "dewan-mahawangsa", "expectedIntent": "campus_location", "expectedActionAllowed": true, "expectedBuildingId": "B_DEWAN_MAHAWANGSA", "expectedLanguage": "EN" } }
+    ,{ "id": "P5-288", "category": "service_safety", "language": "en", "question": "Where can Emberlight Print Corner handle my thesis?", "expect": { "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["pos-mini"], "noFabricatedLocation": true } }
+    ,{ "id": "P5-289", "category": "service_safety", "language": "en", "question": "Does Coppermere Laundry House wash uniforms?", "expect": { "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["hostel-laundry"], "noFabricatedLocation": true } }
+    ,{ "id": "P5-290", "category": "service_safety", "language": "en", "question": "Can Frostbay Bicycle Pavilion rent bikes?", "expect": { "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["bicycle-service"], "noFabricatedLocation": true } }
+    ,{ "id": "P5-291", "category": "service_safety", "language": "en", "question": "Where can Willowcrest Sports Gear Lodge rent equipment?", "expect": { "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["sports-equipment-store"], "noFabricatedLocation": true } }
+    ,{ "id": "P5-292", "category": "service_safety", "coverage": ["zh", "code_switch"], "language": "mixed", "question": "谁知道 Cedarhill 熨衣中心能熨衣服吗？", "expect": { "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["hostel-iron-room"], "noFabricatedLocation": true } }
+    ,{ "id": "P5-293", "category": "service_safety", "language": "ms", "question": "ada tak Riverbank Dobi boleh basuh baju", "expect": { "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["hostel-laundry"], "noFabricatedLocation": true } }
+    ,{ "id": "P5-294", "category": "service_safety", "language": "en", "question": "I need documents printed.", "expect": { "expectedEntity": "pos-mini", "expectedIntent": "campus_services", "expectedActionAllowed": false } }
+    ,{ "id": "P5-295", "category": "service_safety", "language": "en", "question": "My clothes need washing.", "expect": { "expectedEntity": "hostel-laundry", "expectedIntent": "campus_services", "expectedActionAllowed": false } }
+    ,{ "id": "P5-296", "category": "service_safety", "language": "en", "question": "I need my shirts ironed.", "expect": { "expectedEntity": "hostel-iron-room", "expectedIntent": "campus_services", "expectedActionAllowed": false } }
+    ,{ "id": "P5-297", "category": "service_safety", "language": "ms", "question": "Saya perlu pinjam basikal.", "expect": { "expectedEntity": "bicycle-service", "expectedIntent": "campus_services", "expectedActionAllowed": false } }
+    ,{ "id": "P5-298", "category": "service_safety", "coverage": ["zh"], "language": "zh", "question": "我需要借运动器材。", "expect": { "expectedEntity": "sports-equipment-store", "expectedIntent": "campus_services", "expectedActionAllowed": false } }
+    ,{ "id": "P5-299", "category": "context_safety", "language": "en", "turns": [
+      { "question": "Where is Serambi?", "expectedEntity": "serambi", "expectedActiveEntityAfterTurn": "serambi" },
+      { "question": "What are its hours?", "expectedEntity": "serambi", "expectedIntent": "campus_hours", "expectedActionAllowed": false, "expectedActiveEntityAfterTurn": "serambi" }
+    ] }
+    ,{ "id": "P5-300", "category": "context_safety", "language": "en", "turns": [
+      { "question": "Does KOOP sell drinks?", "expectedEntity": "koop-mart", "expectedActiveEntityAfterTurn": "koop-mart" },
+      { "question": "Where is it located?", "expectedEntity": "koop-mart", "expectedIntent": "campus_location", "expectedActionAllowed": false, "expectedActiveEntityAfterTurn": "koop-mart" }
+    ] }
+    ,{ "id": "P5-301", "category": "context_safety", "language": "en", "turns": [
+      { "question": "Where is Library?", "expectedEntity": "library", "expectedActiveEntityAfterTurn": "library" },
+      { "question": "Are there any fees?", "expectedEntity": "library", "expectedIntent": "campus_fees", "expectedActionAllowed": false, "expectedActiveEntityAfterTurn": "library" }
+    ] }
+    ,{ "id": "P5-302", "category": "context_safety", "language": "en", "turns": [
+      { "question": "Where is Library?", "expectedEntity": "library", "expectedActiveEntityAfterTurn": "library" },
+      { "question": "What are the rules?", "expectedEntity": "library", "expectedIntent": "campus_rules", "expectedActionAllowed": false, "expectedActiveEntityAfterTurn": "library" }
+    ] }
+    ,{ "id": "P5-303", "category": "context_safety", "language": "en", "turns": [
+      { "question": "Where is Astaka?", "expectedEntity": "astaka", "expectedActiveEntityAfterTurn": "astaka" },
+      { "question": "Is there parking nearby?", "expectedEntity": "astaka", "expectedIntent": "campus_nearby", "expectedActionAllowed": false, "expectedActiveEntityAfterTurn": "astaka" }
+    ] }
+    ,{ "id": "P5-304", "category": "context_safety", "language": "en", "turns": [
+      { "question": "Where is Astaka?", "expectedEntity": "astaka", "expectedActiveEntityAfterTurn": "astaka" },
+      { "question": "Can I use this?", "expectedEntity": "astaka", "expectedIntent": "campus_rules", "expectedActionAllowed": false, "expectedActiveEntityAfterTurn": "astaka" }
+    ] }
+    ,{ "id": "P5-305", "category": "context_safety", "coverage": ["ms"], "language": "ms", "turns": [
+      { "question": "Di mana Pustaka?", "expectedEntity": "library", "expectedActiveEntityAfterTurn": "library" },
+      { "question": "Pukul berapa ia tutup?", "expectedEntity": "library", "expectedIntent": "campus_hours", "expectedActionAllowed": false, "expectedActiveEntityAfterTurn": "library" }
+    ] }
+    ,{ "id": "P5-306", "category": "context_safety", "coverage": ["zh"], "language": "zh", "turns": [
+      { "question": "图书馆在哪里？", "expectedEntity": "library", "expectedActiveEntityAfterTurn": "library" },
+      { "question": "几点关门？", "expectedEntity": "library", "expectedIntent": "campus_hours", "expectedActionAllowed": false, "expectedActiveEntityAfterTurn": "library" }
+    ] }
+    ,{ "id": "P5-307", "category": "context_safety", "language": "en", "turns": [
+      { "question": "Where is Library?", "expectedEntity": "library", "expectedActiveEntityAfterTurn": "library" },
+      { "question": "What about Glenhaven Learning Atrium?", "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["library"], "expectedContextCleared": true }
+    ] }
+    ,{ "id": "P5-308", "category": "context_safety", "language": "en", "turns": [
+      { "question": "I need a document printed.", "expectedEntity": "pos-mini", "expectedActiveEntityAfterTurn": "pos-mini" },
+      { "question": "How about Stormridge Copy Studio?", "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["pos-mini"], "expectedContextCleared": true }
+    ] }
+    ,{ "id": "P5-309", "category": "service_safety", "language": "en", "question": "Juniper Print Works says these documents need printing.", "expect": { "expectedResolvedPlacesEmpty": true, "expectedActionAllowed": false, "forbiddenEntities": ["pos-mini"], "noFabricatedLocation": true } }
   ]
 }

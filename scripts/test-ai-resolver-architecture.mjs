@@ -32,6 +32,7 @@ check("AnswerPlanner forwards only canonical Map provenance", /MapAction\.create
 check("MapAction requires an eligible resolver Map decision", /function create\(map,/.test(sources.map) && /map\?\.eligible/.test(sources.map) && !/KnowledgeEngine/.test(sources.map));
 check("request orchestration invokes the canonical resolver exactly once", (sources.index.match(/CanonicalResolver\.resolve/g) || []).length === 1 && !/KnowledgeEngine\.getEntity/.test(sources.index));
 check("only the canonical resolver maps service concepts to entity IDs", /SERVICE_ENTITY_BY_FRAME/.test(sources.resolver) && !Object.entries(sources).filter(([name]) => name !== "resolver").some(([, source]) => /SERVICE_ENTITY_BY_FRAME/.test(source)));
+check("every single or comparison service mapping consumes central eligibility", /function serviceCanonicalizationEligibility/.test(sources.resolver) && /serviceEligibility\.eligible/.test(sources.resolver) && !/if \(serviceAnalysis\.state === "COMPLETE"/.test(sources.resolver));
 
 const files = [
   "data/kmk-knowledge-base.js",
@@ -94,10 +95,32 @@ const unknownServiceContextPayload = resolve("How about Alderbrook Print Loft?",
 check("an arbitrary service-like payload blocks stale service context", unknownServiceContextPayload.target.state === "UNRESOLVED_NAMED_TARGET" && !unknownServiceContextPayload.canonical.entityId && unknownServiceContextPayload.context.state === "NONE" && !unknownServiceContextPayload.map.eligible);
 const temporalContext = resolve("What about Thursday?", { previousEntityId: "library", contextReference: true });
 check("a bounded temporal follow-up remains provably context-relative", temporalContext.context.state === "CONTEXT_REFERENCE" && temporalContext.canonical.entityId === "library" && temporalContext.canonical.basis === "CONTEXT" && !temporalContext.map.eligible);
+const naturalContextTurns = [
+  ["What are its hours?", "campus_hours"],
+  ["Where is it located?", "campus_location"],
+  ["Are there any fees?", "campus_fees"],
+  ["What are the rules?", "campus_rules"],
+  ["Is there parking nearby?", "campus_nearby"],
+  ["Can I use this?", "campus_rules"],
+  ["Pukul berapa ia tutup?", "campus_hours"],
+  ["几点关门？", "campus_hours"],
+].map(([question, intent]) => resolve(question, { intent, previousEntityId: "library", contextReference: true }));
+check("anaphoric and bounded fact-dimension turns use context without Map provenance", naturalContextTurns.every(item => item.context.state === "CONTEXT_REFERENCE" && item.canonical.entityId === "library" && item.canonical.basis === "CONTEXT" && !item.map.eligible));
 const describedPrintFacility = resolve("A venue called Pinewick Print Loft handles documents.");
 check("a service capability description cannot become a service request", describedPrintFacility.service.requestState === "NONE" && !describedPrintFacility.canonical.entityId && !describedPrintFacility.map.eligible);
 const describedCjkFacility = resolve("有人提到 Cedarwick 打印角落能打印文件。");
 check("a mixed-script capability description cannot bypass target safety", describedCjkFacility.service.requestState === "NONE" && !describedCjkFacility.canonical.entityId && !describedCjkFacility.map.eligible);
+const requestShapedFacilities = [
+  "Where can Birchlight Print Arcade process my thesis?",
+  "Does Ambercove Laundry Lodge wash uniforms?",
+  "Can Pinewater Bicycle Gallery rent bikes?",
+  "Where can Silveroak Sports Gear House loan equipment?",
+  "Juniper Print Works says these documents need printing.",
+  "谁知道 Mistvale 熨衣中心能熨衣服吗？",
+  "有人说 青谷自行车厅可以租自行车吗？",
+  "ada tak Clearbrook Dobi boleh basuh baju",
+].map(resolve);
+check("request-shaped fictional service facilities cannot cross central eligibility", requestShapedFacilities.every(item => !item.canonical.entityId && !item.map.eligible));
 const requestedServices = [
   ["printing", "My documents need printing.", "pos-mini"],
   ["laundry", "My clothes need washing.", "hostel-laundry"],

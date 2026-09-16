@@ -238,7 +238,7 @@
     }
 
     const previous = window.EchoAI.ConversationContext.get(sessionId);
-    const clearReference = window.EchoAI.ConversationContext.isEllipticalFollowUp(question);
+    const clearReference = Boolean(previous?.activeEntityId || previous?.entityId);
     const canonicalResolution = window.EchoAI.CanonicalResolver.resolve(question, {
       intent,
       previousEntityId: previous?.activeEntityId || previous?.entityId || "",

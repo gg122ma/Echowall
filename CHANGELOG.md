@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-09-16 - KMK AI PHASE 5 FINAL SERVICE AND CONTEXT CLOSURE
+
+- Centralized service canonicalization eligibility for both target-slot and
+  untemplated paths. A complete action/object frame now also needs positive
+  request provenance and a clean competing-target residue before the resolver
+  may map it to a source-backed service entity.
+- Kept weak question/capability grammar out of target-residue removal, so
+  English, Malay, Chinese, and mixed-script named facilities cannot hide
+  inside broad request evidence. Object-first, passive, imperative, and
+  direct genuine needs retain service recall.
+- Expanded resolver-owned context gating from a small whole-sentence list to
+  closed-class anaphora/deixis and bounded fact dimensions. New target
+  evidence still wins, while natural English, Malay, and Chinese pronoun-drop
+  follow-ups reuse context without Map provenance.
+- Added 22 compact Phase 5 scenarios and three focused resolver controls.
+  Phase 5 passes **309/309** and resolver architecture passes **43/43**. A
+  removed 120-probe multilingual gate passed **120/120**: 30 fictional
+  request-shaped facilities, 30 genuine needs, 30 valid context follow-ups,
+  and 30 new-target attacks. Context recall was **30/30**, with zero false
+  identities, Map actions, or context inheritance.
+- Final validation: Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all
+  test scripts **27/27**, active syntax **116/116**, and all Pages, artifact,
+  URL, static, portable, seed, and diff gates pass. Source truth and Phase 4
+  architecture are unchanged.
+
 ## 2026-09-16 - KMK AI PHASE 5 FINAL BLOCKER CLOSURE
 
 - Restricted context reuse to provably context-relative payloads. Arbitrary

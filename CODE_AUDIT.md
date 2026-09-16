@@ -1,5 +1,27 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-16 - PHASE 5 FINAL SERVICE AND CONTEXT CLOSURE AUDIT
+
+- `CanonicalResolver.resolve()` remains the sole canonical identity authority.
+  `serviceCanonicalizationEligibility()` is now the only service-to-entity
+  gate, and both templated and untemplated paths consume its immutable result.
+- `IntentRouter.analyzeServiceFrame()` returns action/object concepts plus
+  request basis only. Weak request/capability evidence is not allowed to mask
+  competing target residue; it never returns a canonical ID.
+- Context input from orchestration is merely prior state. The resolver checks
+  new target evidence first, then permits context only for closed-class
+  anaphora/deixis or bounded fact-dimension turns. Context cannot create Map
+  provenance.
+- Focused architecture coverage is **43/43** and Phase 5 is **309/309**. A
+  disposable 120-probe English/Malay/Chinese/mixed gate reports genuine
+  service success **30/30**, valid context recall **30/30**, zero false
+  canonical identities, zero false Map actions, and zero false context
+  inheritance.
+- Audit result: Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all test
+  scripts **27/27**, active syntax **116/116**, and Pages/artifact, production
+  URL, static, portable, both seeds, and diff checks pass. Source truth,
+  production data, Map provenance, and Phase 4 architecture are unchanged.
+
 ## 2026-09-16 - PHASE 5 FINAL BLOCKER CLOSURE AUDIT
 
 - Canonical authority remains exclusive to `CanonicalResolver.resolve()`.

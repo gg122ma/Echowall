@@ -1,5 +1,22 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-16 - Phase 5 final service and context closure
+
+- Replaced separate target-slot and fallback service authorization with one
+  resolver eligibility decision: positive request provenance, supported
+  action/object concepts, and no unexplained competing target material.
+- Preserved genuine service word-order variants while preventing broad
+  question grammar from masking fictional facility names, including pure-CJK
+  capability questions.
+- Broadened context recall structurally through closed-class anaphora/deixis
+  and bounded fact dimensions; explicit or uncertain new targets continue to
+  block inheritance and context remains Map-ineligible.
+- Permanent evidence: Phase 5 **309/309**, focused architecture **43/43**,
+  Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all tests **27/27**,
+  syntax **116/116**, and every release validator passes. The disposable
+  multilingual gate passed **120/120**, with context recall **30/30** and zero
+  false identities, Map actions, or context inheritance.
+
 ## 2026-09-16 - Phase 5 final blocker closure
 
 - Tightened context gating around semantic evidence rather than a generic
