@@ -6,7 +6,8 @@
     "apa", "bila", "boleh", "buka", "dekat", "dengan", "di", "hari", "jam",
     "jumaat", "kafe", "kafeteria", "kalau", "kat", "kemudahan", "lapar", "makan",
     "mana", "paling", "peraturan", "pukul", "sabtu", "saya", "sukan", "tempat",
-    "tunjukkan", "tutup", "waktu", "yang", "bersukan",
+    "tunjukkan", "tutup", "waktu", "yang", "bersukan", "atau", "baju", "barang",
+    "betul", "cari", "cuma", "jangan", "ke", "letak", "macam", "nak", "tak", "tolong",
   ]);
 
   function detect(message) {

@@ -25,8 +25,8 @@ const AI_FILES = [
   "services/ai/conflict-detector.js",
   "services/ai/place-registry.js",
   "services/ai/conversation-context.js",
-  "services/ai/intent-router.js",
   "services/ai/retriever.js",
+  "services/ai/intent-router.js",
   "services/ai/premise-checker.js",
   "services/ai/errors.js",
   "services/ai/map-action.js",
@@ -132,7 +132,8 @@ const { window, providerState } = buildSandbox({ campusRendering: true });
 
 function buildPlanFor(targetWindow, question, language = "en") {
   const intent = targetWindow.EchoAI.IntentRouter.classify(question);
-  const resolution = targetWindow.EchoAI.KnowledgeEngine.resolve(question);
+  const canonical = targetWindow.EchoAI.CanonicalResolver.resolve(question, { intent });
+  const resolution = targetWindow.EchoAI.KnowledgeEngine.resolve(canonical);
   const place = resolution.place;
   const premise = place ? targetWindow.EchoAI.PremiseChecker.check(question, place, []) : { status: "UNKNOWN", day: "" };
   const plan = targetWindow.EchoAI.AnswerPlanner.plan({ question, language, intent, resolution, previous: null, premise, asOf: undefined });

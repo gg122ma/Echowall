@@ -149,19 +149,22 @@
   }
 
   function response(base) {
+    const suppressInternalIdentifiers = base.suppressInternalIdentifiers === true;
     return window.EchoAI.ResponseValidator.validate({
       answer: base.answer,
       intent: base.intent,
       confidence: base.confidence,
       premise: base.premise || "UNKNOWN",
-      resolvedPlaces: base.places || [],
-      grounding: base.grounding || [],
-      conflicts: base.conflicts || [],
-      facts: base.facts || [],
-      answerPlan: base.answerPlan || { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false },
-      resolution: base.resolution || null,
-      context: base.context || null,
-      actions: base.actions || [],
+      resolvedPlaces: suppressInternalIdentifiers ? [] : base.places || [],
+      grounding: suppressInternalIdentifiers ? [] : base.grounding || [],
+      conflicts: suppressInternalIdentifiers ? [] : base.conflicts || [],
+      facts: suppressInternalIdentifiers ? [] : base.facts || [],
+      answerPlan: suppressInternalIdentifiers
+        ? { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false }
+        : base.answerPlan || { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false },
+      resolution: suppressInternalIdentifiers ? null : base.resolution || null,
+      context: suppressInternalIdentifiers ? null : base.context || null,
+      actions: suppressInternalIdentifiers ? [] : base.actions || [],
       error: base.error || null,
     });
   }
@@ -185,6 +188,38 @@
     });
   }
 
+  function blocksLegacyFallback(question, intent) {
+    if (intent === "campus_fees") return true;
+    return intent === "campus_rules" && /\b(dress code|uniform|attire|kod pakaian|food|snacks?|eat(?:ing)?)\b|着装|食物|零食|吃/i.test(String(question || ""));
+  }
+
+  function requestsInternalIdentifier(question) {
+    const text = String(question || "");
+    const normalized = window.EchoAI.Normalizer.normalize(text);
+    const requestSignal = /\b(?:what|which|give(?: me)?|tell(?: me)?|show(?: me)?|reveal|print|output|include|return|state|display|dump|expose|navigate|open|bring|take)\b/i.test(normalized);
+    if (!requestSignal) return false;
+
+    const directInternalCode = /\bB_(?:\*|[A-Z0-9_]+)(?![A-Z0-9_])/i.test(text)
+      || /\bb_[a-z0-9_]*\b|\bb\s+(?:id|identifier|code)\b/i.test(normalized);
+    const humanFacingPhrase = /\b(?:dress|conduct|qr|postal|zip)\s+code\b|\bcode of conduct\b|\btarget audience\b|\bkey (?:facilities|services|information|details|places)\b/i.test(normalized);
+    const possessiveIdentifier = /\b(?:its|their|librarys|pustakas|koops|cafe\s+[abc]s)\s+(?:id|identifier|code|target|key)\b/i.test(normalized);
+    const explicitInternalIdentifier = /\b(?:internal (?:id|identifier|name|reference|target|key|code)|(?:building|map|source|fact|system|provider|registry|knowledge|planner|echo map) (?:id|identifier|reference|target|key|code)s?)\b/i.test(normalized);
+    const identifierNoun = /\b(?:ids?|identifiers?|codes?|keys?)\b/i.test(normalized);
+    const implementationContext = /\b(?:internal|building|map|source|fact|system|provider|registry|knowledge|planner|echo map)\b/i.test(normalized);
+    const campusSubject = /\b(?:library|pustaka|koop|astaka|pavilion|cafe\s+[abc]|cafe\s+admin|stor\s+sukan|pos\s+mini)\b/i.test(normalized);
+
+    if (directInternalCode || explicitInternalIdentifier || possessiveIdentifier) return true;
+    if (humanFacingPhrase) return false;
+    return identifierNoun && (implementationContext || campusSubject);
+  }
+
+  function isInjectionAttempt(question) {
+    const text = String(question || "");
+    if (/ignore (?:all |the )?(?:previous|system)|ignore\s+(?:answerplanner|knowledgeengine|responsevalidator)|bypass|jailbreak|abaikan (?:semua )?arahan|忽略.*(?:指令|提示)/i.test(text)) return true;
+    if (requestsInternalIdentifier(text)) return true;
+    return /\b(?:reveal|show|print|output|return|expose|dump|tell me)\b[^.!?]{0,90}\b(?:system prompt|developer (?:message|variables?)|provider prompt|internal (?:fact|map|building|source)?\s*ids?|hidden (?:building )?ids?|hidden data|source registry|knowledge object|answerplanner|knowledgeengine|responsevalidator|b_\* identifiers?)\b/i.test(text);
+  }
+
   async function ask(message, options = {}) {
     const question = String(message || "").trim().slice(0, window.EchoAI.Config.maxQuestionLength);
     const language = window.EchoAI.Language.detect(question);
@@ -195,34 +230,34 @@
     if (!window.EchoAI.Config.enabled) {
       return response({ answer: unknownAnswer(language), intent: "unknown", confidence: 0, error: { code: "FEATURE_DISABLED" }, answerPlan: { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false } });
     }
-    if (/ignore (?:all |the )?(?:previous|system)|reveal (?:the )?(?:prompt|instructions)|bypass|jailbreak|abaikan (?:semua )?arahan|忽略.*(?:指令|提示)/i.test(question)) {
-      return response({ answer: injectionAnswer(language), intent: "unknown", confidence: 1, answerPlan: { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false } });
+    if (isInjectionAttempt(question)) {
+      return response({ answer: injectionAnswer(language), intent: "unknown", confidence: 1, suppressInternalIdentifiers: true, answerPlan: { mode: "UNSUPPORTED", selectedFactIds: [], actionAllowed: false } });
     }
     if (/community (?:post|note)|student (?:post|opinion)|catatan komuniti|pendapat pelajar|社区(?:帖子|意见)/i.test(question) && /official|rasmi|policy|rule|规定|官方/i.test(question)) {
       return response({ answer: communityAuthorityAnswer(language), intent: "campus_rules", confidence: 1, answerPlan: { mode: "DIRECT", selectedFactIds: [], actionAllowed: false } });
     }
 
     const previous = window.EchoAI.ConversationContext.get(sessionId);
-    let resolution = window.EchoAI.KnowledgeEngine.resolve(question);
-    const clearReference = window.EchoAI.ConversationContext.referencesPrevious(question)
-      || window.EchoAI.ConversationContext.isEllipticalFollowUp(question);
-    if (resolution.status === "unknown" && previous && clearReference) {
-      resolution = window.EchoAI.KnowledgeEngine.resolve(question, previous.activeEntityId || previous.entityId);
-    }
+    const clearReference = Boolean(previous?.activeEntityId || previous?.entityId);
+    const canonicalResolution = window.EchoAI.CanonicalResolver.resolve(question, {
+      intent,
+      previousEntityId: previous?.activeEntityId || previous?.entityId || "",
+      contextReference: clearReference,
+    });
+    intent = canonicalResolution.intent;
+    const resolution = window.EchoAI.KnowledgeEngine.resolve(canonicalResolution);
 
     if (intent === "campus_comparison") {
-      const places = window.EchoAI.Retriever.resolveMany(question);
+      const places = window.EchoAI.KnowledgeEngine.resolveMany(canonicalResolution);
       if (places.length < 2) return response({ answer: ambiguousAnswer(language, places), intent, confidence: 0.35, places: places.map(resolvedPlace), answerPlan: { mode: "AMBIGUOUS", selectedFactIds: [], actionAllowed: false } });
       if (isLatestSessionRequest(sessionId, requestGeneration)) {
-        places.slice(0, 2).forEach(place => window.EchoAI.ConversationContext.update(sessionId, place.canonicalId, intent));
+        window.EchoAI.ConversationContext.clear(sessionId);
       }
       return response({ answer: comparisonAnswer(language, places), intent, confidence: 0.88, premise: "SUPPORTED", places: places.slice(0, 2).map(resolvedPlace), grounding: places.slice(0, 2).flatMap(grounding), answerPlan: { mode: "COMPARISON", selectedFactIds: [], actionAllowed: false } });
     }
 
     const place = resolution.place;
-    if (resolution.status === "dining") intent = "campus_services";
-    else if (resolution.status === "discovery") intent = "campus_discovery";
-    else if (place && intent === "general") intent = window.EchoAI.ConversationContext.isMoreFollowUp(question) && previous
+    if (place && intent === "general") intent = (window.EchoAI.ConversationContext.isMoreFollowUp(question) || window.EchoAI.ConversationContext.isEllipticalFollowUp(question)) && previous
       ? previous.activeIntent || previous.intent || "campus_info"
       : "campus_info";
     if (place && intent === "campus_nearby") {
@@ -239,12 +274,12 @@
     let plan = window.EchoAI.AnswerPlanner.plan({ question, language, intent, resolution, previous, premise, asOf: options.asOf });
     const rendered = await window.EchoAI.FactLockedRenderer.render(plan, language, { day: premise.day });
     let answer = rendered.text;
-    if (place && plan.answerMode === "UNSUPPORTED" && plan.content.primary === "UNSUPPORTED_ENTITY_FACT") {
+    if (place && plan.answerMode === "UNSUPPORTED" && plan.content.primary === "UNSUPPORTED_ENTITY_FACT" && !blocksLegacyFallback(question, intent)) {
       const legacyAnswer = intent === "campus_location" || intent === "campus_navigation" ? locationAnswer(language, place)
         : intent === "campus_rules" || intent === "campus_services" ? detailsAnswer(language, place, intent)
           : detailsAnswer(language, place, "campus_info");
       if (legacyAnswer && legacyAnswer !== unknownAnswer(language)) {
-        const legacyAction = window.EchoAI.IntentRouter.requestsMapAction(intent) ? window.EchoAI.MapAction.create(place, language) : null;
+        const legacyAction = window.EchoAI.IntentRouter.requestsMapAction(intent) ? window.EchoAI.MapAction.create(canonicalResolution.map, language) : null;
         plan = Object.freeze({ ...plan, answerMode: "DIRECT", action: legacyAction, premise: "SUPPORTED" });
         answer = legacyAnswer;
       }
@@ -255,7 +290,10 @@
       else if (!place && ["dining", "discovery"].includes(resolution.status)) {
         window.EchoAI.ConversationContext.clear(sessionId);
         contextState = null;
-      } else if (!place && resolution.status !== "ambiguous") window.EchoAI.ConversationContext.clear(sessionId);
+      } else if (!place) {
+        window.EchoAI.ConversationContext.clear(sessionId);
+        contextState = null;
+      }
     }
 
     const answerPremise = plan.answerMode === "CORRECTION" ? "CONTRADICTED"

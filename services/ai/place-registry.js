@@ -18,7 +18,7 @@
 
   const EXTRA_ALIASES = Object.freeze({
     library: Object.freeze(["pustaka", "perpustakaan", "lib", "图书馆"]),
-    "koop-mart": Object.freeze(["koop", "koop mart", "koperasi", "koperasi mart"]),
+    "koop-mart": Object.freeze(["koop", "co op", "koop mart", "koperasi", "koperasi mart"]),
     serambi: Object.freeze(["hep", "hal ehwal pelajar", "student affairs"]),
     "dewan-kuliah": Object.freeze(["lecture hall", "dk", "dewan kuliah", "讲堂", "讲座厅"]),
     masjid: Object.freeze(["mosque", "masjid", "清真寺"]),
@@ -27,7 +27,30 @@
     "cafe-c": Object.freeze(["cafe c", "kafe c", "kafeteria c"]),
     "cafe-admin": Object.freeze(["cafe admin", "kafe admin", "admin cafe", "kafeteria pentadbiran"]),
     "bicycle-service": Object.freeze(["stor basikal", "garaj basikal"]),
+    "bangunan-langkasuka": Object.freeze(["langkasuka"]),
+    "dewan-mahawangsa": Object.freeze(["main event hall"]),
   });
+  const TYPED_IDENTITY_VARIANTS = Object.freeze({
+    library: Object.freeze([{ alias: "library building", kind: "GENERIC_DESCRIPTOR_VARIANT" }]),
+    "blok-c2": Object.freeze([{ alias: "c2 block", kind: "GENERIC_DESCRIPTOR_VARIANT" }]),
+    "blok-p5": Object.freeze([{ alias: "p5 building", kind: "GENERIC_DESCRIPTOR_VARIANT" }]),
+    "hostel-laundry": Object.freeze([{ alias: "dobby room", kind: "GENERIC_DESCRIPTOR_VARIANT" }]),
+  });
+  const DEAUTHORIZED_IDENTITY_ALIASES = Object.freeze({
+    "dewan-mahawangsa": new Set(["dewan", "hall"]),
+  });
+  const SPECIFIC_HOSTEL_CODES = new Set(["a1", "a2", "b1", "b2", "c2", "p5"]);
+  const DESCRIPTIVE_ALIAS_PATTERNS = Object.freeze([
+    /^(?:campus|student) (?:shop|store)$/,
+    /^(?:event )?hall$/,
+    /^(?:sports )?equipment(?: store| borrowing)?$/,
+    /^(?:print(?:ing)?|printing service|photocopy service)$/,
+    /^(?:laundry|hostel laundry|diy laundry|wash(?:ing)? (?:my )?clothes|washing cost|laundry fee)$/,
+    /^(?:study (?:in|at) (?:the )?hostel|place to study (?:in|at) (?:the )?hostel)$/,
+    /^(?:iron clothes|ironing|borrow sports (?:equipment|stuff)|sports stuff)$/,
+    /^(?:buy daily things|daily supplies|sells daily items)$/,
+    /^(?:food|dining|eat|place to eat|food aid)$/,
+  ]);
 
   const SCHEDULES = Object.freeze({
     library: Object.freeze({ sun: "08:00-16:30", mon: "08:00-16:30", tue: "08:00-16:30", wed: "08:00-16:30", thu: "08:00-16:30", fri: "closed", sat: "closed" }),
@@ -61,6 +84,13 @@
     return (window.KMK_AI_PHASE3?.entities || []).find(entity => entity.id === canonicalId) || null;
   }
 
+  function isIdentityAlias(alias, canonicalId) {
+    const normalized = window.EchoAI.Normalizer.normalize(alias);
+    if (canonicalId === "blok-kediaman" && SPECIFIC_HOSTEL_CODES.has(normalized)) return false;
+    if (DEAUTHORIZED_IDENTITY_ALIASES[canonicalId]?.has(normalized)) return false;
+    return Boolean(normalized) && !DESCRIPTIVE_ALIAS_PATTERNS.some(pattern => pattern.test(normalized));
+  }
+
   function getPlaces() {
     const buildings = Array.isArray(window.CAMPUS_BUILDINGS) ? window.CAMPUS_BUILDINGS : [];
     const buildingById = new Map(buildings.map(building => [building.id, building]));
@@ -76,13 +106,12 @@
       const buildingId = building?.id || "";
       if (building) usedBuildings.add(building.id);
       const aliases = unique([
-        ...(profile?.aliases || []),
+        ...(profile?.aliases || []).filter(alias => isIdentityAlias(alias, canonicalId)),
         primary.title,
-        primary.id,
-        ...records.flatMap(record => record.aliases || []),
+        ...records.flatMap(record => (record.aliases || []).filter(alias => isIdentityAlias(alias, canonicalId))),
         ...(EXTRA_ALIASES[canonicalId] || []),
+        ...(TYPED_IDENTITY_VARIANTS[canonicalId] || []).map(variant => variant.alias),
         building?.name,
-        ...Object.values(building?.tags || {}).flat(),
       ]);
       places.push(Object.freeze({
         ...primary,
@@ -91,6 +120,7 @@
         buildingId,
         building,
         aliases: Object.freeze(aliases),
+        identityAliases: Object.freeze(aliases),
         mapState: profile?.mapState || (buildingId ? "EXACT" : "UNMAPPED"),
         schedule: SCHEDULES[canonicalId] || null,
         sourceRecords: Object.freeze(records),
@@ -104,7 +134,8 @@
         buildingId: building.id,
         building,
         title: building.name,
-        aliases: Object.freeze(unique([building.name, building.id, building.category, ...Object.values(building.tags || {}).flat()])),
+        aliases: Object.freeze(unique([building.name])),
+        identityAliases: Object.freeze(unique([building.name])),
         category: building.category,
         content: building.purpose?.en || building.description?.en || "",
         contentMs: building.purpose?.ms || building.description?.ms || "",
@@ -122,8 +153,31 @@
     return places;
   }
 
+  function entityFromDefinition(definition) {
+    if (!definition) return null;
+    const building = definition.buildingId
+      ? (window.CAMPUS_BUILDINGS || []).find(item => item.id === definition.buildingId) || null
+      : null;
+    return Object.freeze({
+      ...definition,
+      canonicalId: definition.id,
+      building,
+      aliases: Object.freeze(unique([definition.title, ...(definition.aliases || []), ...(TYPED_IDENTITY_VARIANTS[definition.id] || []).map(variant => variant.alias)])),
+      identityAliases: Object.freeze(unique([definition.title, ...(definition.aliases || []), ...(TYPED_IDENTITY_VARIANTS[definition.id] || []).map(variant => variant.alias)])),
+      sourceRecords: Object.freeze([]),
+    });
+  }
+
+  function getSpecialPlaces() {
+    return (window.KMK_AI_PHASE3?.specialEntities || []).map(entityFromDefinition).filter(Boolean);
+  }
+
+  function getIdentityPlaces() {
+    return [...getPlaces(), ...getSpecialPlaces()];
+  }
+
   function getById(canonicalId) {
-    return getPlaces().find(place => place.canonicalId === canonicalId) || null;
+    return getIdentityPlaces().find(place => place.canonicalId === canonicalId) || null;
   }
 
   function hasGeographicMapTarget(place) {
@@ -161,5 +215,5 @@
     return getPlaces().length;
   }
 
-  window.EchoAI.PlaceRegistry = Object.freeze({ getPlaces, getById, hasMapTarget, getNearby, getNearbyDetails, getMasterEntityCount });
+  window.EchoAI.PlaceRegistry = Object.freeze({ getPlaces, getSpecialPlaces, getIdentityPlaces, getById, hasMapTarget, getNearby, getNearbyDetails, getMasterEntityCount });
 }());

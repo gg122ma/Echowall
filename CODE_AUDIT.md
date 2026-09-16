@@ -11,6 +11,336 @@
   navigation. KMK Map previews now consume the same canonical primary image.
 - No Phase 5/AI, Supabase, auth, database, production-data, or owner-source
   file was changed.
+## 2026-09-16 - PHASE 5 FINAL SERVICE AND CONTEXT CLOSURE AUDIT
+
+- `CanonicalResolver.resolve()` remains the sole canonical identity authority.
+  `serviceCanonicalizationEligibility()` is now the only service-to-entity
+  gate, and both templated and untemplated paths consume its immutable result.
+- `IntentRouter.analyzeServiceFrame()` returns action/object concepts plus
+  request basis only. Weak request/capability evidence is not allowed to mask
+  competing target residue; it never returns a canonical ID.
+- Context input from orchestration is merely prior state. The resolver checks
+  new target evidence first, then permits context only for closed-class
+  anaphora/deixis or bounded fact-dimension turns. Context cannot create Map
+  provenance.
+- Focused architecture coverage is **43/43** and Phase 5 is **309/309**. A
+  disposable 120-probe English/Malay/Chinese/mixed gate reports genuine
+  service success **30/30**, valid context recall **30/30**, zero false
+  canonical identities, zero false Map actions, and zero false context
+  inheritance.
+- Audit result: Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all test
+  scripts **27/27**, active syntax **116/116**, and Pages/artifact, production
+  URL, static, portable, both seeds, and diff checks pass. Source truth,
+  production data, Map provenance, and Phase 4 architecture are unchanged.
+
+## 2026-09-16 - PHASE 5 FINAL BLOCKER CLOSURE AUDIT
+
+- Canonical authority remains exclusive to `CanonicalResolver.resolve()`.
+  The patch changes only evidence gating: context requires a provably relative
+  payload, and service mapping requires an analyzer frame marked `REQUESTED`.
+  No later context or service fallback can bypass target precedence.
+- `IntentRouter.analyzeServiceFrame()` continues to return semantic concepts,
+  never canonical IDs. Capability descriptions may collect concepts but have
+  `requestState: NONE`; positive need/request grammar supplies
+  `requestState: REQUESTED`. Word order remains independent for supported
+  action/object pairs.
+- Place source provenance was reviewed in
+  `KMK_Building_Facility_Source_Summary_EchoWall.docx`. The owner summary uses
+  the complete `DEWAN MAHAWANGSA` identity and points to source page 26; no
+  unique bare `Dewan` or `Hall` identity is documented. Only those generic
+  aliases are filtered from exact evidence. The canonical identity, facts,
+  and verified Map target remain intact.
+- Static/runtime architecture coverage is **40/40**. Phase 5 is **287/287**;
+  a disposable multilingual targeted suite is **80/80** (20 context attacks,
+  20 valid context turns, 20 fictional service descriptions, 20 genuine
+  needs), with zero false canonical identities and zero false Map actions.
+- Audit result: Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all test
+  scripts **27/27**, active syntax **116/116**, Pages/artifact, production URL,
+  static, portable, both seeds, and diff checks pass. Source truth, production
+  data, UI, canonical authority, Map provenance, and Phase 4 are unchanged.
+
+## 2026-09-16 - PHASE 5 CANONICAL RESOLVER FINAL CONVERGENCE AUDIT
+
+- Canonical authority remains exclusive to `CanonicalResolver.resolve()`.
+  The auxiliary subject addition yields mention evidence only; it neither
+  returns a service ID nor authorizes a Map target.
+- The auxiliary boundary is a bounded closed-class grammar operator followed
+  immediately by an exact alias. Predicate verbs and complements stay open
+  vocabulary and are not matched, scored, stripped, or allowlisted.
+- Overlapping occurrence evidence now removes only a contained shorter exact
+  alias or a non-primary same-span relational alias. Unresolved prefixes and
+  suffixes are not stripped, so fictional larger names stay ambiguous or
+  unresolved with no canonical entity.
+- Migration classification: 11 prior Map/provenance changes are
+  `OWNER_APPROVED_CONTRACT_CHANGE`; six fictional answer-mode changes are
+  `OWNER_APPROVED_CONSERVATIVE_AMBIGUITY`; P5-260 is intentional ambiguity;
+  P5-218 and P5-231 are fixed regressions. No other unapproved expectation
+  migration remains.
+- Map audit remains exact-provenance only. Mention, approximate, service,
+  context, discovery, ambiguous, and unresolved results are Map-ineligible;
+  A1/A2, B1/B2, and C2 retain verified parents and P5 remains unmapped.
+- Evidence: Phase 5 **275/275**, focused architecture **29/29**, Campus
+  **199/199**, Map **21/21**, Phase 4 **89/89**, all tests **27/27**, active
+  syntax **116/116**, and all release validators pass. A 200-turn final suite
+  reports 35 intentional ambiguities, zero false canonical resolutions, zero
+  false Map actions, and zero unexpected recall regressions.
+- Audit conclusion: source truth, production data, UI behavior, and Phase 4
+  architecture are unchanged. The branch is ready for independent Claude
+  final review, not merge.
+
+## 2026-09-16 - PHASE 5 CANONICAL RESOLVER AUDIT
+
+- `CanonicalResolver.resolve()` is the only per-turn authority that assigns a
+  canonical entity. `IntentRouter` emits intent and semantic service concepts;
+  `KnowledgeEngine` materializes facts from the canonical result;
+  `ConversationContext`, `AnswerPlanner`, and `MapAction` cannot substitute an
+  entity independently.
+- Alias evidence preserves source offsets across Latin, CJK, and mixed script.
+  Exact and approximate matches remain typed separately. Occurrence-only
+  evidence is non-authoritative unless structurally bounded; undecidable
+  free-form references become deterministic `AMBIGUOUS` results.
+- Special identities use the PlaceRegistry identity catalog. Legacy
+  `localAliasSpan`, qualified/fallback named-span inference, subject/auxiliary/
+  action token authority, safe-target modifiers, and direct service-ID routing
+  are removed.
+- Map construction requires resolver provenance with `EXACT_TARGET` and an
+  exact alias match. Verified parent targets remain allowed for A1/A2, B1/B2,
+  and C2; P5 remains unmapped.
+- Static/runtime architecture coverage is **27/27**. Phase 5 is **275/275**;
+  fresh diagnostics are **220/220** across exact targets, mentions,
+  intentional ambiguity, fictional identities, services, multilingual,
+  context, and Map cases, with zero unsafe identities/actions.
+- Audit result: Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all test
+  scripts **27/27**, active syntax **116/116**, and all build/release gates
+  pass. No source truth, production data, UI design, or Phase 4 contract was
+  changed.
+
+## 2026-09-15 - PHASE 5 QUICK-BLOCKER IDENTITY-SPAN AUDIT
+
+- Lowercase qualifiers no longer depend on `looksLikeNameToken()` casing.
+  Local complete short names and named-reference contexts classify a known
+  alias inside a larger target as unknown-qualified.
+- Pure-CJK runs use the alias offset inside the run; text on both sides is
+  sufficient larger-name evidence without requiring an adjacent Latin token.
+- Service candidates consult `Retriever.analyzeIdentityEvidence()` with a
+  local service focus. Semantic clause validation distinguishes actions and
+  objects from unknown name qualifiers and supports object-first/passive
+  grammar without sentence-template enumeration.
+- Permanent evidence: Phase 5 **258/258**. Final-tree targeted evidence:
+  **24/24**, covering all requested script/case/service classes with zero
+  fictional Map actions. Full regression is Campus **199/199**, Map **21/21**,
+  Phase 4 **89/89**, all tests **26/26**, and active syntax **116/116**.
+- Audit result: all release validators pass; source facts, authority, map
+  truth, Supabase/auth/database/production state, UI, and Phase 4 contracts
+  are unchanged.
+
+## 2026-09-15 - PHASE 5 SLOT-NULL FALLBACK AUDIT
+
+- Slot-null resolution no longer accepts an alias occurrence without local
+  identity evidence. Original-text token spans distinguish an exact entity in
+  predicate grammar from an alias embedded in a larger proper name.
+- Conservative typo matching passes through the same local-span check:
+  standalone typos remain usable, while fictional qualified typo identities
+  remain unsupported.
+- Alias-overlap precedence checks the longest verified local identity, so
+  `Dewan Kuliah`, `Bank Rakyat ATM`, and the specific hostel blocks are not
+  rejected because a shorter alias appears inside them.
+- Unknown named spans are evaluated before service routing. Service selection
+  uses action/object composition in either order, including Malay passive
+  morphology, and cannot reinterpret a fictional service facility.
+- Unknown-qualified evidence crosses the KnowledgeEngine boundary and blocks
+  stale conversation inheritance; deictic targets remain context-safe.
+- Regression evidence: Phase 5 **250/250**, fresh diagnostics **202/202 turns**
+  with **201 untemplated**, Campus **199/199**, Map **21/21**, Phase 4
+  **89/89**, all tests **26/26**, active syntax **116/116**, and all release
+  validators pass. Browser automation was unavailable.
+- Audit result: no canonical fact, authority, map target, source truth,
+  Supabase/auth/database/production state, UI, or Phase 4 contract changed.
+
+## 2026-09-15 - PHASE 5 SHARED IDENTITY-BOUNDARY AUDIT
+
+- `QUERY_SCAFFOLD_WORDS` and query-wide unexplained-token rejection are gone.
+  Verified bounded aliases resolve independently of unrelated predicate words.
+- `Retriever.analyzeIdentityEvidence()` is the one decision boundary for
+  regular and special identities. Explicit unknown targets return no entity
+  and prevent service/discovery reinterpretation or Map actions.
+- KnowledgeEngine's old `aliasMatches`, direct-identity, unresolved-landmark,
+  and phrase-specific service shortcut paths were removed. Service selection
+  is action/need composition after identity evidence, including registry-based
+  sports-category evidence rather than more lead-in phrases.
+- Generic hostel ingestion excludes the six exact special codes. Specific
+  entities retain their original PARENT_ONLY/UNMAPPED targets.
+- Regression evidence: Phase 5 **242/242**, fresh diagnostics **150/150**,
+  Campus **199/199**, Map **21/21**, Phase 4 **89/89**, all tests **26/26**,
+  active syntax **116/116**, and every release validator passes.
+- Audit result: no source fact, authority, effective date, conflict, map target,
+  Supabase/auth/database/production state, UI, or Phase 4 contract changed.
+
+## 2026-09-14 - KMK AI PHASE 5 FINAL HARDENING ROUND 3 AUDIT
+
+- **Independent-review input:** Claude Sonnet 5 ran 103 adversarial probe
+  turns and reproduced four High classes—hostel-study substitution, weak-token
+  identity resolution, descriptive-suffix bypass, and `key facilities` false
+  disclosure—plus the Medium `dump/expose` disclosure gap.
+- **Identity audit:** raw record IDs and Map building IDs are no longer aliases.
+  Resolver acceptance requires bounded phrase/short-code evidence or complete
+  conservative-typo coverage; partial token scores cannot resolve. Explicit
+  location targets are checked independently from nearby landmark mentions.
+- **Title audit:** Study Room and Resource Centre still resolve. Fictional
+  Study Hall, Equipment/Printing/Learning Centre, Student Facility, Sports
+  Depot, and landmark-qualified variants remain unsupported with no action.
+- **Service audit:** hostel + study concepts compose into the source-backed
+  partial Study Room record. Sports equipment, bicycles, laundry, and printing
+  use bounded need composition and remain separate from identity matching.
+- **Disclosure audit:** request verbs include dump/expose, while identifier
+  semantics distinguish internal IDs/codes/keys/references from ordinary key
+  facilities/services and human-facing code phrases. Existing response
+  suppression removes every identifier-bearing surface.
+- **Map/source audit:** weak or fictional identities cannot create actions;
+  legitimate exact and parent-only targets remain unchanged. No fact value,
+  source authority, effective date, conflict, or Map mapping changed.
+- Permanent benchmark: **225 scenarios / 266 turns / 225 passed**. The
+  temporary diagnostic harness ran **107/107 unseen queries** and was removed.
+- Regression: Campus AI **199/199**, Map **21/21**, Phase 4 **89/89**, all
+  tests **26/26**, active syntax **116/116**, and Pages/artifact/URL/static/
+  portable/seeds/diff gates pass.
+
+Phase 4 fact-lock, explicit opt-in, deterministic fallback, latest-request
+generation, UI single-flight, provider action prohibition, deterministic-only
+CONFLICT/UNSUPPORTED/AMBIGUOUS handling, and ResponseValidator remain intact.
+
+## 2026-09-14 - KMK AI PHASE 5 FINAL HARDENING ROUND 2 AUDIT
+
+- **Alias/source audit:** removed descriptive service concepts from identity
+  evidence across Phase 3, legacy knowledge records, and unmatched Map tags.
+  Retriever exact/multiword substring scoring now sees only classified identity
+  aliases. A bounded qualified-name guard prevents an unknown named shop,
+  event hall, printing service, laundry, or sports-equipment business from
+  gaining a known exact target.
+- **Ownership audit:** Stor Sukan owns sports-equipment borrowing; bicycle-only
+  wording and Stor Basikal retain `bicycle-service`. The legacy overlapping
+  `sports equipment` alias is no longer identity evidence. No service fact or
+  availability statement was invented.
+- **Disclosure audit:** the new semantic helper detects request + identifier +
+  implementation context, including possessive and compound navigation forms.
+  Classified requests are stopped before resolution, and response construction
+  independently suppresses resolved metadata, actions, grounding, facts,
+  conflicts, context, and selected IDs. Benchmark checks cover the complete
+  student-visible structure and known source/fact/building IDs.
+- **Intent audit:** explicit rule requests outrank generic dining cues; bounded
+  EN/BM/ZH/code-switch service needs outrank generic rules and nearby wording.
+  Hostel-study queries resolve only the partial Study Room entity, not the
+  generic hostel zone. Actual dining and sports discovery remains multi-option
+  and action-free.
+- **Map audit:** unknown qualified descriptors produce no action; Stor Sukan,
+  Study Room, and bicycle service stay unmapped/ambiguous; ordinary verified
+  Library/KOOP/Cafe/Astaka actions are unchanged. `ResponseValidator` remains
+  the final action gate.
+- Permanent benchmark: **199 scenarios / 239 turns / 199 passed**. A separate
+  **58-query** unseen pass finished **58/58** after root-class fixes and its
+  temporary harness was removed.
+- Regression: Campus AI **199/199**, Map **21/21**, Phase 4 **89/89**, Phase 5
+  **199/199**, all tests **26/26**, syntax **116/116**, and all build/release,
+  seed, and diff gates pass. Browser QA is not verified because no browser
+  backend was available; live provider QA is not tested.
+- Source truth and Phase 4 boundaries are unchanged. No Supabase, auth,
+  database, production-data, provider, dependency, or UI change was made.
+
+## 2026-09-14 - KMK AI PHASE 5 PRE-MERGE HARDENING AUDIT
+
+- Fixed all three High findings from the final read-only review. Generic
+  descriptors are separated from identity aliases, complete new
+  entity/category requests outrank conversation context, and natural requests
+  for implementation identifiers are refused before resolution.
+- **Alias audit:** exact Map targets now require identity evidence. Generic
+  building tags no longer become aliases; a small classified set of legacy
+  descriptors is excluded from identity resolution; weak scoring ignores
+  generic service tokens. Anchored need patterns preserve supported natural
+  queries without accepting additional unknown qualifiers.
+- **Context audit:** `referencesPrevious()` contains pronouns and refer-back
+  language only. `show me` is recognized solely by the exact elliptical
+  matcher, and `CampusAI.ask()` treats resolved dining/sports discovery as an
+  independent referent. All update/markServed/clear calls remain behind the
+  Phase 4 latest-request generation guard.
+- **Disclosure audit:** building, Map, source, fact, and `B_*` identifier
+  requests return deterministic `UNSUPPORTED` responses with empty actions.
+  `noInternalIdsAnywhere` inspects answer text plus UI-consumed actions, closing
+  the prior test gap where an action could contain `B_PUSTAKA`.
+- **Intent/premise audit:** navigation wording wins before the generic `can I`
+  rule cue. Rule-specific verbs remain rules. Schedule assertions require a
+  universal endpoint when no day is supplied and an exact selected-day
+  endpoint otherwise; closed days cannot be ignored.
+- Canonical fact values, source authority, conflicts, effective dates, Map
+  states/targets, and actions were not changed. Cafe Admin remains conflict;
+  Library/KOOP schedules remain authoritative; Basketball facts remain
+  unsupported; unsafe facilities and parent-only blocks retain their states.
+- Permanent benchmark: **156 scenarios / 194 turns / 156 passed**. A 27-query
+  diagnostic pass added representative Galaxy Printing Service, Lunar Laundry,
+  source-ID, fact-ID, and day-specific mismatch coverage.
+- Final regression: Campus AI **199/199**, Map **21/21**, Phase 4 **89/89**,
+  Phase 5 **156/156**, all tests **26/26**, syntax **116/116**, and every
+  build/release/diff validator passes. Browser QA remains not verified because
+  no browser backend was available; live provider QA remains not tested.
+
+## 2026-09-14 - KMK AI PHASE 5 STUDENT QUERY ROBUSTNESS
+
+- Added a 120-case semantic benchmark with 20 normal, 12 natural, 15
+  follow-up, 12 correction, 8 conflict, 10 unsupported, 12 primary Map, 8
+  typo, 10 primary injection, 8 comparison, and 5 controlled concurrency
+  cases. Cross-tagged boundary cases provide 15 Map-safety and 15
+  adversarial/injection checks. Language coverage is 82 English, 10 BM, 8
+  Chinese, 15 code-switch, and 5 language-neutral races; two Chinese-led
+  mixed cases bring Chinese behavior coverage to 10.
+- **Source-safety audit:** no fact value, provenance, authority rank, effective
+  date, conflict record, or building target changed. Added aliases are limited
+  to verified identities. Cafe Admin remains conflicted; Library/KOOP retain
+  current L1 schedules; the expired Library exception remains excluded;
+  Basketball hours remain unsupported; Surau and Reading Room remain distinct
+  and unmapped/disabled; Court A/C remain disabled; P5 remains unmapped; and
+  A1/A2/B1/B2/C2 remain parent-only.
+- **Resolution/normalization audit:** bounded short codes require exact token
+  boundaries; typo matching retains the existing conservative length/edit
+  limits; generic `mart` and conjunction `and` cannot independently create an
+  entity score. The added phrase aliases were collision-checked through the
+  full canonical inventory and benchmark. There is no broad fuzzy resolver.
+- **Conversation audit:** context substitution occurs only for clear refer-back
+  or exact elliptical forms and only when there is no explicit
+  high-confidence entity. A superseding explicit entity still wins. All
+  context writes remain behind the Phase 4 per-session request generation,
+  with both completion orders, different sessions, post-timeout state, and a
+  follow-up after the newer request covered end to end.
+  Multi-entity comparisons now clear the single-entity context under the same
+  generation guard; a later elliptical hours query cannot silently select the
+  second comparison participant.
+- **Injection audit:** explicit attempts to disclose or override internal
+  prompts, planner/validator/registry objects, fact IDs, Map/building IDs, or
+  developer variables return a deterministic unsupported boundary response.
+  False campus assertions still proceed through source-aware
+  conflict/unsupported/correction logic, so the guard does not hide useful
+  factual corrections. Provider free text remains structurally unable to enter
+  visible campus output.
+- **Map audit:** final `ResponseValidator` actions are asserted, not only
+  intents. Exact targets remain limited to verified buildings; parent-only
+  blocks retain their verified parents; unmapped/disabled places never gain an
+  action. New `map`, `peta`, pin, and BM `letak pin` cues change intent only,
+  never target eligibility.
+- **Fallback audit:** unsupported fee and dress-code requests no longer fall
+  into unrelated legacy entity prose. This does not alter legacy behavior for
+  supported services, general FreeAI behavior, provider configuration, or the
+  deterministic fact renderer.
+- Initial benchmark status was 76/120. After layer-specific fixes and five
+  expectation corrections it is 120/120. A separate 20-query second pass found
+  five reproducible blind spots; representative assertions were promoted and
+  the temporary diagnostic harness removed.
+- Regression status: Campus AI **199/199**, Map **21/21**, Phase 4 **89/89**,
+  Phase 5 **120/120**, all test scripts **26/26**, syntax **116/116**, Pages
+  build/artifact (490 files), production URL lock, static, portable, both seed
+  validators, and diff check pass.
+- Browser QA is **not verified** because no browser session was available.
+  Live provider QA is **not tested**; there is no safe credential and campus
+  provider rendering remains explicit opt-in and disabled in production.
+- No Supabase, auth, database, production-data, UI, provider, or dependency
+  change was made.
 
 ## 2026-09-14 - KMK AI PHASE 4 PRE-MERGE HARDENING
 

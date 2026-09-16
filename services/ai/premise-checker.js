@@ -17,11 +17,28 @@
   }
 
   function isAssertion(message) {
-    return /\b(right|correct|isnt it|isn't it|kan|betul|memang)\b|对吗|是吧|不是吗/i.test(String(message || ""));
+    return /\b(right|correct|isnt it|isn't it|confirm|kan|ke|betul|memang)\b|对吗|是吧|不是吗/i.test(String(message || ""));
   }
 
   function assertedClosed(message) {
     return /\b(closed|close on|tutup)\b|关闭|不开/i.test(String(message || ""));
+  }
+
+  function claimedTime(message) {
+    const text = String(message || "");
+    if (/\bmidnight\b/i.test(text)) return "00:00";
+    if (/\bnoon\b/i.test(text)) return "12:00";
+    const match = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+    if (!match) return "";
+    let hour = Number(match[1]) % 12;
+    if (match[3].toLowerCase() === "pm") hour += 12;
+    return `${String(hour).padStart(2, "0")}:${match[2] || "00"}`;
+  }
+
+  function assertedEndpoint(message) {
+    if (/\b(open|opens|opening|buka)\b|开门|开放/i.test(String(message || ""))) return "start";
+    if (/\b(close|closes|closing|closed|tutup)\b|关门|关闭/i.test(String(message || ""))) return "end";
+    return "";
   }
 
   function check(message, place, conflicts = []) {
@@ -30,9 +47,25 @@
       return Object.freeze({ status: "AMBIGUOUS", day: extractDay(message), actual: "" });
     }
     const day = extractDay(message);
+    const assertedTime = claimedTime(message);
+    const endpoint = assertedEndpoint(message);
+    if (!day && isAssertion(message) && assertedTime && endpoint && place.schedule) {
+      const endpointIndex = endpoint === "start" ? 0 : 1;
+      const candidates = [...new Set(Object.values(place.schedule)
+        .filter(Boolean)
+        .map(value => value === "closed" ? "closed" : String(value).split("-")[endpointIndex]))];
+      if (candidates.length) {
+        const universallySupported = candidates.length === 1 && candidates[0] === assertedTime;
+        return Object.freeze({ status: universallySupported ? "SUPPORTED" : "CONTRADICTED", day: "", actual: candidates.join(",") });
+      }
+    }
     if (!day || !place.schedule?.[day]) return Object.freeze({ status: "SUPPORTED", day, actual: "" });
     const actual = place.schedule[day];
     if (!isAssertion(message)) return Object.freeze({ status: "SUPPORTED", day, actual });
+    if (assertedTime && endpoint) {
+      const actualEndpoint = actual === "closed" ? "closed" : String(actual).split("-")[endpoint === "start" ? 0 : 1];
+      return Object.freeze({ status: actualEndpoint === assertedTime ? "SUPPORTED" : "CONTRADICTED", day, actual });
+    }
     const actualClosed = actual === "closed";
     const claimClosed = assertedClosed(message);
     return Object.freeze({ status: actualClosed === claimClosed ? "SUPPORTED" : "CONTRADICTED", day, actual });
