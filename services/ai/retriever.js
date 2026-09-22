@@ -255,6 +255,7 @@
     if (!query) return null;
     const patterns = [
       { kind: "navigation", strength: "identity", pattern: /^(?:(?:could|can|would) you\s+)?(?:please\s+)?(?:help me\s+)?(?:navigate to|take me to|bring me to|drop a pin for|pin|open|show(?: me)?)\s+(.+)$/u },
+      { kind: "rules", strength: "identity", pattern: /^(?:can|could|may) i go to\s+(.+?)\s+after\s+.+$/u },
       { kind: "navigation", strength: "identity", pattern: /^(?:can|could|may) i (?:go|get) to\s+(.+)$/u },
       { kind: "navigation", strength: "identity", pattern: /^(?:tolong\s+)?(?:letak pin untuk|macam mana nak cari)\s+(.+)$/u },
       { kind: "navigation", strength: "identity", pattern: /^(.+?)\s+(?:boleh\s+)?(?:show|open)(?:\s+(?:it|this))?\s+(?:on\s+)?(?:the\s+)?(?:echo\s+)?map(?:\s+tak)?$/u },
@@ -269,9 +270,12 @@
       { kind: "information", strength: "identity", pattern: /^(.+?)\s+(?:same as|is (?:beside|inside|in|near))\s+.+$/u },
       { kind: "information", strength: "identity", pattern: /^(.+?)\s+(?:在|跟|和|与)\s+.+$/u },
       { kind: "hours", strength: "identity", pattern: /^(?:pretend|assume|just answer\s*:?)\s+(.+?)\s+(?:opens?|closes?|later time|opening time|closing time)\b.*$/u },
+      { kind: "hours", strength: "identity", pattern: /^(?:what|which)\s+(?:are|is)\s+(.+?)\s+(?:opening|operating)\s+hours$/u },
       { kind: "services", strength: "identity", pattern: /^(?:what|which)(?:\s+.+?)?\s+(?:does|do)\s+(.+?)\s+(?:provide|offer|have|stock|sell)(?:\s+.*)?$/u },
       { kind: "services", strength: "identity", pattern: /^(?:what|which)\s+(?:is|are)\s+(.+?)\s+(?:used for|for|about)(?:\s+.*)?$/u },
       { kind: "rules", strength: "identity", pattern: /^(?:can|may)\s+.+?\s+(?:go to|enter|use|visit)\s+(.+?)(?:\s+(?:after|before|at)\s+.+)?$/u },
+      { kind: "rules", strength: "identity", pattern: /^when can\s+.+?\s+(?:enter|use|visit)\s+(.+)$/u },
+      { kind: "rules", strength: "identity", pattern: /^(?:are|is)\s+.+?\s+allowed\s+(?:at|in|to use|to visit)\s+(.+?)(?:\s+(?:after|before|at)\s+.+)?$/u },
       { kind: "information", strength: "service_object", pattern: /^(?:i|we)\s+(?:need|want|require)\s+(.+)$/u },
       { kind: "location", strength: "identity", pattern: /^i need (?:directions to|to (?:find|locate|reach|get to))\s+(.+)$/u },
       { kind: "navigation", strength: "identity", pattern: /^how (?:do|can) i (?:get|go) to\s+(.+)$/u },
@@ -456,8 +460,8 @@
   const PREDICATE_CUES = Object.freeze({
     campus_hours: /^(?:(?:now|today|tomorrow|tonight|currently|cuma|sekarang)\s+)?(?:open|opens|opening|close|closes|closing|closed|hours?|operating|available|berfungsi|buka|tutup|waktu|pukul|jam|confirm)\b/u,
     campus_services: /^(?:provide|provides|offer|offers|stock|stocks|sell|sells|have|has|buat)\b/u,
-    campus_rules: /^(?:allow|allows|permit|permits|accept|accepts|require|requires|have|has)\b/u,
-    campus_fees: /^(?:cost|costs|charge|charges|fee|fees|price|prices|bayaran|harga)\b/u,
+    campus_rules: /^(?:allow|allows|permit|permits|accept|accepts|require|requires|have|has|boleh|bila|bilakah)\b|^(?:晚上7点后|晚上七点后|学生什么时候)/u,
+    campus_fees: /^(?:cost|costs|charge|charges|fee|fees|price|prices|free|bayaran|harga|percuma|boleh digunakan secara percuma)\b|^(?:免费|可以免费)/u,
     campus_nearby: /^(?:near|nearby|dekat|around|beside|next to)\b/u,
     campus_navigation: /^(?:(?:可以|boleh)\s*)?(?:show|open|tunjuk|has|have|map|mapped|located|situated)\b/u,
     campus_location: /^(?:located|situated|location|near|nearby|dekat)\b/u,

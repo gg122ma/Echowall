@@ -1,5 +1,19 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-23 - KMK OWNER-CONFIRMED SOURCE CORRECTION AUDIT
+
+- Provenance is recorded as owner-confirmed manual verification at L2 in
+  `docs/KMK_OWNER_CONFIRMED_SOURCE_CORRECTIONS_2026-09-22.md`; it is not
+  represented as official KPM/L1 evidence.
+- Cafe Admin's historical 3:00pm/4:00pm records remain present but stale, so
+  the current answer no longer conflicts. Basketball Court is free for KMK
+  students; no fixed closing time is confirmed, and 7:00pm is only a student
+  sports-access restriction. KOOP's existing schedule was retained unchanged.
+- Validation: Campus **216/216**, Map **21/21**, Phase 4 **89/89**, Phase 5
+  **326/326**, Resolver **43/43**, all **29/29** test scripts, active syntax
+  **119/119**, Pages build/artifact **559 files**, and all release validators
+  pass. No Map, Supabase, auth, database, or production-config behavior changed.
+
 ## 2026-09-16 - MULTI-COLLEGE MAP PHASE 1 MANUAL QA ACCEPTANCE
 
 - Manual browser QA: **PASS**, approved by the owner.

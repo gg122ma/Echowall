@@ -47,6 +47,8 @@
       return language === "ms" ? `${dayName}: ${rangeText(value)}.` : language === "zh" ? `${dayName}开放时间为${rangeText(value)}。` : `On ${dayName}, it is open ${rangeText(value)}.`;
     }
     if (schedule) return `${scheduleText(schedule, language)}${language === "zh" ? "。" : "."}`;
+    const localized = local(fact.value, language);
+    if (localized) return localized;
     if (fact.approximate || /^around /.test(fact.value.label || "")) {
       const range = rangeText(String(fact.value.label || "").match(/\d{2}:\d{2}-\d{2}:\d{2}/)?.[0] || "07:00-22:00");
       return language === "ms" ? `Waktu yang disokong ialah sekitar ${range} setiap hari.` : language === "zh" ? `资料支持的时间是每天约${range}。` : `The supported hours are around ${range} daily.`;

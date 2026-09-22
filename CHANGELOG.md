@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-23 - KMK OWNER-CONFIRMED SOURCE CORRECTIONS
+
+- Added L2 owner-confirmed current facts for Basketball Court free student use,
+  its unknown formal closing time, and the after-7:00pm student sports-access
+  restriction. The restriction is not represented as a venue closing time.
+- Superseded the current Cafe Admin source conflict with confirmed teacher
+  08:00-15:00 and student 12:30-15:00 access while retaining both older source
+  records as stale history. KOOP hours remain unchanged.
+- Added focused English, Malay, and Chinese regressions. Generic sports-category
+  rule queries remain deferred because they require category-level planning
+  outside this source-data correction.
+
 ## 2026-09-16 - MULTI-COLLEGE MAP PHASE 1 MANUAL QA ACCEPTANCE
 
 - Owner manual browser QA passed for Phase 1 map behavior on desktop and

@@ -1,3 +1,24 @@
+# KMK OWNER-CONFIRMED SOURCE CORRECTIONS HANDOFF (2026-09-23)
+
+Status: **IMPLEMENTED; ALL AUTOMATED GATES PASS; READY FOR OWNER REVIEW**.
+
+- Current facts now state: Basketball Court is free for KMK students; its
+  formal closing time is unconfirmed; students may not go out to sports
+  facilities after 7:00pm. Cafe Admin allows teachers 08:00-15:00 and students
+  12:30-15:00. KOOP's existing hours were verified and left unchanged.
+- The prior Cafe Admin current conflict is preserved only as stale history.
+  A tiny generic renderer fallback supports localized textual hours facts, and
+  narrow exact-target grammar supports the required entity queries without
+  changing CanonicalResolver or category discovery architecture.
+- Deferred, non-blocking: `Can students use the sports facilities after 7pm?`
+  still produces sports discovery/ambiguity; safely serving category-level
+  rules is outside this source-data patch.
+- Validation: Campus 216, Map 21, Phase 4 89, Phase 5 326, Resolver 43, all 29
+  test scripts, 119 syntax checks, Pages 559-file build/artifact, static,
+  portable, production URL, and both seed validators pass. Rollback by reverting
+  the single source-correction commit; no Map, Supabase, auth, or database
+  rollback is required.
+
 # KMK BUILDING PHOTO INTEGRATION HANDOFF (2026-09-16)
 
 Status: **IMPLEMENTED; ALL AUTOMATED GATES PASS; INTERACTIVE BROWSER UNAVAILABLE**.

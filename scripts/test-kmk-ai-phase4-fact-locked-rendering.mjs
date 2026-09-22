@@ -262,11 +262,11 @@ check("false-premise CORRECTION plan is provider-eligible", correctionPlan.answe
 const { plan: laundryPlan } = buildPlan("DIY Laundry");
 check("safe PARTIAL plan with real selected facts is provider-eligible", laundryPlan.answerMode === "PARTIAL" && laundryPlan.facts.length > 0 && window.EchoAI.FactLockedRenderer.isEligible(laundryPlan));
 
-const { plan: cafeAdminConflictPlan } = buildPlan("What time does Cafe Admin close?");
-check("CONFLICT plan is never provider-eligible", cafeAdminConflictPlan.answerMode === "CONFLICT" && !window.EchoAI.FactLockedRenderer.isEligible(cafeAdminConflictPlan));
+const { plan: cafeAdminCurrentPlan } = buildPlan("What time does Cafe Admin close?");
+check("Cafe Admin current DIRECT plan is provider-eligible", cafeAdminCurrentPlan.answerMode === "DIRECT" && window.EchoAI.FactLockedRenderer.isEligible(cafeAdminCurrentPlan));
 
 const { plan: basketballPlan } = buildPlan("What time does basketball court close?");
-check("UNSUPPORTED plan is never provider-eligible", basketballPlan.answerMode === "UNSUPPORTED" && !window.EchoAI.FactLockedRenderer.isEligible(basketballPlan));
+check("Basketball safe PARTIAL plan with owner-confirmed facts is provider-eligible", basketballPlan.answerMode === "PARTIAL" && basketballPlan.facts.length === 1 && window.EchoAI.FactLockedRenderer.isEligible(basketballPlan));
 
 const { plan: parentOnlyPlan } = buildPlan("Blok A1");
 check("PARENT_ONLY plan is never provider-eligible", parentOnlyPlan.content.primary === "PARENT_ONLY" && !window.EchoAI.FactLockedRenderer.isEligible(parentOnlyPlan));
@@ -518,7 +518,7 @@ const hasPlace = (reply, placeId) => reply.resolvedPlaces.some(place => place.pl
 let reply;
 
 reply = await window.CampusAI.ask("When does Cafe Admin close?");
-check("REGRESSION Cafe Admin remains an unresolved CONFLICT", reply.answerPlan.mode === "CONFLICT" && /3:00pm/.test(reply.answer) && /4:00pm/.test(reply.answer) && reply.actions.length === 0);
+check("REGRESSION Cafe Admin uses the owner-confirmed 3:00pm close", reply.answerPlan.mode === "DIRECT" && /3:00pm/.test(reply.answer) && !/4:00pm/.test(reply.answer) && reply.actions.length === 0);
 
 reply = await window.CampusAI.ask("What time does the library close?");
 check("REGRESSION Library current L1 schedule is unchanged", /4:30pm/.test(reply.answer));
@@ -528,7 +528,7 @@ reply = await window.CampusAI.ask("Koperassi buka Jumaat pukul berapa?");
 check("REGRESSION KOOP deterministic schedule remains authoritative", /9:00am–5:30pm/.test(reply.answer));
 
 reply = await window.CampusAI.ask("What time does basketball court close?");
-check("REGRESSION Basketball verified hours remain unavailable", reply.answerPlan.mode === "UNSUPPORTED" && /unavailable/.test(reply.answer) && !/17:30|5:30pm/.test(reply.answer));
+check("REGRESSION Basketball keeps formal closing time unknown and 7pm as access restriction", reply.answerPlan.mode === "PARTIAL" && /No fixed closing time is confirmed/i.test(reply.answer) && /after 7:00pm/i.test(reply.answer) && !/Basketball Court closes at 7:00pm|17:30|5:30pm/i.test(reply.answer));
 
 for (const [name, parentBuilding] of [["Blok A1", "B_SERI_PALAS"], ["Blok A2", "B_SERI_PALAS"], ["Blok B1", "B_SERI_TEMIN"], ["Blok B2", "B_SERI_TEMIN"], ["Blok C2", "B_SERI_LAKA"]]) {
   reply = await window.CampusAI.ask(name);
