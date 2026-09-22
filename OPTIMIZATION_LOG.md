@@ -1,5 +1,15 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-23 - KMK owner-confirmed fact correction
+
+- Reused the existing atomic-fact, provenance, and fact-lock design. Older Cafe
+  Admin records are retained as stale instead of being deleted or reinterpreted.
+- Added one generic localized-text fallback for hours rendering and only narrow
+  exact-target query grammar; no entity-specific renderer branch, resolver
+  architecture change, category-planning change, or provider change was added.
+- Expanded permanent regression coverage for corrected current facts while
+  explicitly deferring the generic sports-category rule query.
+
 ## 2026-09-16 - Multi-college Map provenance hardening
 
 - Replaced implicit clickable-object provenance with explicit per-campus

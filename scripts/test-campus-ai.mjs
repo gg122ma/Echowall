@@ -102,6 +102,8 @@ check("Malay KOOP query resolves canonical KOOP", reply.intent === "campus_locat
 check("KOOP uses its canonical Echo Map target", reply.resolvedPlaces[0]?.mapState === "EXACT" && reply.actions[0]?.buildingId === "B_KOOP");
 reply = await ask("Koperassi buka Jumaat pukul berapa?");
 check("KOOP typo and Malay Friday hours resolve", hasPlace(reply, "koop-mart") && /9:00am–5:30pm/.test(reply.answer));
+reply = await ask("What are KOOP opening hours?");
+check("KOOP direct opening-hours query preserves the verified weekly schedule", reply.answerPlan.mode === "DIRECT" && /Sunday–Thursday 8:00am–5:30pm/.test(reply.answer) && /Friday–Saturday 9:00am–5:30pm/.test(reply.answer));
 reply = await ask("What is the minimum QR Pay amount at KOOP?");
 check("KOOP QR rule preserves RM5", /RM5/i.test(reply.answer));
 reply = await ask("What services does KOOP provide?");
@@ -162,7 +164,7 @@ check("Serambi purpose mentions HEP or student affairs", /HEP|student affairs/i.
 reply = await ask("Where is CUBIC?");
 check("CUBIC location preserves above-Serambi relation", /Above Serambi/i.test(reply.answer));
 reply = await ask("When does Cafe Admin close?");
-check("Cafe Admin exposes the unresolved L1/L1 conflict", reply.answerPlan.mode === "CONFLICT" && /3:00pm/.test(reply.answer) && /4:00pm/.test(reply.answer) && reply.actions.length === 0);
+check("Cafe Admin uses the owner-confirmed 3:00pm closing time", reply.answerPlan.mode === "DIRECT" && /closes at 3:00pm/i.test(reply.answer) && !/4:00pm/.test(reply.answer) && reply.actions.length === 0);
 reply = await ask("Can girls go to Cafe A after 7pm?");
 check("Cafe A rule preserves female restriction after 7pm", /Female students are not allowed.*7:00pm/i.test(reply.answer));
 reply = await ask("Can boys go to Cafe B after 7pm?");
@@ -218,6 +220,8 @@ const sourcePages = Object.fromEntries(window.KMK_KNOWLEDGE_BASE.documents
   .filter(record => ["serambi", "cubic", "cafe-admin", "library", "koop-mart", "cafe-a", "cafe-b", "cafe-c", "dewan-kuliah"].includes(record.id))
   .map(record => [record.id, window.EchoAI.SourceRegistry.parseSource(record.source).page]));
 check("owner-source page references match the supplied facility summary", JSON.stringify(sourcePages) === JSON.stringify({ serambi: 7, cubic: 8, "cafe-admin": 9, library: 10, "koop-mart": 11, "cafe-a": 12, "cafe-b": 13, "cafe-c": 14, "dewan-kuliah": 22 }));
+const cafeAdminLegacyRecord = window.KMK_KNOWLEDGE_BASE.documents.find(record => record.id === "cafe-admin");
+check("Cafe Admin legacy display record identifies the L2 owner-confirmed current-fact source", cafeAdminLegacyRecord.currentFactSource === "docs/KMK_OWNER_CONFIRMED_SOURCE_CORRECTIONS_2026-09-22.md" && cafeAdminLegacyRecord.currentFactAuthority === "L2" && cafeAdminLegacyRecord.dataStatus === "owner-confirmed");
 const dewanRecord = window.KMK_KNOWLEDGE_BASE.documents.find(record => record.id === "dewan-kuliah");
 check("Dewan Kuliah has no unsupported room-number claims", !/\bDK[KB]\b|room number|classroom number/i.test(JSON.stringify(dewanRecord)));
 
@@ -267,8 +271,9 @@ check("effective-date evaluation does not activate future facts early", window.E
 check("Library regular hours remain current after the dated exception", window.EchoAI.KnowledgeEngine.getFact("library.hours.regular", { asOf: "2026-09-12" }).temporalState === "CURRENT");
 check("Library L1 hours outrank the retained stale L3 schedule", window.EchoAI.KnowledgeEngine.getFacts("library").some(fact => fact.factId === "library.hours.regular") && !window.EchoAI.KnowledgeEngine.getFacts("library").some(fact => fact.factId === "library.hours.legacy-l3"));
 check("KOOP L1 hours outrank the retained stale L3 schedule", window.EchoAI.KnowledgeEngine.getFacts("koop-mart").some(fact => fact.factId === "koop.hours.regular") && !window.EchoAI.KnowledgeEngine.getFacts("koop-mart").some(fact => fact.factId === "koop.hours.legacy-l3"));
-check("Basketball misread is retained only as unsupported audit metadata", window.EchoAI.KnowledgeEngine.getFact("basketball.hours.phase1-misread").status === "UNSUPPORTED" && window.EchoAI.KnowledgeEngine.getFacts("basketball-court").length === 0);
-check("Cafe Admin atomic conflict remains L1/L1 and unresolved", window.EchoAI.KnowledgeEngine.detectConflicts(window.EchoAI.KnowledgeEngine.getFacts("cafe-admin"))[0]?.type === "L1_L1");
+check("Basketball misread is retained only as unsupported audit metadata", window.EchoAI.KnowledgeEngine.getFact("basketball.hours.phase1-misread").status === "UNSUPPORTED" && !window.EchoAI.KnowledgeEngine.getFacts("basketball-court").some(fact => fact.factId === "basketball.hours.phase1-misread"));
+check("Basketball current owner-confirmed facts cover fee, partial hours, and access rule", ["basketball.fee.owner-confirmed", "basketball.hours.owner-confirmed", "basketball.rule.sports-access-after-19"].every(factId => window.EchoAI.KnowledgeEngine.getFacts("basketball-court").some(fact => fact.factId === factId)));
+check("Cafe Admin historical source conflict is retained but no longer current", ["cafe-admin.hours.source-a", "cafe-admin.hours.source-b"].every(factId => window.EchoAI.KnowledgeEngine.getFact(factId).status === "STALE") && window.EchoAI.KnowledgeEngine.detectConflicts(window.EchoAI.KnowledgeEngine.getFacts("cafe-admin")).length === 0);
 const cafeAdminFacts = window.EchoAI.KnowledgeEngine.getFacts("cafe-admin");
 check("same semantic key across different entities cannot create a conflict", window.EchoAI.KnowledgeEngine.detectConflicts([cafeAdminFacts[0], { ...cafeAdminFacts[1], entityId: "other-entity" }]).length === 0);
 check("Cafe A hours preserve approximate metadata", window.EchoAI.KnowledgeEngine.getFact("cafe-a.hours.approx").approximate === true);
@@ -288,14 +293,14 @@ reply = await ask("Where is Cafe Admin?");
 check("Cafe Admin location is not replaced by its hours conflict", reply.intent === "campus_location" && reply.answerPlan.mode !== "CONFLICT" && /Outside Serambi/i.test(reply.answer));
 check("Cafe Admin location keeps its verified Map action", reply.actions[0]?.buildingId === "B_KAFETERIA_PENTADBIRAN" && reply.actions[0]?.targetType === "EXACT");
 reply = await ask("What time does Cafe Admin close?");
-check("Cafe Admin CONFLICT mode selects both atomic fact IDs", reply.answerPlan.mode === "CONFLICT" && reply.selectedFactIds.includes("cafe-admin.hours.source-a") && reply.selectedFactIds.includes("cafe-admin.hours.source-b"));
+check("Cafe Admin current hours select only the owner-confirmed fact", reply.answerPlan.mode === "DIRECT" && reply.selectedFactIds.length === 1 && reply.selectedFactIds[0] === "cafe-admin.hours.owner-confirmed" && /3:00pm/.test(reply.answer) && !/4:00pm/.test(reply.answer));
 reply = await ask("Tell me about Cafe Admin.");
-check("Cafe Admin general information is not replaced by its hours conflict", reply.answerPlan.mode !== "CONFLICT" && /dining|Serambi/i.test(reply.answer) && !/3:00pm|4:00pm/.test(reply.answer));
+check("Cafe Admin general information uses current owner-confirmed access instead of the old conflict", reply.answerPlan.mode !== "CONFLICT" && /12:30pm/.test(reply.answer) && /3:00pm/.test(reply.answer) && !/4:00pm/.test(reply.answer));
 const cafeContext = "cafe-admin-referback";
 await ask("Where is Cafe Admin?", cafeContext);
 reply = await ask("What time does it close?", cafeContext);
-check("Cafe Admin hours refer-back preserves the scoped conflict", reply.answerPlan.mode === "CONFLICT" && hasPlace(reply, "cafe-admin") && /3:00pm/.test(reply.answer) && /4:00pm/.test(reply.answer));
-check("Cafe Admin conflict grounding retains each selected fact ID", reply.grounding.length === 2 && reply.grounding.every(item => reply.selectedFactIds.includes(item.factId)));
+check("Cafe Admin hours refer-back uses the current owner-confirmed answer", reply.answerPlan.mode !== "CONFLICT" && hasPlace(reply, "cafe-admin") && /3:00pm/.test(reply.answer) && !/4:00pm/.test(reply.answer));
+check("Cafe Admin current grounding retains the selected owner-confirmed fact ID", reply.grounding.length === 1 && reply.grounding[0]?.factId === "cafe-admin.hours.owner-confirmed");
 
 reply = await ask("I'm hungry");
 check("hungry utterance routes to campus dining instead of generic fallback", reply.intent === "campus_services" && /Cafe A/.test(reply.answer) && reply.answerPlan.mode === "DIRECT");
@@ -389,8 +394,36 @@ check("explicit Pos Mini location remains unmapped and never opens KOOP", hasPla
 reply = await ask("Court A");
 check("Court A mapping is unsupported and disabled", hasPlace(reply, "court-a") && reply.resolvedPlaces[0]?.mapState === "DISABLED" && reply.actions.length === 0);
 reply = await ask("What time does basketball court close?");
-check("Basketball verified hours are unavailable", hasPlace(reply, "basketball-court") && reply.answerPlan.mode === "UNSUPPORTED" && /unavailable/.test(reply.answer));
-check("Basketball never regresses to 17:30", !/17:30|5:30pm/.test(reply.answer));
+check("Basketball hours remain partial without inventing a formal closing time", hasPlace(reply, "basketball-court") && reply.answerPlan.mode === "PARTIAL" && /No fixed closing time is confirmed/i.test(reply.answer) && /after 7:00pm/i.test(reply.answer));
+check("Basketball 7:00pm rule is never stated as a venue closing time", !/basketball court (?:closes|is closed|close) at 7:00pm/i.test(reply.answer) && !/17:30|5:30pm/.test(reply.answer));
+reply = await ask("How much is the basketball court fee?");
+check("Basketball fee is free for all KMK students", reply.answerPlan.mode === "DIRECT" && reply.selectedFactIds.includes("basketball.fee.owner-confirmed") && /free to use for all KMK students/i.test(reply.answer));
+reply = await ask("Is the basketball court free?");
+check("Basketball free-use yes-no query returns the fee fact", reply.answerPlan.mode === "DIRECT" && /free to use for all KMK students/i.test(reply.answer));
+for (const question of ["Can students use the basketball court after 7pm?", "Can I go to the basketball court after 7pm?", "Are students allowed at the basketball court after 7pm?"]) {
+  reply = await ask(question);
+  check(`${question} returns the student sports-access restriction`, reply.answerPlan.mode === "DIRECT" && reply.selectedFactIds.includes("basketball.rule.sports-access-after-19") && /not allowed to go out to sports facilities after 7:00pm/i.test(reply.answer) && !/basketball court (?:closes|is closed|close) at 7:00pm/i.test(reply.answer));
+}
+
+reply = await ask("When can students enter Cafe Admin?");
+check("Cafe Admin student access begins only after 12:30pm", reply.answerPlan.mode === "DIRECT" && /Students may enter only after 12:30pm/i.test(reply.answer));
+reply = await ask("Can students enter Cafe Admin at 10am?");
+check("Cafe Admin 10:00am student query corrects to the 12:30pm access rule", reply.answerPlan.mode === "DIRECT" && /Students may enter only after 12:30pm/i.test(reply.answer));
+reply = await ask("When can teachers enter Cafe Admin?");
+check("Cafe Admin teacher access begins at 8:00am", reply.answerPlan.mode === "DIRECT" && /Teachers may enter Cafe Admin from 8:00am/i.test(reply.answer));
+
+reply = await ask("Gelanggang bola keranjang boleh digunakan secara percuma?");
+check("Malay Basketball free-use answer is localized", /percuma oleh semua pelajar KMK/i.test(reply.answer));
+reply = await ask("篮球场 免费吗？");
+check("Chinese Basketball free-use answer is localized", /免费使用/.test(reply.answer));
+reply = await ask("Gelanggang bola keranjang boleh digunakan selepas 7 malam?");
+check("Malay Basketball after-7pm rule is localized", /tidak dibenarkan.*selepas 7:00 malam/i.test(reply.answer));
+reply = await ask("篮球场 晚上7点后可以使用吗？");
+check("Chinese Basketball after-7pm rule is localized", /晚上7:00后不得/.test(reply.answer));
+reply = await ask("Cafe Admin bila pelajar boleh masuk?");
+check("Malay Cafe Admin student-access answer is localized", /Pelajar hanya boleh masuk selepas 12:30 tengah hari/i.test(reply.answer));
+reply = await ask("Cafe Admin 学生什么时候可以进入？");
+check("Chinese Cafe Admin student-access answer is localized", /学生只能在中午12:30后进入/.test(reply.answer));
 
 reply = await ask("Blok A1");
 check("Blok A1 resolves to Seri Palas parent area", hasPlace(reply, "blok-a1") && /Seri Palas/.test(reply.answer) && reply.resolvedPlaces[0]?.mapState === "PARENT_ONLY");
@@ -428,9 +461,9 @@ check("Chinese laundry behavior preserves Dobby and no Map", hasPlace(reply, "ho
 reply = await ask("Blok A1 di mana?");
 check("Malay parent-only behavior uses Seri Palas", hasPlace(reply, "blok-a1") && /Seri Palas/.test(reply.answer) && reply.actions[0]?.targetType === "PARENT_ONLY");
 reply = await ask("Cafe Admin 几点关门？");
-check("Chinese Cafe Admin answer preserves the same conflict", reply.answerPlan.mode === "CONFLICT" && /3:00/.test(reply.answer) && /4:00/.test(reply.answer));
+check("Chinese Cafe Admin answer uses the owner-confirmed close", reply.answerPlan.mode === "DIRECT" && /下午3:00关闭/.test(reply.answer) && !/4:00/.test(reply.answer));
 reply = await ask("篮球场几点关门？");
-check("Chinese Basketball answer preserves unsupported hours", reply.answerPlan.mode === "UNSUPPORTED" && !/17:30|5:30/.test(reply.answer));
+check("Chinese Basketball answer preserves unknown formal closing time and the 7pm access rule", reply.answerPlan.mode === "PARTIAL" && /没有确认篮球场固定的关闭时间/.test(reply.answer) && /晚上7:00后/.test(reply.answer) && !/17:30|5:30/.test(reply.answer));
 
 const validProviderOutput = window.EchoAI.ProviderAdapter.validateCampusOutput({ answer: "The Library is closed on Friday.", answerMode: "DIRECT", factIds: ["library.hours.regular"], actions: [] }, { answerMode: "DIRECT", selectedFactIds: ["library.hours.regular"], facts: [window.EchoAI.KnowledgeEngine.getFact("library.hours.regular")] });
 check("provider validator accepts constrained output using only selected facts", validProviderOutput.valid === true);
