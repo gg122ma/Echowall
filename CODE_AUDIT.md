@@ -23,8 +23,9 @@
   production PostgreSQL image in an isolated database. SQL permission/scope/
   mutation checks pass **28/28**, focused frontend/security checks **54/54**,
   all **30/30** test scripts and active syntax **123/123** pass, and the Pages
-  560-file artifact plus all release validators pass. Production execution and
-  real-login browser testing remain gated on owner approval.
+  560-file artifact plus all release validators pass. The approved production
+  migrations and server-side permission checks pass; real-login browser testing
+  remains required.
 
 ## 2026-09-23 - KMK OWNER-CONFIRMED SOURCE CORRECTION AUDIT
 

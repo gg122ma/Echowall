@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-09-24 - PRODUCTION CLOUD ADMIN (IMPLEMENTED LOCALLY, NOT APPLIED)
+## 2026-09-24 - PRODUCTION CLOUD ADMIN
 
 - Added pending Supabase migrations for server-authorized Cloud Admin reads and
   writes. Dashboard statistics, paginated Community posts/comments, all five
@@ -16,8 +16,9 @@
   Disabled existing assignments are never silently reactivated.
 - Reports/history/audit browsing, Map/Study moderation, and role management are
   explicitly labelled not connected in Cloud Admin instead of showing local
-  prototype data. No production SQL, deployment, production content mutation,
-  Map, Study, AI, or mobile-preview change has been performed.
+  prototype data. The two approved production migrations were applied after
+  identity/schema preflight; no real post was modified during verification.
+  Map, Study, AI, and mobile-preview behavior remain unchanged.
 
 ## 2026-09-23 - KMK OWNER-CONFIRMED SOURCE CORRECTIONS
 
