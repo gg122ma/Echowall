@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-09-24 - PRODUCTION CLOUD ADMIN (IMPLEMENTED LOCALLY, NOT APPLIED)
+
+- Added pending Supabase migrations for server-authorized Cloud Admin reads and
+  writes. Dashboard statistics, paginated Community posts/comments, all five
+  moderation states, and the pending/flagged queue come from protected RPCs;
+  production errors never fall back to LocalStorage.
+- Added atomic Approve, Hide, Restore, and Reject actions. Each action verifies
+  `auth.uid()` against active protected `app.user_roles`, locks and updates only
+  Community content, and appends an audit event in the same transaction. No
+  browser service-role credential or direct core-table grant is introduced.
+- The role migration verifies both immutable Supabase Auth UUID/email pairs,
+  bootstraps the original administrator as the auditable root of trust, and
+  records that administrator as `assigned_by` for the second administrator.
+  Disabled existing assignments are never silently reactivated.
+- Reports/history/audit browsing, Map/Study moderation, and role management are
+  explicitly labelled not connected in Cloud Admin instead of showing local
+  prototype data. No production SQL, deployment, production content mutation,
+  Map, Study, AI, or mobile-preview change has been performed.
+
 ## 2026-09-23 - KMK OWNER-CONFIRMED SOURCE CORRECTIONS
 
 - Added L2 owner-confirmed current facts for Basketball Court free student use,

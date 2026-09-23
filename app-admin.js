@@ -23,6 +23,79 @@ function adminAuthIsLoading() {
   return status === "idle" || status === "loading";
 }
 
+function adminCloudMode() {
+  return window.CloudAdminService?.isActive?.() === true;
+}
+
+function adminCloudState() {
+  return window.CloudAdminService?.getState?.() || { status: "idle", stats: null, content: [], queue: [], error: null };
+}
+
+function adminCloudCanRead() {
+  return adminCloudMode() && adminCloudState().status === "ready";
+}
+
+function adminLoadCloudData() {
+  void window.CloudAdminService.load().then(() => {
+    if (typeof getRoute === "function" && getRoute().page === "admin") render();
+  }).catch(() => {
+    if (typeof getRoute === "function" && getRoute().page === "admin") render();
+  });
+}
+
+function adminRetryCloudData() {
+  if (!adminCloudMode()) return;
+  void window.CloudAdminService.retry().then(() => render()).catch(() => render());
+  render();
+}
+
+function adminSetCloudContentFilter(key, value) {
+  if (!adminCloudCanRead() || !["contentType", "status"].includes(key)) return;
+  const query = { ...adminCloudState().contentQuery, [key]: value, page: 0 };
+  void window.CloudAdminService.loadContent(query).then(() => render()).catch(() => render());
+  render();
+}
+
+function adminCloudContentPage(delta) {
+  if (!adminCloudCanRead()) return;
+  const current = adminCloudState().contentQuery;
+  const page = Math.max(0, current.page + Number(delta || 0));
+  if (page === current.page) return;
+  void window.CloudAdminService.loadContent({ ...current, page }).then(() => render()).catch(() => render());
+  render();
+}
+
+function adminRunCloudModeration(contentType, contentId, action, reason = null) {
+  if (!adminCloudCanRead()) return;
+  if ((action === "hide" || action === "reject") && String(reason || "").trim().length < 5) {
+    if (typeof showToast === "function") showToast("Enter a moderation reason with at least 5 characters.");
+    return;
+  }
+  void window.CloudAdminService.moderate({ contentType, contentId, action, reason }).then(result => {
+    if (typeof showToast === "function") showToast(`Content ${result?.new_status || "status"} saved to Supabase.`);
+    render();
+  }).catch(error => {
+    if (typeof showToast === "function") showToast(error instanceof Error ? error.message : "Cloud moderation failed.");
+    render();
+  });
+  render();
+}
+
+function adminCloudModerate(contentType, contentId, action) {
+  if (!adminCloudCanRead()) return;
+  if (action === "hide" || action === "reject") {
+    const label = action === "hide" ? "Hide" : "Reject";
+    adminOpenReasonPrompt({
+      title: `${label} cloud ${contentType}`,
+      actionLabel: label,
+      requireReason: true,
+      onConfirm: reason => adminRunCloudModeration(contentType, contentId, action, reason),
+    });
+    return;
+  }
+  adminRunCloudModeration(contentType, contentId, action, null);
+}
+
 let adminState = {
   search: "",
   category: "all",
@@ -155,6 +228,7 @@ function adminUserCollegeOrgIds(user) {
 // Global-scoped notes — reaching the tab is not the same as seeing every
 // college once inside (that conflation was ADMIN-V2-FINAL-CORRECTION's bug).
 function canAccessCommunityModeration() {
+  if (adminCloudCanRead()) return true;
   const user = adminCurrentUser();
   const aps = window.AdminPermissionService;
   if (!aps || !user) return false;
@@ -250,10 +324,11 @@ function requireStudyModerationAccess() {
 // their own existing specific permission, unchanged from before.
 function adminSidebarNavHtml(user) {
   const active = adminState.sourceType;
-  const items = window.ModerationService ? window.ModerationService.listModerationItems({}, user) : [];
-  const pendingCount = items.filter(item => item.status === "pending" || item.status === "escalated").length;
-  const reportCount = window.ModerationService ? window.ModerationService.listReports({}, user).length : 0;
-  const historyCount = items.filter(item => ["approved", "rejected", "hidden"].includes(item.status)).length;
+  const cloud = adminCloudMode() ? adminCloudState() : null;
+  const items = cloud ? [] : (window.ModerationService ? window.ModerationService.listModerationItems({}, user) : []);
+  const pendingCount = cloud?.stats ? cloud.stats.queueTotal : items.filter(item => item.status === "pending" || item.status === "escalated").length;
+  const reportCount = cloud ? "—" : (window.ModerationService ? window.ModerationService.listReports({}, user).length : 0);
+  const historyCount = cloud ? "—" : items.filter(item => ["approved", "rejected", "hidden"].includes(item.status)).length;
   const dashLink = (source, icon, label, count) =>
     `<button class="admin-nav-item ${active === source ? "active" : ""}" onclick="adminSetSource('${source}')"><span>${icon}</span><span>${escapeHtml(label)}</span><b>${count}</b></button>`;
   const parts = [
@@ -264,19 +339,19 @@ function adminSidebarNavHtml(user) {
     dashLink("audit", "🛡️", I18n.t("admin.audit.title"), ""),
   ];
   if (canAccessCommunityModeration()) {
-    const communityCount = getAdminCommunityNotes().length;
+    const communityCount = cloud?.stats ? cloud.stats.postsTotal + cloud.stats.commentsTotal : getAdminCommunityNotes().length;
     parts.push(`<button class="admin-nav-item ${active === "community" ? "active" : ""}" onclick="adminSetSource('community')"><span>📝</span><span>${I18n.t("admin.sourceCommunity")}</span><b>${communityCount}</b></button>`);
   }
   if (canAccessMapModeration()) {
-    const mapCount = adminMapNotes.length;
+    const mapCount = cloud ? "—" : adminMapNotes.length;
     parts.push(`<button class="admin-nav-item ${active === "map" ? "active" : ""}" onclick="adminSetSource('map')"><span>🗺️</span><span>${I18n.t("admin.sourceMap")}</span><b>${mapCount}</b></button>`);
   }
   if (canAccessStudyModeration()) {
-    const pendingStudy = window.StudyUploadService ? StudyUploadService.getCachedSubmissions().filter(r => r.moderationStatus === "pending").length : 0;
+    const pendingStudy = cloud ? "—" : (window.StudyUploadService ? StudyUploadService.getCachedSubmissions().filter(r => r.moderationStatus === "pending").length : 0);
     parts.push(`<button class="admin-nav-item ${active === "study" ? "active" : ""}" onclick="adminSetSource('study')"><span>📚</span><span>${I18n.t("admin.study.navLabel")}</span><b>${pendingStudy}</b></button>`);
   }
   if (window.AdminPermissionService?.isSuperAdmin?.(user)) {
-    const assignmentCount = window.AdminPermissionService.listAllRoleAssignments().length;
+    const assignmentCount = cloud ? "—" : window.AdminPermissionService.listAllRoleAssignments().length;
     parts.push(`<button class="admin-nav-item ${active === "adminManagement" ? "active" : ""}" onclick="adminSetSource('adminManagement')"><span>🔑</span><span>${I18n.t("admin.mgmt.navLabel")}</span><b>${assignmentCount}</b></button>`);
   }
   parts.push(`<a class="admin-nav-item" href="map.html"><span>📍</span><span>${I18n.t("admin.dash.openEchoMap")}</span><b>↗</b></a>`);
@@ -289,9 +364,26 @@ function renderAdmin(container) {
     return;
   }
   const user = adminCurrentUser();
-  if (!user || !isCurrentUserAdmin()) {
+  if (!user || (!adminCloudMode() && !isCurrentUserAdmin())) {
     renderAdminAccessState(container, user);
     return;
+  }
+
+  if (adminCloudMode()) {
+    const cloud = adminCloudState();
+    if (cloud.status === "idle") {
+      adminLoadCloudData();
+      renderAdminCloudLoadState(container, user, "loading");
+      return;
+    }
+    if (cloud.status === "loading") {
+      renderAdminCloudLoadState(container, user, "loading");
+      return;
+    }
+    if (cloud.status === "error") {
+      renderAdminCloudLoadState(container, user, "error", cloud.error);
+      return;
+    }
   }
 
   // ADMIN-V2-003: which sections this signed-in admin-panel user can
@@ -317,6 +409,13 @@ function renderAdmin(container) {
     }
   } else if (!["overview", "queue", "reports", "history", "audit"].includes(adminState.sourceType)) {
     adminState.sourceType = "overview";
+  }
+
+  if (adminCloudMode()) {
+    if (adminState.sourceType === "overview") return renderAdminCloudOverview(container);
+    if (adminState.sourceType === "queue") return renderAdminCloudQueue(container);
+    if (adminState.sourceType === "community") return renderAdminCloudCommunity(container);
+    return renderAdminCloudUnavailable(container, adminState.sourceType);
   }
 
   if (adminState.sourceType === "overview") return renderAdminOverview(container);

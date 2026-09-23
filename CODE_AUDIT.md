@@ -1,5 +1,31 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-24 - PRODUCTION CLOUD ADMIN AUDIT
+
+- Authorization boundary: all exposed RPCs are `SECURITY DEFINER` with empty
+  search paths and explicit execution grants. Reads require an active Admin or
+  Moderator role; content writes require an active Admin role. Both paths start
+  from `auth.uid()` and the canonical active-user check. Browser clients receive
+  neither direct `app` table grants nor service-role credentials.
+- Identity boundary: the pending role migration verifies the exact immutable
+  Supabase Auth UUID/email pairs and confirmed/non-banned account state before
+  writing. The original administrator is an explicitly audited migration root;
+  the second assignment records that administrator as `assigned_by`. Disabled
+  assignments cause migration failure rather than silent reactivation.
+- Data/write boundary: reads and writes are limited to Community `all_km`,
+  `college`, and `jurusan` posts and comments. Approve/Hide/Restore/Reject use a
+  locked row, validated transition, content update, and audit insert inside one
+  transaction. Building/Map content is rejected.
+- UI boundary: canonical production renders cloud stats/content/queue and
+  explicit loading/error/empty/not-connected states. It never substitutes
+  local moderation, audit, Study, Map, or role data when a Cloud RPC fails.
+- Verification: the two real migration files execute from zero against the
+  production PostgreSQL image in an isolated database. SQL permission/scope/
+  mutation checks pass **28/28**, focused frontend/security checks **54/54**,
+  all **30/30** test scripts and active syntax **123/123** pass, and the Pages
+  560-file artifact plus all release validators pass. Production execution and
+  real-login browser testing remain gated on owner approval.
+
 ## 2026-09-23 - KMK OWNER-CONFIRMED SOURCE CORRECTION AUDIT
 
 - Provenance is recorded as owner-confirmed manual verification at L2 in
