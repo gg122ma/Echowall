@@ -1,3 +1,28 @@
+# PRODUCTION CLOUD ADMIN HANDOFF (2026-09-24)
+
+Status: **PRODUCTION MIGRATIONS APPLIED; FRONTEND RELEASE APPROVED**.
+
+- `20260923162032_production_cloud_admin_phase1a_read_only.sql` provides the
+  protected identity, Community statistics, content-list, and queue RPCs.
+  `20260923165320_production_cloud_admin_content_management.sql` verifies both
+  production Auth UUID/email pairs, creates auditable active Admin roles, and
+  adds the atomic Community moderation RPC.
+- Canonical production Admin uses `CloudAdminService`; server authorization is
+  the final gate. Overview, status-filtered paginated Community content, and
+  the pending/flagged queue use cloud rows. Approve/Hide/Restore/Reject update
+  Supabase and append an audit event in one transaction. Loading/error/empty
+  states are explicit and no Cloud failure falls back to LocalStorage.
+- Cloud Admin does not claim that local Reports, History, Audit browsing,
+  Map/Study moderation, or Role Manager are cloud-backed. Those surfaces show
+  an explicit not-connected state. Delete and role-management UI remain out of
+  scope; no production data is deleted or reset.
+- Isolated production-version PostgreSQL execution passes **28/28** permission,
+  scope, pagination, mutation, and audit checks. Frontend/security coverage is
+  **54/54**; all **30/30** test scripts, active syntax **123/123**, Pages
+  build/artifact **560 files**, static, portable, production URL, and both seed
+  validators pass. Production role/RPC checks pass without modifying real
+  content; real signed-in browser verification remains required.
+
 # KMK OWNER-CONFIRMED SOURCE CORRECTIONS HANDOFF (2026-09-23)
 
 Status: **IMPLEMENTED; ALL AUTOMATED GATES PASS; READY FOR OWNER REVIEW**.
