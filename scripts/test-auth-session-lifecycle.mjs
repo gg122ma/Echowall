@@ -47,14 +47,26 @@ function createAuthHarness(getSession, storage = fakeStorage()) {
   const listeners = [];
   const events = [];
   let signOutCalls = 0;
+  let activeSession = null;
   const client = {
     auth: {
-      getSession,
+      getSession: async () => {
+        const result = await getSession();
+        activeSession = result?.data?.session || null;
+        return result;
+      },
+      getUser: async () => ({ data: { user: activeSession?.user || null }, error: null }),
       onAuthStateChange: callback => {
-        listeners.push(callback);
+        listeners.push((event, session) => {
+          activeSession = session || null;
+          callback(event, session);
+        });
         return { data: { subscription: { unsubscribe() {} } } };
       },
-      signInWithPassword: async ({ email }) => ({ data: { session: sessionFor("signed-in-user", email) }, error: null }),
+      signInWithPassword: async ({ email }) => {
+        activeSession = sessionFor("signed-in-user", email);
+        return { data: { session: activeSession }, error: null };
+      },
       signOut: async () => { signOutCalls += 1; return { error: null }; },
     },
   };
@@ -103,6 +115,7 @@ const persistedSession = sessionFor("persisted-user", "persisted@example.com");
 sessionRead.resolve({ data: { session: persistedSession }, error: null });
 const restored = await readyPromise;
 check("persisted session restores the authenticated user after reload", restored?.id === "persisted-user");
+check("persisted session identity is verified by Supabase Auth", restored?.authIdentityVerified === true);
 check("restored auth reaches ready state", harness.window.SupabaseAuthProvider.getStatus().status === "ready");
 await harness.window.SupabaseAuthProvider.ready();
 check("repeated readiness does not register duplicate auth listeners", harness.listeners.length === 1);
@@ -131,6 +144,7 @@ const explicitHarness = createAuthHarness(async () => ({ data: { session: persis
 await explicitHarness.window.SupabaseAuthProvider.ready();
 const signedIn = await explicitHarness.window.SupabaseAuthProvider.signInWithPassword({ email: "login@example.com", password: "password123" });
 check("successful password login publishes the authenticated session", signedIn?.id === "signed-in-user" && explicitHarness.window.SupabaseAuthProvider.getCurrentUser()?.id === "signed-in-user");
+check("password login publishes a server-verified Auth identity", signedIn?.authIdentityVerified === true);
 await explicitHarness.window.SupabaseAuthProvider.signOut();
 check("explicit Supabase sign-out calls the client exactly once", explicitHarness.signOutCalls() === 1);
 check("explicit sign-out clears the published user", explicitHarness.window.SupabaseAuthProvider.getCurrentUser() === null);
@@ -156,6 +170,10 @@ const adminUser = await adminHarness.window.SupabaseAuthProvider.ready();
 check("persisted authenticated admin role reload allows the Admin page", adminHarness.window.AdminPermissionService.canAccessAdminPanel(adminUser));
 const normalUser = adminHarness.window.SupabaseAuthProvider.toDomainUser(sessionFor("normal-user", "normal@example.com").user, sessionFor("normal-user", "normal@example.com"));
 check("authenticated non-admin remains denied", !adminHarness.window.AdminPermissionService.canAccessAdminPanel(normalUser));
+const targetAdminSession = sessionFor("6a6d8ff7-7322-4643-84ef-aee2b5f6534e", "mzteoh88@gmail.com");
+const targetAdmin = adminHarness.window.SupabaseAuthProvider.toDomainUser(targetAdminSession.user, targetAdminSession, { authIdentityVerified: true });
+check("verified target Supabase account can access the Admin page", adminHarness.window.AdminPermissionService.canAccessAdminPanel(targetAdmin));
+check("unverified target Supabase session cannot access the Admin page", !adminHarness.window.AdminPermissionService.canAccessAdminPanel({ ...targetAdmin, authIdentityVerified: false }));
 adminHarness.window.AdminPermissionService.useProvider({ list: () => { throw new Error("temporary role lookup failure"); }, save() {} });
 check("temporary role lookup failure denies safely", !adminHarness.window.AdminPermissionService.canAccessAdminPanel(normalUser));
 check("temporary role lookup failure is observable", /temporary role lookup failure/.test(adminHarness.window.AdminPermissionService.getLastProviderError()?.message || ""));

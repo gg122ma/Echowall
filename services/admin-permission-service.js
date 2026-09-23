@@ -19,18 +19,21 @@
  * eventual `user_roles` table so a later backend swap changes the
  * provider only, not any caller.
  *
- * Super Admin bootstrap: SUPER_ADMIN_EMAIL below is the ONLY place in the
- * ENTIRE codebase this project hardcodes the super-admin email (ADMIN-V2-001A
+ * Super Admin bootstrap: SUPER_ADMIN_IDENTITIES below is the ONLY place in the
+ * ENTIRE codebase this project hardcodes the super-admin identities (ADMIN-V2-001A
  * removed the duplicate that used to also live in services/auth-service.js's
  * PROTOTYPE_ADMIN_EMAILS). Do not add a second hardcoded check anywhere
- * else — call isSuperAdmin(user) instead. isSuperAdmin() checks `email`
- * only, never `role` — a Super Admin's AuthService-derived `user.role` can
- * be `"user"` and this must still resolve correctly (proven by
- * scripts/test-admin-role-scope.mjs's "independent of legacy role" check).
+ * else — call isSuperAdmin(user) instead. In production, isSuperAdmin()
+ * requires the fixed Supabase Auth user id and email plus the
+ * authIdentityVerified marker set only after auth.getUser(). It never trusts
+ * user_metadata/profile fields. Local prototype callers retain the original
+ * email bootstrap behavior because they have no Supabase identity boundary.
  *
  * Legacy compatibility: services/auth-service.js's own PROTOTYPE_ADMIN_EMAILS
- * whitelist now contains ONLY the true legacy prototype admin
- * (mzteoh88@gmail.com) — it remains the one source of truth for the
+ * whitelist still contains the former legacy prototype admin
+ * (mzteoh88@gmail.com). That account is now also an explicit Super Admin
+ * identity, so isSuperAdmin() takes precedence over the legacy tier. It
+ * remains the one source of truth for the
  * pre-existing binary `user.role === "admin"` field other legacy code
  * paths still read, but no longer doubles as a second place the
  * super-admin email is declared. This service does NOT re-declare that
@@ -44,7 +47,19 @@
  * college-scope isolation bypass beyond what already existed.
  */
 (function () {
-  const SUPER_ADMIN_EMAIL = "greencucumbertube@gmail.com";
+  const SUPER_ADMIN_IDENTITIES = Object.freeze([
+    Object.freeze({
+      authUserId: "7beb9f0e-76c5-4c6a-b6b4-06e708bf3644",
+      email: "greencucumbertube@gmail.com",
+    }),
+    Object.freeze({
+      authUserId: "6a6d8ff7-7322-4643-84ef-aee2b5f6534e",
+      email: "mzteoh88@gmail.com",
+    }),
+  ]);
+  // Backward-compatible export for code/tests that display the original
+  // bootstrap account. Authorization uses SUPER_ADMIN_IDENTITIES.
+  const SUPER_ADMIN_EMAIL = SUPER_ADMIN_IDENTITIES[0].email;
   const ROLE_ASSIGNMENTS_KEY = "echo-wall-role-assignments:v1";
 
   const ROLES = Object.freeze({
@@ -122,11 +137,27 @@
   }
 
   function isSuperAdminEmail(email) {
-    return normalizeEmail(email) === SUPER_ADMIN_EMAIL;
+    const normalized = normalizeEmail(email);
+    return SUPER_ADMIN_IDENTITIES.some(identity => identity.email === normalized);
   }
 
   function isSuperAdmin(user) {
-    return Boolean(user && isSuperAdminEmail(user.email));
+    if (!user) return false;
+    const normalizedEmail = normalizeEmail(user.email);
+    const identity = SUPER_ADMIN_IDENTITIES.find(candidate => candidate.email === normalizedEmail);
+    if (!identity) return false;
+
+    // Canonical GitHub Pages production uses SupabaseAuthProvider. Require
+    // the Auth server-verified identity and immutable Auth user id there;
+    // display/profile email or user_metadata can never grant this access.
+    if (user.provider === "supabase") {
+      return user.authIdentityVerified === true
+        && String(user.id || "") === identity.authUserId;
+    }
+
+    // Preserve the existing local-prototype behavior for offline demos and
+    // direct service tests. This is not a cloud security boundary.
+    return true;
   }
 
   // See the file header comment: this reads the EXISTING role field that
@@ -362,9 +393,9 @@
   // Manager UI is built directly on these same functions) -------------------
 
   // ADMIN-V2-007: SUPER_ADMIN is deliberately NOT assignable through this
-  // path (spec section 24: "不要允许 UI 创建第二个 SUPER_ADMIN") -- the
-  // ONLY Super Admin is the bootstrap SUPER_ADMIN_EMAIL constant at the top
-  // of this file. LEGACY_ADMIN_PSEUDO_ROLE was already excluded (it's a
+  // path (spec section 24: "不要允许 UI 创建第二个 SUPER_ADMIN") -- Super
+  // Admins are exclusively the fixed SUPER_ADMIN_IDENTITIES at the top of
+  // this file. LEGACY_ADMIN_PSEUDO_ROLE was already excluded (it's a
   // derived, internal-only pseudo-role -- see its own comment above).
   function assertKnownRole(role) {
     if (!ROLE_DEFAULT_PERMISSIONS[role] || role === LEGACY_ADMIN_PSEUDO_ROLE || role === ROLES.SUPER_ADMIN) {
@@ -520,6 +551,7 @@
     SCOPE_TYPES,
     STATUS,
     SUPER_ADMIN_EMAIL,
+    SUPER_ADMIN_IDENTITIES,
     isSuperAdmin,
     isLegacyAdmin,
     getRoleAssignments,

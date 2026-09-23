@@ -192,9 +192,10 @@
   // services/admin-permission-service.js is loaded (the normal case — see
   // CLAUDE.md's script-load-order note, it loads immediately after this
   // file), this defers to AdminPermissionService.canAccessAdminPanel(),
-  // which is what actually recognizes Super Admin (by email, independent
-  // of `role`), legacy admin (mzteoh88@gmail.com, via the whitelist
-  // above), and any real Role/Scope-contract RoleAssignment. If that
+  // which is what actually recognizes the fixed Super Admin identities
+  // (including mzteoh88@gmail.com, independent of `role`), any generic
+  // legacy admin via the whitelist above, and any real Role/Scope-contract
+  // RoleAssignment. If that
   // service is somehow absent, this degrades to the legacy whitelist only
   // — a defensive fallback, not a second bootstrap source.
   function isCurrentUserAdmin() {

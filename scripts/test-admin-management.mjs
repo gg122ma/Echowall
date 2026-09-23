@@ -86,8 +86,9 @@ function run() {
   const { ROLES } = AdminPermissionService;
 
   const superAdmin = { id: 'user_super_1', email: 'greencucumbertube@gmail.com', role: 'user' };
+  const addedSuperAdmin = { id: 'user_super_2', email: 'mzteoh88@gmail.com', role: 'admin' };
   const notSuperAdmin = { id: 'user_kmk_admin_1', email: 'kmkadmin@example.com', role: 'user' };
-  const legacyAdmin = { id: 'user_legacy_1', email: 'mzteoh88@gmail.com', role: 'admin' };
+  const legacyAdmin = { id: 'user_legacy_1', email: 'legacyadmin@example.com', role: 'admin' };
   const targetGlobal = { id: 'target_global_1' };
   const targetKmk = { id: 'target_kmk_1' };
   const targetStudy = { id: 'target_study_1' };
@@ -95,8 +96,10 @@ function run() {
 
   // --- 1. Legacy admin is NOT Super Admin --------------------------------------
 
-  check('mzteoh88@gmail.com -> NOT isSuperAdmin', !AdminPermissionService.isSuperAdmin(legacyAdmin));
-  check('mzteoh88@gmail.com -> isLegacyAdmin true', AdminPermissionService.isLegacyAdmin(legacyAdmin));
+  check('generic legacy admin -> NOT isSuperAdmin', !AdminPermissionService.isSuperAdmin(legacyAdmin));
+  check('generic legacy admin -> isLegacyAdmin true', AdminPermissionService.isLegacyAdmin(legacyAdmin));
+  check('mzteoh88@gmail.com -> isSuperAdmin true', AdminPermissionService.isSuperAdmin(addedSuperAdmin));
+  check('mzteoh88@gmail.com -> can manage admins', AdminPermissionService.hasPermission(addedSuperAdmin, AdminPermissionService.PERMISSIONS.ADMIN_MANAGE));
 
   // --- 2. Super Admin can grant every assignable role --------------------------
 
@@ -158,7 +161,7 @@ function run() {
 
   expectThrow('setAssignmentStatus on a fabricated Super Admin virtual id throws (not found)', () => AdminPermissionService.setAssignmentStatus(`virtual_SUPER_ADMIN_${superAdmin.id}`, 'disabled', superAdmin));
   expectThrow('revokeRoleAssignment on a fabricated Super Admin virtual id throws (not found)', () => AdminPermissionService.revokeRoleAssignment(`virtual_SUPER_ADMIN_${superAdmin.id}`, superAdmin));
-  check('Super Admin remains Super Admin regardless (bootstrap identity is email-only, not a storage row)', AdminPermissionService.isSuperAdmin(superAdmin));
+  check('Super Admin remains Super Admin regardless (bootstrap identity is not a storage row)', AdminPermissionService.isSuperAdmin(superAdmin));
 
   // --- 8. Every grant/disable/enable/revoke creates a real AuditAction ---------
 

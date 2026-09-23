@@ -115,7 +115,7 @@ function run() {
   const kmppCollegeAdmin = { id: 'user_kmpp_admin_1', email: 'kmppadmin@example.com', role: 'user' };
   const multiCollegeAdmin = { id: 'user_multi_admin_1', email: 'multiadmin@example.com', role: 'user' };
   const studyModerator = { id: 'user_study_mod_1', email: 'studymod@example.com', role: 'user' };
-  const legacyAdmin = { id: 'user_legacy_1', email: 'mzteoh88@gmail.com', role: 'admin' };
+  const legacyAdmin = { id: 'user_legacy_1', email: 'legacyadmin@example.com', role: 'admin' };
 
   AdminPermissionService.grantRoleAssignment({ userId: globalModerator.id, role: ROLES.GLOBAL_MODERATOR, scopeType: 'global', grantedBy: superAdmin.id });
   AdminPermissionService.grantRoleAssignment({ userId: kmkCollegeAdmin.id, role: ROLES.COLLEGE_ADMIN, scopeType: 'college', scopeId: KMK, grantedBy: superAdmin.id });

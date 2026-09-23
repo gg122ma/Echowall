@@ -310,7 +310,7 @@ function run() {
   check('hidden -> rejected is a valid transition (simulating a hard Delete of previously-hidden content)', deletedMapItem.status === 'rejected');
 
   // --- ADMIN-V2-003A: legacy admin / Old Map Admin parity fix ----------------
-  // mzteoh88-style legacy admin: role==='admin', NOT the super-admin email.
+  // Generic legacy admin: role==='admin', NOT a super-admin identity.
   // Holds only the virtual LEGACY_ADMIN_PSEUDO_ROLE assignment (global-scope
   // GLOBAL_COMMUNITY_MODERATE + STUDY_RESOURCE_MODERATE -- no college
   // RoleAssignment at all; see services/admin-permission-service.js). Before

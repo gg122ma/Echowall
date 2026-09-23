@@ -63,9 +63,24 @@ function run() {
 
   const superAdmin = { id: 'user_super_1', email: 'greencucumbertube@gmail.com', role: 'user' };
   const superAdminMixedCase = { id: 'user_super_1', email: 'GreenCucumberTube@Gmail.com', role: 'user' };
+  const existingSupabaseSuperAdmin = {
+    id: '7beb9f0e-76c5-4c6a-b6b4-06e708bf3644',
+    email: 'greencucumbertube@gmail.com',
+    role: 'user',
+    provider: 'supabase',
+    authIdentityVerified: true,
+  };
+  const targetSuperAdmin = { id: 'user_super_2', email: 'mzteoh88@gmail.com', role: 'admin' };
+  const targetSupabaseSuperAdmin = {
+    id: '6a6d8ff7-7322-4643-84ef-aee2b5f6534e',
+    email: 'mzteoh88@gmail.com',
+    role: 'user',
+    provider: 'supabase',
+    authIdentityVerified: true,
+  };
   const guest = null;
   const student = { id: 'user_student_1', email: 'student@example.com', role: 'user' };
-  const legacyAdmin = { id: 'user_legacy_1', email: 'mzteoh88@gmail.com', role: 'admin' };
+  const legacyAdmin = { id: 'user_legacy_1', email: 'legacyadmin@example.com', role: 'admin' };
   const globalModerator = { id: 'user_global_mod_1', email: 'globalmod@example.com', role: 'user' };
   const kmkCollegeAdmin = { id: 'user_kmk_admin_1', email: 'kmkadmin@example.com', role: 'user' };
   const kmppCollegeAdmin = { id: 'user_kmpp_admin_1', email: 'kmppadmin@example.com', role: 'user' };
@@ -75,7 +90,7 @@ function run() {
 
   // --- 1/2. Super Admin bootstrap (including case-insensitive email) -----
 
-  [['greencucumbertube@gmail.com (exact case)', superAdmin], ['GreenCucumberTube@Gmail.com (mixed case)', superAdminMixedCase]].forEach(([label, user]) => {
+  [['greencucumbertube@gmail.com (exact case)', superAdmin], ['GreenCucumberTube@Gmail.com (mixed case)', superAdminMixedCase], ['mzteoh88@gmail.com (added account)', targetSuperAdmin]].forEach(([label, user]) => {
     check(`${label} -> isSuperAdmin true`, AdminPermissionService.isSuperAdmin(user));
     check(`${label} -> all permissions true`, Object.values(PERMISSIONS).every(permission => AdminPermissionService.hasPermission(user, permission)));
     check(`${label} -> canModerateCollege(KMK) true`, AdminPermissionService.canModerateCollege(user, KMK));
@@ -104,6 +119,13 @@ function run() {
   check('Super Admin (no role field at all) -> isSuperAdmin still true', AdminPermissionService.isSuperAdmin(superAdminWithNoRoleField));
   check('Super Admin (no role field at all) -> canAccessAdminPanel still true', AdminPermissionService.canAccessAdminPanel(superAdminWithNoRoleField));
 
+  check('verified target Supabase Auth UUID + email -> isSuperAdmin true', AdminPermissionService.isSuperAdmin(targetSupabaseSuperAdmin));
+  check('verified target Supabase Auth UUID + email -> all permissions true', Object.values(PERMISSIONS).every(permission => AdminPermissionService.hasPermission(targetSupabaseSuperAdmin, permission)));
+  check('existing verified Supabase Super Admin remains authorized', AdminPermissionService.isSuperAdmin(existingSupabaseSuperAdmin));
+  check('target Supabase email without auth.getUser verification -> denied', !AdminPermissionService.isSuperAdmin({ ...targetSupabaseSuperAdmin, authIdentityVerified: false }));
+  check('target Supabase email with the wrong Auth UUID -> denied', !AdminPermissionService.isSuperAdmin({ ...targetSupabaseSuperAdmin, id: 'wrong-user-id' }));
+  check('matching Auth UUID with a different email -> denied', !AdminPermissionService.isSuperAdmin({ ...targetSupabaseSuperAdmin, email: 'student@example.com' }));
+
   // --- 3. Guest -------------------------------------------------------------
 
   check('Guest -> canAccessAdminPanel false', AdminPermissionService.canAccessAdminPanel(guest) === false);
@@ -118,22 +140,22 @@ function run() {
   check('Student -> canModerateCollege(KMK) false', AdminPermissionService.canModerateCollege(student, KMK) === false);
   check('Student -> canModerateStudy false', AdminPermissionService.canModerateStudy(student) === false);
 
-  // --- 11. Legacy admin (mzteoh88@gmail.com) — NOT super admin -------------
+  // --- 11. Generic legacy prototype admin — NOT super admin ----------------
 
-  check('mzteoh88@gmail.com -> NOT isSuperAdmin', AdminPermissionService.isSuperAdmin(legacyAdmin) === false);
-  check('mzteoh88@gmail.com -> isLegacyAdmin true', AdminPermissionService.isLegacyAdmin(legacyAdmin));
-  check('mzteoh88@gmail.com -> canAccessAdminPanel true (legacy compat)', AdminPermissionService.canAccessAdminPanel(legacyAdmin));
-  check('mzteoh88@gmail.com -> canModerateGlobalCommunity true (legacy compat)', AdminPermissionService.canModerateGlobalCommunity(legacyAdmin));
-  check('mzteoh88@gmail.com -> canModerateStudy true (legacy compat)', AdminPermissionService.canModerateStudy(legacyAdmin));
-  check('mzteoh88@gmail.com -> NOT ADMIN_MANAGE', AdminPermissionService.hasPermission(legacyAdmin, PERMISSIONS.ADMIN_MANAGE) === false);
-  check('mzteoh88@gmail.com -> NOT AUDIT_READ_ALL', AdminPermissionService.hasPermission(legacyAdmin, PERMISSIONS.AUDIT_READ_ALL) === false);
-  check('mzteoh88@gmail.com -> canModerateCollege(KMK) false (no real college scope)', AdminPermissionService.canModerateCollege(legacyAdmin, KMK) === false);
+  check('Legacy prototype admin -> NOT isSuperAdmin', AdminPermissionService.isSuperAdmin(legacyAdmin) === false);
+  check('Legacy prototype admin -> isLegacyAdmin true', AdminPermissionService.isLegacyAdmin(legacyAdmin));
+  check('Legacy prototype admin -> canAccessAdminPanel true (legacy compat)', AdminPermissionService.canAccessAdminPanel(legacyAdmin));
+  check('Legacy prototype admin -> canModerateGlobalCommunity true (legacy compat)', AdminPermissionService.canModerateGlobalCommunity(legacyAdmin));
+  check('Legacy prototype admin -> canModerateStudy true (legacy compat)', AdminPermissionService.canModerateStudy(legacyAdmin));
+  check('Legacy prototype admin -> NOT ADMIN_MANAGE', AdminPermissionService.hasPermission(legacyAdmin, PERMISSIONS.ADMIN_MANAGE) === false);
+  check('Legacy prototype admin -> NOT AUDIT_READ_ALL', AdminPermissionService.hasPermission(legacyAdmin, PERMISSIONS.AUDIT_READ_ALL) === false);
+  check('Legacy prototype admin -> canModerateCollege(KMK) false (no real college scope)', AdminPermissionService.canModerateCollege(legacyAdmin, KMK) === false);
   // ADMIN-V2-003A: canModerateMap() unifies the Old Map Admin tab's gate
   // with the Unified Queue's -- a legacy admin could always reach the Old
   // Map Admin tab (it shares Community's canModerateGlobalCommunity gate)
   // even though canModerateCollege(legacyAdmin, KMK) is false.
-  check('mzteoh88@gmail.com -> canModerateMap(KMK) true (Old Map Admin tab parity)', AdminPermissionService.canModerateMap(legacyAdmin, KMK));
-  check('mzteoh88@gmail.com -> NOT canModerateCollege even though canModerateMap is true (no COLLEGE_ADMIN grant)', AdminPermissionService.canModerateCollege(legacyAdmin, KMK) === false);
+  check('Legacy prototype admin -> canModerateMap(KMK) true (Old Map Admin tab parity)', AdminPermissionService.canModerateMap(legacyAdmin, KMK));
+  check('Legacy prototype admin -> NOT canModerateCollege even though canModerateMap is true (no COLLEGE_ADMIN grant)', AdminPermissionService.canModerateCollege(legacyAdmin, KMK) === false);
 
   // --- Grant real role assignments for the remaining scenarios -------------
 

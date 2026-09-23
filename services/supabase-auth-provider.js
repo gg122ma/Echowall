@@ -7,7 +7,7 @@
   let status = "idle";
   let lastError = null;
 
-  function toDomainUser(user, session = null) {
+  function toDomainUser(user, session = null, { authIdentityVerified = false } = {}) {
     if (!user) return null;
     const displayName = String(user.user_metadata?.display_name || user.user_metadata?.name || "").trim();
     const emailConfirmedAt = user.email_confirmed_at ? String(user.email_confirmed_at) : null;
@@ -18,6 +18,10 @@
       displayName,
       role: "user",
       provider: "supabase",
+      // True only when Supabase Auth has returned this identity from
+      // auth.getUser(). Admin bootstrap access must never trust profile
+      // metadata or an unverified user object restored from browser storage.
+      authIdentityVerified: authIdentityVerified === true,
       emailConfirmedAt,
       isEmailVerified: Boolean(emailConfirmedAt),
       sessionExpiresAt: Number.isFinite(expiresAtSeconds) ? new Date(expiresAtSeconds * 1000).toISOString() : null,
@@ -41,7 +45,12 @@
   function applyAuthEvent(event, session) {
     authEventSequence += 1;
     if (event === "SIGNED_OUT") return publishUser(null);
-    if (session?.user) return publishUser(toDomainUser(session.user, session));
+    if (session?.user) {
+      const sameVerifiedIdentity = currentUser?.authIdentityVerified === true
+        && String(currentUser.id) === String(session.user.id || "")
+        && String(currentUser.email || "").toLowerCase() === String(session.user.email || "").toLowerCase();
+      return publishUser(toDomainUser(session.user, session, { authIdentityVerified: sameVerifiedIdentity }));
+    }
     // INITIAL_SESSION with no session is the one authoritative bootstrap
     // event for an unauthenticated browser. Other session-less events must
     // not erase a valid user because of a transient refresh/provider event.
@@ -65,11 +74,27 @@
         const sequenceBeforeSessionRead = authEventSequence;
         const { data, error } = await client.auth.getSession();
         if (error) throw new Error("Your Community session could not be restored.");
+        let verifiedUser = null;
+        if (data?.session?.user) {
+          const { data: verifiedData, error: verificationError } = await client.auth.getUser();
+          if (verificationError || !verifiedData?.user) {
+            throw new Error("Your signed-in identity could not be verified.");
+          }
+          if (String(verifiedData.user.id || "") !== String(data.session.user.id || "")) {
+            throw new Error("Your signed-in identity did not match the restored session.");
+          }
+          verifiedUser = verifiedData.user;
+        }
         // If an auth event arrived while getSession() was in flight, that
         // event represents the newer state and must not be overwritten by a
         // stale session read.
         if (authEventSequence === sequenceBeforeSessionRead) {
-          publishUser(toDomainUser(data?.session?.user, data?.session));
+          publishUser(toDomainUser(verifiedUser, data?.session, { authIdentityVerified: Boolean(verifiedUser) }));
+        } else if (verifiedUser && String(currentUser?.id || "") === String(verifiedUser.id || "")) {
+          // A refresh event for the same account may win the session race.
+          // Preserve its newer expiry while upgrading the identity to the
+          // server-verified Auth user returned above.
+          publishUser(toDomainUser(verifiedUser, data?.session, { authIdentityVerified: true }));
         }
         publishStatus("ready");
         return currentUser;
@@ -128,7 +153,11 @@
     });
     if (error) throw new Error(error.message || "We could not sign you in. Check your email and password.");
     if (!data?.session?.user) throw new Error("Your Community session could not be established.");
-    return publishUser(toDomainUser(data.session.user, data.session));
+    const { data: verifiedData, error: verificationError } = await client.auth.getUser();
+    if (verificationError || !verifiedData?.user || String(verifiedData.user.id || "") !== String(data.session.user.id || "")) {
+      throw new Error("Your signed-in identity could not be verified.");
+    }
+    return publishUser(toDomainUser(verifiedData.user, data.session, { authIdentityVerified: true }));
   }
 
   async function signInWithOtp(email) {

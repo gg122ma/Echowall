@@ -68,6 +68,7 @@ const mapped = window.SupabaseAuthProvider.toDomainUser({
 }, { expires_at: Math.floor(Date.now() / 1000) + 3600 });
 check("Supabase domain user retains email_confirmed_at", mapped.emailConfirmedAt === "2026-09-09T01:02:03.000Z" && mapped.isEmailVerified === true);
 check("Supabase domain user retains session expiry", Number.isFinite(Date.parse(mapped.sessionExpiresAt)));
+check("plain mapped session identity is not implicitly trusted for admin authorization", mapped.authIdentityVerified === false);
 check("protected post permission uses verified session state", window.PermissionService.canUserPost(mapped));
 check("comments retain active-session compatibility", window.PermissionService.canUserComment(unverified));
 
