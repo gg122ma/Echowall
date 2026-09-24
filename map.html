@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style-core.css" />
+  <link rel="stylesheet" href="style-mobile-preview.css" />
   <link rel="stylesheet" href="style-wall.css" />
   <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css" />
   <style>
@@ -108,7 +109,7 @@
       .map-page .building-list{min-height:0;overflow-y:auto;overscroll-behavior:contain}
     }
     @media(max-width:980px){ .map-layout{grid-template-columns:1fr;}.map-side{max-height:none}.building-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}.place-preview{max-height:none}.map-frame,#map{min-height:560px}.map-hero{align-items:flex-start;flex-direction:column}}
-    @media(max-width:620px){ .map-app{padding-inline:10px}.map-layout{min-height:0}.map-frame,#map{min-height:520px}.building-list{grid-template-columns:1fr}.building-card{min-height:58px}.place-preview{padding:15px}.place-preview-meta{grid-template-columns:1fr}.map-floating-controls{top:auto;bottom:12px;left:12px;right:12px}.map-floating-controls button{flex:1}.map-college-switcher{flex:1;justify-content:center}}
+    @media(max-width:620px){ .map-app{padding-inline:10px}.map-layout{min-height:0}.map-frame,#map{min-height:520px}.building-list{grid-template-columns:1fr}.building-card{min-height:58px}.place-preview{padding:15px}.place-preview-meta{grid-template-columns:1fr}.map-floating-controls{top:auto;bottom:12px;left:12px;right:12px}.map-floating-controls button{flex:1}.map-college-switcher{min-width:0;flex:1;justify-content:center}.map-college-switcher .map-college-switcher-arrow{box-sizing:border-box;flex:0 0 40px;width:40px;height:40px;min-width:40px;min-height:40px;padding:0;font-size:1rem;line-height:1}.map-college-switcher-label{min-width:40px;padding-inline:3px}}
   </style>
 </head>
 <body class="map-page">

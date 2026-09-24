@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="style-admin.css" />
   <link rel="stylesheet" href="style-study.css" />
   <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="style-mobile-preview.css" />
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
@@ -48,6 +49,35 @@
           <button type="button" role="menuitemradio" aria-checked="false" data-value="light">Light</button>
           <button type="button" role="menuitemradio" aria-checked="false" data-value="dark">Dark</button>
         </div>
+      </div>
+      <div class="mobile-settings" data-mobile-settings hidden>
+        <button class="mobile-settings-trigger" type="button" aria-expanded="false" aria-controls="mobile-settings-panel">
+          <span class="mobile-settings-icon" aria-hidden="true">&#9881;</span>
+          <span class="mobile-settings-label" data-i18n="mobile.settings">Settings</span>
+        </button>
+        <button class="mobile-settings-backdrop" type="button" data-mobile-settings-dismiss hidden tabindex="-1" aria-label="Close preferences"></button>
+        <section id="mobile-settings-panel" class="mobile-settings-panel" role="dialog" aria-modal="false" aria-labelledby="mobile-settings-title" hidden>
+          <header class="mobile-settings-header">
+            <h2 id="mobile-settings-title" data-i18n="mobile.preferences">Preferences</h2>
+            <button class="mobile-settings-close" type="button" data-mobile-settings-dismiss aria-label="Close preferences">&#10005;</button>
+          </header>
+          <div class="mobile-settings-group">
+            <span class="mobile-settings-group-label" data-i18n="account.language">Language</span>
+            <div class="mobile-settings-options" role="group" aria-label="Language">
+              <button type="button" data-mobile-language="en" aria-pressed="false">EN</button>
+              <button type="button" data-mobile-language="ms" aria-pressed="false">BM</button>
+              <button type="button" data-mobile-language="zh" aria-pressed="false">&#20013;&#25991;</button>
+            </div>
+          </div>
+          <div class="mobile-settings-group">
+            <span class="mobile-settings-group-label" data-i18n="nav.theme">Theme</span>
+            <div class="mobile-settings-options" role="group" aria-label="Theme">
+              <button type="button" data-mobile-theme="system" data-i18n="mobile.themeAuto" aria-pressed="false">Auto</button>
+              <button type="button" data-mobile-theme="light" data-i18n="theme.light" aria-pressed="false">Light</button>
+              <button type="button" data-mobile-theme="dark" data-i18n="theme.dark" aria-pressed="false">Dark</button>
+            </div>
+          </div>
+        </section>
       </div>
       <div id="user-nav-actions" class="user-nav-actions"></div>
     </div>
@@ -204,6 +234,7 @@
   <script src="i18n/index.js"></script>
   <script src="services/theme-service.js"></script>
   <script src="services/preferences-ui.js"></script>
+  <script src="services/mobile-header.js"></script>
   <script src="services/home-stats-service.js"></script>
   <script src="data/campus-buildings.js"></script>
   <script src="data/demo-display-counts.js"></script>
