@@ -1,5 +1,24 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-24 - CLOUD ADMIN MAP / BUILDING + DELETE AUDIT
+
+- Scope: Community is limited to `all_km`, `college`, and `jurusan`; Building
+  is limited to `building`. Map Direct is the one-to-one anchored subset of a
+  Building post, so it is labelled but never counted as another post. Static
+  building registry, coordinates, Stories, basemap, and college reference data
+  are outside every management and delete RPC.
+- Authorization: each new `SECURITY DEFINER` RPC has an empty search path,
+  explicit grants, input/scope checks, and an internal active-role guard rooted
+  in `auth.uid()`. Core `app` tables receive no browser DELETE grant.
+- Deletion: targets and dependencies are locked, true post/comment deletes and
+  the surviving audit insert share one transaction, and FK behavior is tested.
+  Active Cloudinary assets fail closed because external deletion cannot join a
+  PostgreSQL transaction safely.
+- Verification: isolated production-version PostgreSQL checks pass **60/60**,
+  focused Cloud Admin checks **72/72**, all test scripts **30/30**, active
+  syntax **122/122**, and Pages/build/release validators pass. Production SQL,
+  deployment, and real signed-in browser acceptance were not performed.
+
 ## 2026-09-24 - PRODUCTION CLOUD ADMIN AUDIT
 
 - Authorization boundary: all exposed RPCs are `SECURITY DEFINER` with empty

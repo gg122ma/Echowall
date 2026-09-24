@@ -65,13 +65,13 @@ function adminCloudContentPage(delta) {
   render();
 }
 
-function adminRunCloudModeration(contentType, contentId, action, reason = null) {
+function adminRunCloudModeration(scopeGroup, contentType, contentId, action, reason = null) {
   if (!adminCloudCanRead()) return;
   if ((action === "hide" || action === "reject") && String(reason || "").trim().length < 5) {
     if (typeof showToast === "function") showToast("Enter a moderation reason with at least 5 characters.");
     return;
   }
-  void window.CloudAdminService.moderate({ contentType, contentId, action, reason }).then(result => {
+  void window.CloudAdminService.moderate({ scopeGroup, contentType, contentId, action, reason }).then(result => {
     if (typeof showToast === "function") showToast(`Content ${result?.new_status || "status"} saved to Supabase.`);
     render();
   }).catch(error => {
@@ -81,7 +81,7 @@ function adminRunCloudModeration(contentType, contentId, action, reason = null) 
   render();
 }
 
-function adminCloudModerate(contentType, contentId, action) {
+function adminCloudModerate(scopeGroup, contentType, contentId, action) {
   if (!adminCloudCanRead()) return;
   if (action === "hide" || action === "reject") {
     const label = action === "hide" ? "Hide" : "Reject";
@@ -89,11 +89,11 @@ function adminCloudModerate(contentType, contentId, action) {
       title: `${label} cloud ${contentType}`,
       actionLabel: label,
       requireReason: true,
-      onConfirm: reason => adminRunCloudModeration(contentType, contentId, action, reason),
+      onConfirm: reason => adminRunCloudModeration(scopeGroup, contentType, contentId, action, reason),
     });
     return;
   }
-  adminRunCloudModeration(contentType, contentId, action, null);
+  adminRunCloudModeration(scopeGroup, contentType, contentId, action, null);
 }
 
 let adminState = {
@@ -134,6 +134,7 @@ let adminFilterListenersReady = false;
 // Restore/Approve/Delete never open this (reason optional/none per spec
 // section 7) -- they call their target function directly with reason: null.
 let adminReasonPrompt = null; // { title, actionLabel, requireReason, onConfirm(reason) }
+let adminDeletePrompt = null;
 
 function adminOpenReasonPrompt({ title, actionLabel, requireReason = true, onConfirm }) {
   adminReasonPrompt = { title, actionLabel, requireReason, onConfirm };
@@ -174,6 +175,81 @@ function adminReasonPromptHtml() {
         <div class="admin-study-form-actions">
           <button type="button" class="btn btn-primary btn-sm admin-danger" onclick="adminSubmitReasonPrompt()">${escapeHtml(actionLabel)}</button>
           <button type="button" class="btn btn-outline btn-sm" onclick="adminCloseReasonPrompt()">${I18n.t("admin.study.cancel")}</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function adminCloudRequestDelete(scopeGroup, contentType, contentId) {
+  if (!adminCloudCanRead() || adminCloudState().mutationStatus === "loading") return;
+  void window.CloudAdminService.loadDeleteImpact({ scopeGroup, contentType, contentId }).then(impact => {
+    adminDeletePrompt = impact;
+    render();
+  }).catch(error => {
+    if (typeof showToast === "function") showToast(error instanceof Error ? error.message : "Delete impact could not be loaded.");
+    render();
+  });
+  render();
+}
+
+function adminCloseDeletePrompt() {
+  adminDeletePrompt = null;
+  window.CloudAdminService?.clearDeleteImpact?.();
+  render();
+}
+
+function adminConfirmPermanentDelete() {
+  if (!adminDeletePrompt || adminDeletePrompt.deleteBlocked) return;
+  const input = document.getElementById("admin-delete-reason-input");
+  const reason = input ? input.value.trim() : "";
+  if (reason.length < 5 || reason.length > 500) {
+    if (typeof showToast === "function") showToast("Enter a deletion reason between 5 and 500 characters.");
+    return;
+  }
+  const impact = adminDeletePrompt;
+  adminDeletePrompt = null;
+  void window.CloudAdminService.permanentlyDelete({
+    scopeGroup: impact.scopeGroup,
+    contentType: impact.contentType,
+    contentId: impact.contentId,
+    reason,
+  }).then(result => {
+    if (typeof showToast === "function") showToast(`${result?.content_type === "comment" ? "Comment" : "Post"} permanently deleted from Supabase.`);
+    render();
+  }).catch(error => {
+    if (typeof showToast === "function") showToast(error instanceof Error ? error.message : "Permanent deletion failed.");
+    render();
+  });
+  render();
+}
+
+function adminDeletePromptHtml() {
+  if (!adminDeletePrompt) return "";
+  const impact = adminDeletePrompt;
+  const target = impact.contentType === "comment" ? "comment" : "post";
+  const location = impact.scopeGroup === "building"
+    ? `${impact.isMapAnchored ? "Map Direct" : "Building Wall"} · ${impact.buildingId || "Unknown building"}`
+    : adminCloudScopeLabel(impact);
+  const dependency = target === "post"
+    ? `${impact.commentsDeleted} related comment(s), including ${impact.repliesDeleted} replies; ${impact.votesDeleted} vote(s); ${impact.mapAnchorsDeleted} Map anchor(s); ${impact.mediaRecords} media metadata record(s).`
+    : `${impact.repliesDeleted} nested reply/replies will also be deleted.`;
+  return `
+    <div class="admin-reason-overlay" role="dialog" aria-modal="true" aria-label="Permanently delete ${target}">
+      <div class="admin-reason-card admin-delete-card">
+        <p class="eyebrow">Permanent deletion</p>
+        <h3>Delete this ${target} forever?</h3>
+        <p><strong>Location:</strong> ${escapeHtml(location)}</p>
+        <p class="admin-delete-excerpt">${escapeHtml(impact.contentExcerpt)}</p>
+        <p><strong>Related data:</strong> ${escapeHtml(dependency)}</p>
+        <p class="admin-delete-warning">This is a real database delete. Restore cannot recover it.</p>
+        ${impact.deleteBlocked ? `<p class="admin-delete-blocked" role="alert">${escapeHtml(impact.blockReason)}</p>` : `
+          <label class="form-group">
+            <span class="form-label">Deletion reason (required)</span>
+            <textarea id="admin-delete-reason-input" class="form-textarea" maxlength="500" placeholder="Explain why this content must be permanently deleted."></textarea>
+          </label>`}
+        <div class="admin-study-form-actions">
+          ${impact.deleteBlocked ? "" : '<button type="button" class="btn btn-primary btn-sm admin-danger" onclick="adminConfirmPermanentDelete()">Permanently delete</button>'}
+          <button type="button" class="btn btn-outline btn-sm" onclick="adminCloseDeletePrompt()">Cancel</button>
         </div>
       </div>
     </div>`;
@@ -260,6 +336,7 @@ function adminResolveKmkOrgId() {
 }
 
 function canAccessMapModeration() {
+  if (adminCloudCanRead()) return true;
   const user = adminCurrentUser();
   const aps = window.AdminPermissionService;
   if (!aps || !user || typeof aps.canModerateMap !== "function") return false;
@@ -339,11 +416,11 @@ function adminSidebarNavHtml(user) {
     dashLink("audit", "🛡️", I18n.t("admin.audit.title"), ""),
   ];
   if (canAccessCommunityModeration()) {
-    const communityCount = cloud?.stats ? cloud.stats.postsTotal + cloud.stats.commentsTotal : getAdminCommunityNotes().length;
+    const communityCount = cloud?.stats ? cloud.stats.community.postsTotal + cloud.stats.community.commentsTotal : getAdminCommunityNotes().length;
     parts.push(`<button class="admin-nav-item ${active === "community" ? "active" : ""}" onclick="adminSetSource('community')"><span>📝</span><span>${I18n.t("admin.sourceCommunity")}</span><b>${communityCount}</b></button>`);
   }
   if (canAccessMapModeration()) {
-    const mapCount = cloud ? "—" : adminMapNotes.length;
+    const mapCount = cloud?.stats ? cloud.stats.building.postsTotal + cloud.stats.building.commentsTotal : adminMapNotes.length;
     parts.push(`<button class="admin-nav-item ${active === "map" ? "active" : ""}" onclick="adminSetSource('map')"><span>🗺️</span><span>${I18n.t("admin.sourceMap")}</span><b>${mapCount}</b></button>`);
   }
   if (canAccessStudyModeration()) {
@@ -415,6 +492,7 @@ function renderAdmin(container) {
     if (adminState.sourceType === "overview") return renderAdminCloudOverview(container);
     if (adminState.sourceType === "queue") return renderAdminCloudQueue(container);
     if (adminState.sourceType === "community") return renderAdminCloudCommunity(container);
+    if (adminState.sourceType === "map") return renderAdminCloudMap(container);
     return renderAdminCloudUnavailable(container, adminState.sourceType);
   }
 
@@ -925,6 +1003,13 @@ function adminSetSource(sourceType) {
   adminState.category = "all";
   adminState.visibility = "all";
   adminState.sort = "new";
+  if (adminCloudMode() && (sourceType === "community" || sourceType === "map")) {
+    const scopeGroup = sourceType === "map" ? "building" : "community";
+    const query = adminCloudState().contentQuery;
+    if (query?.scopeGroup !== scopeGroup) {
+      void window.CloudAdminService.loadContent({ ...query, scopeGroup, page: 0 }).then(() => render()).catch(() => render());
+    }
+  }
   render();
 }
 

@@ -1,5 +1,15 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-24 - Cloud Admin Map / Building expansion
+
+- Reused the current Cloud Admin service, permission guards, dashboard, and
+  audit design; no parallel Admin implementation or core-table browser access
+  was added.
+- Kept Map Direct as an anchored Building subset to avoid duplicate queries and
+  counts, and used narrow cache invalidation only after a committed deletion.
+- Failed closed for active external media instead of adding a broad media
+  subsystem refactor before release.
+
 ## 2026-09-23 - KMK owner-confirmed fact correction
 
 - Reused the existing atomic-fact, provenance, and fact-lock design. Older Cafe

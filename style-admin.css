@@ -204,7 +204,12 @@
 .admin-reason-card { width:min(440px,100%); display:flex; flex-direction:column; gap:14px; padding:26px; border:1px solid var(--border); border-radius:20px; background:var(--card-bg); color:var(--text); box-shadow:var(--shadow-float); animation:modalIn .25s var(--ease-out) both; }
 .admin-reason-card h3 { font-size:1.15rem; letter-spacing:-.02em; }
 .admin-reason-card .form-textarea { min-height:96px; }
+.admin-delete-card { width:min(560px,100%); max-height:calc(100dvh - 36px); overflow-y:auto; }
+.admin-delete-excerpt { padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--secondary); overflow-wrap:anywhere; }
+.admin-delete-warning,.admin-delete-blocked { padding:11px 13px; border-radius:10px; color:#812f2f; background:#fde7e7; font-weight:750; }
+.admin-delete-blocked { border:1px solid #d68c8c; }
 :root[data-theme="dark"] .admin-reason-card { background:var(--admin-surface); border-color:var(--admin-border); color:var(--admin-text); }
+:root[data-theme="dark"] .admin-delete-excerpt { background:var(--secondary); border-color:var(--admin-border); }
 
 /* ADMIN-V2-004: Audit view — 6 filters (Scope/Target/Action/Actor/From/To)
    vs the other Dashboard views' 4, so it gets its own column count instead

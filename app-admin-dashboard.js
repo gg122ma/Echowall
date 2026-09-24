@@ -309,13 +309,23 @@ function renderAdminDashboardShell(container, bodyHtml, user, title, description
         ${bodyHtml}
       </main>
     </div>
-    ${adminReasonPromptHtml()}`;
+    ${adminReasonPromptHtml()}
+    ${adminDeletePromptHtml()}`;
 }
 
 // Production Cloud Admin is intentionally a separate server-backed path. It
 // never calls the prototype moderation/audit services,
 // so an RPC error cannot silently turn into plausible LocalStorage zeros.
 function adminCloudScopeLabel(item) {
+  if (item.scopeType === "building" || item.scopeGroup === "building") {
+    const building = Array.isArray(window.CAMPUS_BUILDINGS)
+      ? window.CAMPUS_BUILDINGS.find(entry => String(entry.id) === String(item.buildingId || ""))
+      : null;
+    const name = building?.name || item.buildingId || "Unknown building";
+    const source = item.isMapAnchored ? "Map Direct" : "Building Wall";
+    const college = item.collegeId == null ? "" : ` · College ${item.collegeId}`;
+    return `${source} · ${name}${college}`;
+  }
   if (item.scopeType === "all_km") return "All KM students";
   if (item.scopeType === "college") {
     const org = typeof organizations !== "undefined" ? organizations.find(entry => Number(entry.id) === Number(item.collegeId)) : null;
@@ -336,14 +346,18 @@ function adminCloudContentRowHtml(item) {
   }[item.moderationStatus] || "admin-status-pending";
   const author = item.authorMode === "named" && item.authorLabel ? item.authorLabel : "Anonymous";
   const relation = isComment ? `Post ${item.postId}` : item.postType;
-  const mutationBusy = adminCloudState().mutationStatus === "loading";
+  const anchor = item.isMapAnchored && Number.isFinite(item.anchorLat) && Number.isFinite(item.anchorLng)
+    ? `${item.anchorLat.toFixed(5)}, ${item.anchorLng.toFixed(5)}`
+    : "";
+  const mutationBusy = adminCloudState().mutationStatus === "loading" || adminCloudState().deleteStatus === "loading";
   const canWrite = adminCloudState().context?.roles?.includes("admin") === true;
-  const button = (action, label, danger = false) => `<button type="button" class="btn btn-outline btn-sm ${danger ? "admin-danger" : ""}" ${mutationBusy ? "disabled" : ""} onclick="adminCloudModerate('${item.contentType}', '${item.contentId}', '${action}')">${label}</button>`;
+  const button = (action, label, danger = false) => `<button type="button" class="btn btn-outline btn-sm ${danger ? "admin-danger" : ""}" ${mutationBusy ? "disabled" : ""} onclick="adminCloudModerate('${item.scopeGroup}', '${item.contentType}', '${item.contentId}', '${action}')">${label}</button>`;
   const actions = [];
   if (canWrite && ["pending", "flagged", "rejected"].includes(item.moderationStatus)) actions.push(button("approve", "Approve"));
   if (canWrite && ["published", "pending", "flagged"].includes(item.moderationStatus)) actions.push(button("hide", "Hide", true));
   if (canWrite && item.moderationStatus === "hidden") actions.push(button("restore", "Restore"));
   if (canWrite && ["pending", "flagged"].includes(item.moderationStatus)) actions.push(button("reject", "Reject", true));
+  if (canWrite) actions.push(`<button type="button" class="btn btn-outline btn-sm admin-danger" ${mutationBusy ? "disabled" : ""} onclick="adminCloudRequestDelete('${item.scopeGroup}', '${item.contentType}', '${item.contentId}')">Delete forever</button>`);
   return `
     <article class="admin-note-row admin-queue-row">
       <div class="admin-note-thumb"><span>${isComment ? "💬" : "📝"}</span></div>
@@ -358,6 +372,8 @@ function adminCloudContentRowHtml(item) {
         <div class="admin-note-foot">
           <span>${escapeHtml(author)}</span>
           <span>${escapeHtml(relation)}</span>
+          ${anchor ? `<span>Anchor ${escapeHtml(anchor)}</span>` : ""}
+          ${item.mediaCount ? `<span>${item.mediaCount} media attachment</span>` : ""}
           <span>${formatDate(item.createdAt, true)}</span>
         </div>
       </div>
@@ -372,7 +388,7 @@ function renderAdminCloudLoadState(container, user, status, error = null) {
       <div class="admin-empty">
         <span>${failed ? "!" : "◌"}</span>
         <h3>${failed ? "Cloud Admin unavailable" : "Loading Cloud Admin"}</h3>
-        <p>${escapeHtml(failed ? (error?.message || "Cloud Admin data could not be loaded.") : "Verifying your server-side role and loading current Community data.")}</p>
+        <p>${escapeHtml(failed ? (error?.message || "Cloud Admin data could not be loaded.") : "Verifying your server-side role and loading current Community and Building/Map data.")}</p>
         ${failed ? '<button type="button" class="btn btn-outline btn-sm" onclick="adminRetryCloudData()">Retry</button>' : ""}
       </div>
     </section>`;
@@ -382,26 +398,25 @@ function renderAdminCloudLoadState(container, user, status, error = null) {
 function renderAdminCloudOverview(container) {
   const user = adminCurrentUser();
   const stats = adminCloudState().stats;
-  const total = stats.postsTotal + stats.commentsTotal;
-  const pending = stats.postsPending + stats.commentsPending;
-  const flagged = stats.postsFlagged + stats.commentsFlagged;
-  const published = stats.postsPublished + stats.commentsPublished;
+  const communityTotal = stats.community.postsTotal + stats.community.commentsTotal;
+  const buildingTotal = stats.building.postsTotal + stats.building.commentsTotal;
+  const total = communityTotal + buildingTotal;
   const cards = [
-    ["📝", "Community posts", stats.postsTotal, "Current cloud records"],
-    ["💬", "Comments", stats.commentsTotal, "Current cloud records"],
-    ["⏳", "Pending", pending, "Awaiting review"],
-    ["🚩", "Flagged", flagged, "Requires attention"],
-    ["✅", "Published", published, "Currently visible"],
+    ["📝", "Community posts", stats.community.postsTotal, "Cloud Community only"],
+    ["🗺️", "Map / Building posts", stats.building.postsTotal, `${stats.mapDirectPostsTotal} Map Direct`],
+    ["💬", "All comments", stats.community.commentsTotal + stats.building.commentsTotal, "Across both content groups"],
+    ["⏳", "Community queue", stats.community.queueTotal, "Pending or flagged"],
+    ["🚩", "Map / Building queue", stats.building.queueTotal, "Pending or flagged"],
   ];
   const body = `
     <section class="admin-stats">
       ${cards.map((card, index) => `<article class="admin-stat" style="--admin-delay:${index * 70}ms"><span class="admin-stat-icon">${card[0]}</span><div><span>${escapeHtml(card[1])}</span><strong>${card[2]}</strong><small>${escapeHtml(card[3])}</small></div></article>`).join("")}
     </section>
     <section class="admin-panel">
-      <div class="admin-panel-header"><div><p class="eyebrow">Production data</p><h2>Community summary</h2><p>${total} cloud records · ${stats.queueTotal} pending or flagged</p></div></div>
-      ${total === 0 ? '<div class="admin-empty"><span>🗂️</span><h3>No Community content</h3><p>The production Community tables currently contain no posts or comments.</p></div>' : `<div class="admin-dashboard-module-grid"><article class="admin-dashboard-module-card"><span class="admin-stat-icon">☁️</span><div><strong>${total}</strong><small>Cloud Community records</small></div></article><article class="admin-dashboard-module-card"><span class="admin-stat-icon">🗂️</span><div><strong>${stats.queueTotal}</strong><small>Server-backed moderation queue</small></div></article></div>`}
+      <div class="admin-panel-header"><div><p class="eyebrow">Production data</p><h2>Cloud content summary</h2><p>${total} cloud records · ${stats.queueTotal} pending or flagged</p></div></div>
+      ${total === 0 ? '<div class="admin-empty"><span>🗂️</span><h3>No cloud content</h3><p>The production content tables currently contain no posts or comments.</p></div>' : `<div class="admin-dashboard-module-grid"><article class="admin-dashboard-module-card"><span class="admin-stat-icon">📝</span><div><strong>${communityTotal}</strong><small>Community records</small></div></article><article class="admin-dashboard-module-card"><span class="admin-stat-icon">🗺️</span><div><strong>${buildingTotal}</strong><small>Map / Building records</small></div></article><article class="admin-dashboard-module-card"><span class="admin-stat-icon">🗂️</span><div><strong>${stats.queueTotal}</strong><small>Server-backed moderation queue</small></div></article></div>`}
     </section>`;
-  renderAdminDashboardShell(container, body, user, "Overview", "Live read-only Community statistics from Supabase.");
+  renderAdminDashboardShell(container, body, user, "Overview", "Live Community and Map / Building statistics from Supabase.");
 }
 
 function renderAdminCloudQueue(container) {
@@ -411,15 +426,22 @@ function renderAdminCloudQueue(container) {
     <section class="admin-panel">
       <div class="admin-panel-header"><div><p class="eyebrow">Cloud moderation</p><h2>Pending / flagged queue</h2><p><span class="match-count">${queue.length}</span> current cloud records</p></div></div>
       <div class="admin-note-list">
-        ${queue.length ? queue.map(adminCloudContentRowHtml).join("") : '<div class="admin-empty"><span>🗂️</span><h3>Queue is empty</h3><p>No Community posts or comments are currently pending or flagged.</p></div>'}
+        ${queue.length ? queue.map(adminCloudContentRowHtml).join("") : '<div class="admin-empty"><span>🗂️</span><h3>Queue is empty</h3><p>No Community or Map / Building content is currently pending or flagged.</p></div>'}
       </div>
     </section>`;
   renderAdminDashboardShell(container, body, user, "Moderation queue", "Approve, hide, or reject pending and flagged cloud records.");
 }
 
-function renderAdminCloudCommunity(container) {
+function renderAdminCloudContent(container, scopeGroup) {
   const user = adminCurrentUser();
   const cloud = adminCloudState();
+  const isBuilding = scopeGroup === "building";
+  if (cloud.contentQuery.scopeGroup !== scopeGroup) {
+    void window.CloudAdminService.loadContent({ ...cloud.contentQuery, scopeGroup, page: 0 }).then(() => render()).catch(() => render());
+    const body = '<section class="admin-panel"><div class="admin-empty"><span>◌</span><h3>Loading cloud content</h3><p>Reading the selected production content group from Supabase.</p></div></section>';
+    renderAdminDashboardShell(container, body, user, isBuilding ? "Map / Building" : "Community", "Server-authorized production content.");
+    return;
+  }
   const items = cloud.content;
   const total = cloud.contentTotal;
   const query = cloud.contentQuery;
@@ -434,18 +456,26 @@ function renderAdminCloudCommunity(container) {
   const pager = total > query.pageSize ? `<div class="admin-panel-header"><div><p>Page ${query.page + 1} of ${pageCount}</p></div><div class="admin-actions"><button type="button" class="btn btn-outline btn-sm" ${query.page <= 0 || loading ? "disabled" : ""} onclick="adminCloudContentPage(-1)">Previous</button><button type="button" class="btn btn-outline btn-sm" ${(query.page + 1) * query.pageSize >= total || loading ? "disabled" : ""} onclick="adminCloudContentPage(1)">Next</button></div></div>` : "";
   const body = `
     <section class="admin-panel">
-      <div class="admin-panel-header"><div><p class="eyebrow">Production data</p><h2>Community posts and comments</h2><p><span class="match-count">${total}</span> matching cloud records</p></div></div>
+      <div class="admin-panel-header"><div><p class="eyebrow">Production data</p><h2>${isBuilding ? "Map / Building" : "Community"} posts and comments</h2><p><span class="match-count">${total}</span> matching cloud records</p></div></div>
       ${filters}
       <div class="admin-note-list">
         ${loading
-          ? '<div class="admin-empty"><span>◌</span><h3>Loading Community content</h3><p>Reading the selected page from Supabase.</p></div>'
+          ? `<div class="admin-empty"><span>◌</span><h3>Loading ${isBuilding ? "Map / Building" : "Community"} content</h3><p>Reading the selected page from Supabase.</p></div>`
           : failed
-            ? `<div class="admin-empty"><span>!</span><h3>Community content unavailable</h3><p>${escapeHtml(cloud.contentError?.message || "The selected cloud page could not be loaded.")}</p><button type="button" class="btn btn-outline btn-sm" onclick="adminSetCloudContentFilter('status', '${query.status}')">Retry</button></div>`
-            : items.length ? items.map(adminCloudContentRowHtml).join("") : '<div class="admin-empty"><span>📝</span><h3>No Community records</h3><p>No cloud posts or comments match these filters.</p></div>'}
+            ? `<div class="admin-empty"><span>!</span><h3>${isBuilding ? "Map / Building" : "Community"} content unavailable</h3><p>${escapeHtml(cloud.contentError?.message || "The selected cloud page could not be loaded.")}</p><button type="button" class="btn btn-outline btn-sm" onclick="adminSetCloudContentFilter('status', '${query.status}')">Retry</button></div>`
+            : items.length ? items.map(adminCloudContentRowHtml).join("") : `<div class="admin-empty"><span>${isBuilding ? "🗺️" : "📝"}</span><h3>No ${isBuilding ? "Map / Building" : "Community"} records</h3><p>No cloud posts or comments match these filters.</p></div>`}
       </div>
       ${pager}
     </section>`;
-  renderAdminDashboardShell(container, body, user, "Community", "Live production posts and comments with server-authorized moderation.");
+  renderAdminDashboardShell(container, body, user, isBuilding ? "Map / Building" : "Community", "Live production posts and comments with server-authorized moderation and permanent deletion.");
+}
+
+function renderAdminCloudCommunity(container) {
+  renderAdminCloudContent(container, "community");
+}
+
+function renderAdminCloudMap(container) {
+  renderAdminCloudContent(container, "building");
 }
 
 function renderAdminCloudUnavailable(container, sourceType) {
@@ -461,7 +491,7 @@ function renderAdminCloudUnavailable(container, sourceType) {
   const title = names[sourceType] || "Admin module";
   const body = `
     <section class="admin-panel">
-      <div class="admin-empty"><span>🔒</span><h3>${escapeHtml(title)} is not connected to Cloud Admin</h3><p>Production Cloud Admin currently manages Community statistics, posts, comments, and moderation states. This module remains local-only and is therefore not shown as cloud data.</p></div>
+      <div class="admin-empty"><span>🔒</span><h3>${escapeHtml(title)} is not connected to Cloud Admin</h3><p>Production Cloud Admin currently manages Community and Map / Building posts, comments, moderation states, and permanent deletion. This module remains local-only and is therefore not shown as cloud data.</p></div>
     </section>`;
   renderAdminDashboardShell(container, body, user, title, "Not enabled in the production Cloud Admin backend.");
 }

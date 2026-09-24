@@ -42,6 +42,7 @@
     cachedMapAnchors: collegeId => repository().mapAnchors.cached(collegeId),
     refreshMapAnchors: collegeId => repository().mapAnchors.list(collegeId),
     createMapPost: input => repository().mapAnchors.create(input),
+    invalidateDeletedContent: result => repository().invalidateDeletedContent(result),
     // Published-count projection. Canonical production reads one paginated,
     // metadata-only posts_public aggregation; Local mode never calls it.
     refreshPostCounts: options => repository().postCounts.refresh(options),

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-24 - CLOUD ADMIN MAP / BUILDING + PERMANENT DELETE (PENDING RELEASE)
+
+- Extended the existing server-authorized Cloud Admin to real Building/Map
+  posts and comments, with separate statistics, moderation queues, status
+  filters, and server-side pagination. Map Direct remains an anchored subset of
+  Building posts and is not double-counted.
+- Added atomic Approve, Hide, Restore, Reject, and permanent single-item delete
+  RPCs for Community and Building/Map content. Permanent deletes require an
+  active Admin, a reason, locked dependency checks, and a surviving audit event.
+- Active Cloudinary media blocks permanent deletion until a trusted cleanup
+  path exists; static building/map/college data is never in the managed scope.
+- Production migration and deployment remain pending owner approval. No
+  production content or role assignment was changed during development.
+
 ## 2026-09-24 - PRODUCTION CLOUD ADMIN
 
 - Added pending Supabase migrations for server-authorized Cloud Admin reads and

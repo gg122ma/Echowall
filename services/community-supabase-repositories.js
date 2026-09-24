@@ -414,6 +414,39 @@
     });
   }
 
+  // Cloud Admin deletes happen through a protected RPC, outside the normal
+  // public repositories. Remove only the affected canonical IDs from this
+  // tab's read caches so stale content cannot reappear before the next
+  // authoritative refresh. Cross-device refresh still reads the public
+  // views, where the deleted database row no longer exists.
+  function invalidateDeletedContent(result = {}) {
+    const contentType = String(result.content_type || result.contentType || "");
+    const contentId = String(result.content_id || result.contentId || "");
+    const postId = String(result.post_id || result.postId || (contentType === "post" ? contentId : ""));
+    if (!contentId || !postId || !["post", "comment"].includes(contentType)) return false;
+
+    if (contentType === "post") {
+      [postCache, buildingPostCache, mapAnchorCache].forEach(cache => {
+        cache.forEach((records, key) => {
+          cache.set(key, Object.freeze(records.filter(record => String(record.remoteId || "") !== postId)));
+        });
+      });
+      postUiIndex.forEach((post, key) => {
+        if (String(post.remoteId || "") === postId) postUiIndex.delete(key);
+      });
+      commentCache.delete(postId);
+      commentLoaded.delete(postId);
+      voteState.delete(postId);
+    } else {
+      const records = commentCache.get(postId);
+      if (records) commentCache.set(postId, Object.freeze(records.filter(comment => String(comment.remoteId || "") !== contentId && String(comment.remoteParentCommentId || "") !== contentId)));
+    }
+
+    postCountsLoaded = false;
+    postCountsLoadedAt = 0;
+    return true;
+  }
+
   window.CommunitySupabaseRepositories = Object.freeze({
     posts: Object.freeze({
       list: listPosts, cached: key => postCache.get(key) || [], find: findPost, create: createPost, setQuestionStatus,
@@ -430,6 +463,7 @@
       cached: collegeId => mapAnchorCache.get(Number(collegeId)) || [],
       create: createMapPost,
     }),
+    invalidateDeletedContent,
     postCounts: Object.freeze({
       refresh: refreshPostCounts,
       cachedCommunity: communityKey => cachedCount(communityPostCountCache, String(communityKey || "")),

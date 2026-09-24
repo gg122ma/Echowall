@@ -1,3 +1,22 @@
+# CLOUD ADMIN MAP / BUILDING + PERMANENT DELETE HANDOFF (2026-09-24)
+
+Status: **DEVELOPMENT AND ISOLATED TESTING COMPLETE; PRODUCTION APPROVAL REQUIRED**.
+
+- Apply `20260923234640_cloud_admin_map_building_delete.sql` only after the two
+  existing Cloud Admin migrations. It adds no role bootstrap and changes no
+  existing production content during migration.
+- The Admin UI now reads and moderates real Community and Building/Map content.
+  Map Direct is an anchored Building-post subset. Permanent delete is single
+  item only, reason-required, server-authorized, atomic, and audited.
+- Active Cloudinary media intentionally blocks delete rather than leaving an
+  external orphan or falsely claiming permanent removal.
+- After approval: apply the migration, verify both existing Admin roles and
+  new RPC permissions/read results, then deploy the committed frontend. Use
+  only owner-designated test content for a production delete acceptance test.
+- Roll back the frontend first if needed, then drop only the five new RPC
+  signatures after dependency review. SQL rollback cannot restore content that
+  an administrator has already permanently deleted.
+
 # PRODUCTION CLOUD ADMIN HANDOFF (2026-09-24)
 
 Status: **PRODUCTION MIGRATIONS APPLIED; FRONTEND RELEASE APPROVED**.
