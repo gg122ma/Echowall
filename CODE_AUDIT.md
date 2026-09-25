@@ -1,5 +1,19 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-26 - REMOTE COMMENT FALLBACK
+
+- Before this change, `submitComment()` looked up a remote post by the stable UI
+  ID and treated lookup failure as a local post. That sent the comment to
+  `CommentService.createComment()` and made the UI appear successful without a
+  Supabase row. The modal renderer had the same LocalStorage fallback.
+- Remote submission now verifies the post belongs to the active wall, refreshes
+  that wall once on lookup miss, and fails visibly if it remains unresolved.
+  Remote rendering and Unanswered counts read only provider-backed data.
+- Local/demo Community comments still use `CommentService`. Building and photo
+  eligibility, RPC contracts, and parent UUID mapping are unchanged.
+- Regression coverage: 14 routing/filter assertions and 19 remote photo/comment
+  contract assertions. No production schema or data was changed.
+
 ## 2026-09-25 - PHOTO UPLOAD FAILURE BOUNDARY
 
 - `PhotoService` accepts JPEG/PNG/WebP and re-encodes to a Blob before

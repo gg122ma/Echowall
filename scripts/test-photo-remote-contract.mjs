@@ -157,11 +157,14 @@ const commentCalls = rpcCalls.filter(call => call.name === "create_comment");
 check("text and photo posts across Community, Building, and Map use create_comment by remote UUID", commentCalls.length === 5 && commentCalls.every(call => /^00000000-0000-4000-8000-\d{12}$/.test(call.params.p_post_id)));
 check("comment creation does not branch on attached photo fields", read("services/community-supabase-repositories.js").includes("p_post_id: post.remoteId") && !/function createComment[\s\S]*?imageUrl/.test(read("services/community-supabase-repositories.js")));
 const communityPhotoRoot = window.CommunitySupabaseRepositories.comments.cached(communityPhoto)[0];
+const buildingPhotoRoot = window.CommunitySupabaseRepositories.comments.cached(buildingPhoto)[0];
 const mapPhotoRoot = window.CommunitySupabaseRepositories.comments.cached(mapPhoto)[0];
 await window.CommunitySupabaseRepositories.comments.create(communityPhoto, { parentCommentId: communityPhotoRoot.id, content: "Reply on photo Community" });
+await window.CommunitySupabaseRepositories.comments.create(buildingPhoto, { parentCommentId: buildingPhotoRoot.id, content: "Reply on photo Building" });
 await window.CommunitySupabaseRepositories.comments.create(mapPhoto, { parentCommentId: mapPhotoRoot.id, content: "Reply on Map Direct photo" });
 const replyCalls = rpcCalls.filter(call => call.name === "create_reply");
-check("photo Community and Map Direct replies use create_reply with parent comment UUIDs", replyCalls.length === 2 && replyCalls.every(call => /^10000000-0000-4000-8000-\d{12}$/.test(call.params.p_parent_comment_id)));
+check("photo Community, Building, and Map Direct replies use create_reply with parent comment UUIDs", replyCalls.length === 3 && replyCalls.every(call => /^10000000-0000-4000-8000-\d{12}$/.test(call.params.p_parent_comment_id)));
+check("reply parent UUID maps to the selected stable UI parent ID", replyCalls[0]?.params.p_parent_comment_id === communityPhotoRoot.remoteId && replyCalls[1]?.params.p_parent_comment_id === buildingPhotoRoot.remoteId && replyCalls[2]?.params.p_parent_comment_id === mapPhotoRoot.remoteId);
 
 for (const result of checks) console.log(`${result.pass ? "PASS" : "FAIL"} - ${result.name}`);
 const passed = checks.filter(result => result.pass).length;

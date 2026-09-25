@@ -309,6 +309,7 @@ window.EchoLocales.en = {
   "wall.solvedBadge": "SOLVED",
   "comments.title": "Comments",
   "comments.empty": "No comments yet. Be the first to reply.",
+  "comments.postUnavailable": "This post could not be loaded from this wall. Refresh the wall and try again.",
   "comments.placeholder": "Write a comment...",
   "comments.replyPlaceholder": "Write a reply...",
   "comments.reply": "Reply",

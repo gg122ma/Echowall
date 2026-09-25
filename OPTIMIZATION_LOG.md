@@ -1311,3 +1311,8 @@ Rollback: replace only the refreshed ZIP with the previous matching artifact. If
 # 2026-08-22 — STUDY-V2-008 / FINAL-QA
 
 No new optimization was implemented in this verification-only pass. Existing Study behavior retained: approved-only overlay avoids manifest mutation, load-more prevents large subject dumps, and the global search has a small debounce. No performance claim was made from browser measurement.
+## 2026-09-26 - Remote comment routing correctness
+
+- Fail closed when a remote post cannot be resolved for comment submission: refresh only the active Community/Building wall once, then surface the error.
+- Prevent remote wall comment rendering and the Unanswered filter from reading stale prototype LocalStorage comment data.
+- Keep the local/demo adapter path intact; no Supabase schema or production writes were involved.

@@ -309,6 +309,7 @@ window.EchoLocales.zh = {
   "wall.solvedBadge": "已解答",
   "comments.title": "评论",
   "comments.empty": "还没有评论，来发表第一条吧。",
+  "comments.postUnavailable": "无法从当前墙加载这条帖子。请刷新页面后重试。",
   "comments.placeholder": "写下你的评论……",
   "comments.replyPlaceholder": "写下你的回复……",
   "comments.reply": "回复",

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-26 - REMOTE COMMENT PERSISTENCE ROUTING
+
+- Canonical remote Community and Building walls now resolve comments exclusively
+  through the Supabase provider. A missing UI-index entry triggers one refresh
+  of the current wall; a second miss reports an error and never writes to the
+  LocalStorage prototype adapter.
+- Remote comment rendering ignores LocalStorage threads, and the Community
+  Unanswered filter reads the remote comment cache. Local/demo behavior remains
+  on `CommentService`.
+- Added routing and repository regressions for root comments, replies, photo
+  posts, stable-parent-to-remote-UUID mapping, unresolved posts, and Unanswered.
+- Rollback: revert this focused local commit; it changes no schema or production
+  data. No production deployment was performed.
+
 ## 2026-09-25 - PRODUCTION PHOTO UPLOAD DIAGNOSIS (DASHBOARD FIX PENDING)
 
 - Reproduced the configured unsigned Cloudinary request against

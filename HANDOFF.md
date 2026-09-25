@@ -1,3 +1,23 @@
+# REMOTE COMMENT PERSISTENCE HANDOFF (2026-09-26)
+
+Status: **LOCAL FIX AND REGRESSION TESTS COMPLETE; PRODUCTION RETEST PENDING; NOT DEPLOYED**.
+
+- On remote Community/Building walls, `submitComment()` now resolves the remote
+  post from the current wall index, refreshes that wall once after a miss, and
+  then either calls the shared Supabase comment/reply RPC path or shows an
+  unavailable-post error. It never calls `CommentService.createComment()` in
+  remote context.
+- Remote comment rendering never reads the prototype LocalStorage thread. The
+  Unanswered filter uses `CommunityDataProvider.commentCount()` for remote
+  posts. Local/demo walls keep their existing LocalStorage behavior.
+- Photo Community/Building/Map Direct comment eligibility and UUID mapping are
+  unchanged and covered by repository tests.
+- Next step after this local commit: deploy only with release approval, then
+  retest one root comment and one reply on the existing owner-designated
+  production fixture. Do not create or delete production rows before approval.
+- Rollback: revert the focused comment-routing commit; no migration or data
+  rollback is needed.
+
 # PRODUCTION PHOTO UPLOAD DIAGNOSIS (2026-09-25)
 
 Status: **CODE ERROR VISIBILITY FIXED; CLOUDINARY DASHBOARD CONFIGURATION REQUIRED; NOT DEPLOYED**.

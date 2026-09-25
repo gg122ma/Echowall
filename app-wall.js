@@ -137,6 +137,29 @@ function supportsRemoteComments(note) {
   return Boolean(note) && note.isRemote === true && (note.contextType === "community" || note.contextType === "building");
 }
 
+function isCurrentWallRemotePost(note) {
+  if (!supportsRemoteComments(note) || note.contextType !== wallState.contextType) return false;
+  if (note.contextType === "community") return note.communityKey === wallState.communityKey;
+  return String(note.placeId || "") === String(wallState.placeId || "");
+}
+
+async function resolveRemoteCommentPost(postId) {
+  let post = CommunityDataProvider.findPost(postId);
+  if (isCurrentWallRemotePost(post)) return post;
+
+  if (isRemoteCommunityContext() && wallState.communityKey) {
+    await CommunityDataProvider.refreshPosts(wallState.communityKey);
+  } else if (isRemoteBuildingContext() && wallState.placeId && window.KMK_COLLEGE_ID) {
+    await CommunityDataProvider.refreshBuildingPosts(window.KMK_COLLEGE_ID, wallState.placeId);
+  } else {
+    throw new Error(I18n.t("comments.postUnavailable"));
+  }
+
+  post = CommunityDataProvider.findPost(postId);
+  if (!isCurrentWallRemotePost(post)) throw new Error(I18n.t("comments.postUnavailable"));
+  return post;
+}
+
 // Whether a note's modal should render a comments section AT ALL. Community
 // notes always have (either local-CommentService-backed, for legacy/demo
 // posts, or Supabase-backed) comments; Building notes only gained a comments
@@ -420,7 +443,9 @@ function getFilteredNotes() {
     // notes — building notes have no postType and are never affected.
     if (wallState.contextType === "community" && wallState.postType !== "all" && note.postType !== wallState.postType) return false;
     if (isUnansweredSort) {
-      const commentCount = window.CommentService?.getCommentCount(note.id) ?? 0;
+      const commentCount = note.isRemote
+        ? CommunityDataProvider.commentCount(note)
+        : (window.CommentService?.getCommentCount(note.id) ?? 0);
       if (note.postType !== "question" || note.questionStatus !== "open" || commentCount !== 0) return false;
     }
     const query = wallState.search.trim().toLowerCase();
@@ -664,9 +689,13 @@ function buildCommentHTML(comment, isReply) {
 }
 
 function renderCommentsSectionHTML(postId) {
-  if (typeof window.CommentService === "undefined") return "";
   const candidate = findWallNote(postId);
-  const remotePost = supportsRemoteComments(candidate) ? candidate : null;
+  const remoteContext = isRemoteWallContext();
+  if (!remoteContext && typeof window.CommentService === "undefined") return "";
+  if (remoteContext && !isCurrentWallRemotePost(candidate)) {
+    return `<div class="modal-comments" data-post-id="${Number(postId)}"><p class="modal-comments-empty">${escapeHtml(I18n.t("comments.postUnavailable"))}</p></div>`;
+  }
+  const remotePost = remoteContext ? candidate : null;
   const thread = remotePost ? CommunityDataProvider.commentThread(remotePost) : CommentService.getCommentThreadForPost(postId);
   const count = remotePost ? CommunityDataProvider.commentCount(remotePost) : CommentService.getCommentCount(postId);
   const commentsListHTML = thread.length
@@ -715,10 +744,12 @@ async function submitComment(postId, parentCommentId) {
       authorNickname: showName ? nickname : null,
       content,
     };
-    const commentCandidate = findWallNote(postId);
-    const remotePost = supportsRemoteComments(commentCandidate) ? commentCandidate : null;
-    if (remotePost) await CommunityDataProvider.createComment(remotePost, payload);
-    else CommentService.createComment(payload);
+    if (isRemoteWallContext()) {
+      const remotePost = await resolveRemoteCommentPost(postId);
+      await CommunityDataProvider.createComment(remotePost, payload);
+    } else {
+      CommentService.createComment(payload);
+    }
     renderWallNotes();
     openModal(postId);
   } catch (error) {

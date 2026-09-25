@@ -309,6 +309,7 @@ window.EchoLocales.ms = {
   "wall.solvedBadge": "SELESAI",
   "comments.title": "Komen",
   "comments.empty": "Belum ada komen. Jadilah yang pertama membalas.",
+  "comments.postUnavailable": "Kiriman ini tidak dapat dimuatkan dari dinding ini. Muat semula dinding dan cuba lagi.",
   "comments.placeholder": "Tulis komen...",
   "comments.replyPlaceholder": "Tulis balasan...",
   "comments.reply": "Balas",
