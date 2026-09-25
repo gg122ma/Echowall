@@ -22,7 +22,7 @@ async function rejects(name, action, pattern) {
 }
 
 const window = {
-  EchoConfig: { cloudinary: { cloudName: "Irx0uf7z", uploadPreset: "EchoWall", mode: "unsigned", overwrite: false } },
+  EchoConfig: { cloudinary: { cloudName: "lrx0uf7z", uploadPreset: "EchoWall", mode: "unsigned", overwrite: false } },
 };
 window.window = window;
 const context = { window, console: testConsole, Object, Number, String, Date, Math, Promise, Error, URL, Blob, FormData, Uint8Array, atob, setTimeout, clearTimeout };
@@ -113,13 +113,13 @@ const adapter = new window.UnsignedCloudinaryAdapter(window.EchoConfig.cloudinar
     return {
       status: 200,
       ok: true,
-      json: async () => ({ secure_url: "https://res.cloudinary.com/Irx0uf7z/image/upload/v1/echo/photo.webp", public_id: "echo/photo", width: 1200, height: 800, bytes: 345678, format: "webp" }),
+      json: async () => ({ secure_url: "https://res.cloudinary.com/lrx0uf7z/image/upload/v1/echo/photo.webp", public_id: "echo/photo", width: 1200, height: 800, bytes: 345678, format: "webp" }),
     };
   },
 });
 const uploaded = await adapter.uploadPhoto(new Blob([new Uint8Array(100)], { type: "image/webp" }), { filename: "campus.webp" });
 check("successful unsigned Cloudinary response is accepted", requestedMethod === "POST" && uploaded.mode === "cloudinary");
-check("Cloudinary endpoint uses active cloud name Irx0uf7z", requestedUrl === "https://api.cloudinary.com/v1_1/Irx0uf7z/image/upload");
+check("Cloudinary endpoint uses active cloud name lrx0uf7z", requestedUrl === "https://api.cloudinary.com/v1_1/lrx0uf7z/image/upload");
 check("unsigned request sends EchoWall preset", requestedForm.get("upload_preset") === "EchoWall");
 check("unsigned request sends the processed Blob as the file field", requestedForm.get("file") instanceof Blob && requestedForm.get("file").size === 100);
 check("unsigned request relies on Cloudinary's forced no-overwrite behavior", requestedForm.get("overwrite") === null);
@@ -143,8 +143,8 @@ await rejects("Cloudinary 401 configuration JSON gives a safe configuration mess
 check("Cloudinary 401 diagnostics retain only sanitized fields", diagnosticErrors.at(-1)?.[1]?.httpStatus === 401 && Object.keys(diagnosticErrors.at(-1)?.[1] || {}).sort().join(",") === "cloudinaryMessage,httpStatus");
 await rejects("Cloudinary 403 configuration JSON gives a safe configuration message", () => failedCloudinaryAdapter(403, "Not authorized").uploadPhoto(new Blob(["x"], { type: "image/png" })), /Photo upload configuration is unavailable/i);
 await rejects("Cloudinary 429 response gives a retryable rate-limit message", () => failedCloudinaryAdapter(429, "Too many requests").uploadPhoto(new Blob(["x"], { type: "image/png" })), /rate-limiting uploads/i);
-await rejects("invalid Cloudinary delivery host is rejected", async () => window.CloudinaryAdapter.validateUploadResponse({ secure_url: "https://evil.example/photo", public_id: "photo", width: 1, height: 1, bytes: 1, format: "jpg" }, "Irx0uf7z"), /invalid delivery URL/i);
-await rejects("incomplete Cloudinary success response is rejected", async () => window.CloudinaryAdapter.validateUploadResponse({ secure_url: "https://res.cloudinary.com/Irx0uf7z/image/upload/a.jpg" }, "Irx0uf7z"), /incomplete image metadata/i);
+await rejects("invalid Cloudinary delivery host is rejected", async () => window.CloudinaryAdapter.validateUploadResponse({ secure_url: "https://evil.example/photo", public_id: "photo", width: 1, height: 1, bytes: 1, format: "jpg" }, "lrx0uf7z"), /invalid delivery URL/i);
+await rejects("incomplete Cloudinary success response is rejected", async () => window.CloudinaryAdapter.validateUploadResponse({ secure_url: "https://res.cloudinary.com/lrx0uf7z/image/upload/a.jpg" }, "lrx0uf7z"), /incomplete image metadata/i);
 const failingAdapter = new window.UnsignedCloudinaryAdapter(window.EchoConfig.cloudinary, { fetch: async () => { throw new Error("offline detail"); } });
 await rejects("Cloudinary network failure is human-readable", () => failingAdapter.uploadPhoto(new Blob(["x"], { type: "image/webp" })), /could not reach the network/i);
 
@@ -182,8 +182,8 @@ const mapPhotoMigration = read("supabase/migrations/20260909161836_add_atomic_ma
 check("Map photo migration creates post, anchor, and media in one transaction", /create_map_post_with_media[\s\S]*api\.create_map_post\([\s\S]*insert into app\.media_assets/.test(mapPhotoMigration));
 check("Map photo RPC is not executable by anon or PUBLIC", /revoke all on function api\.create_map_post_with_media[\s\S]*from public, anon, authenticated/.test(mapPhotoMigration));
 check("Map photo RPC is granted only to authenticated application roles", /grant execute on function api\.create_map_post_with_media[\s\S]*to authenticated, service_role/.test(mapPhotoMigration));
-const cloudEnvironmentMigration = read("supabase/migrations/20260925035449_update_cloudinary_photo_environment.sql");
-check("Cloudinary environment migration replaces only the active media URL prefix", /drop constraint media_assets_secure_url_check[\s\S]*secure_url ~ '\^https:\/\/res\[\.\]cloudinary\[\.\]com\/Irx0uf7z\/image\/upload\/'/.test(cloudEnvironmentMigration) && !/das8chiyz/.test(cloudEnvironmentMigration));
+const cloudEnvironmentMigration = read("supabase/migrations/20260925052944_correct_cloudinary_cloud_name_typo.sql");
+check("Cloudinary environment migration replaces only the active media URL prefix", /drop constraint media_assets_secure_url_check[\s\S]*secure_url ~ '\^https:\/\/res\[\.\]cloudinary\[\.\]com\/lrx0uf7z\/image\/upload\/'/.test(cloudEnvironmentMigration) && !/Irx0uf7z|das8chiyz/.test(cloudEnvironmentMigration));
 check("Cloudinary environment migration retains public_id, byte, dimension, and format validation", /p_media_public_id !~ '\^\[A-Za-z0-9\/_-\]\{1,255\}\$'[\s\S]*p_media_bytes is null or p_media_bytes <= 0[\s\S]*p_media_width is null or p_media_width <= 0[\s\S]*p_media_height is null or p_media_height <= 0[\s\S]*v_format not in \('jpg', 'jpeg', 'png', 'webp'\)/.test(cloudEnvironmentMigration));
 check("Cloudinary environment migration preserves verified-user SECURITY DEFINER functions and empty search_path", (cloudEnvironmentMigration.match(/security definer/g) || []).length === 2 && (cloudEnvironmentMigration.match(/set search_path = ''/g) || []).length === 2 && (cloudEnvironmentMigration.match(/private\.require_verified_active_user\(\)/g) || []).length === 2);
 check("Cloudinary environment migration preserves authenticated and service-role RPC grants", /grant execute on function api\.create_post_with_media[\s\S]*to authenticated, service_role/.test(cloudEnvironmentMigration) && /grant execute on function api\.create_map_post_with_media[\s\S]*to authenticated, service_role/.test(cloudEnvironmentMigration));
