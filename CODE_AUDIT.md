@@ -1,5 +1,28 @@
 # Echo Wall Current Code Audit
 
+## 2026-09-25 - PHOTO UPLOAD FAILURE BOUNDARY
+
+- `PhotoService` accepts JPEG/PNG/WebP and re-encodes to a Blob before
+  `UnsignedCloudinaryAdapter` posts multipart `file` and `upload_preset`.
+- The live request using cloud `das8chiyz`, preset `EchoWall`, and the production
+  Origin returns HTTP 400 `Upload preset not found`; CORS allows that Origin.
+  The failure is before response-contract validation, either media RPC, or
+  `app.media_assets` insertion. No live photo payload reached Supabase.
+- The API preset lookup makes the configured name unavailable for this
+  unsigned path; its actual existence/signing mode and restriction fields need
+  Dashboard verification. Cloudinary returned no public ID or media metadata,
+  so response `public_id` character compatibility remains unobserved.
+- `mediaRpcParameters()` sends `p_media_public_id`, `p_media_secure_url`,
+  `p_media_bytes`, `p_media_width`, `p_media_height`, and `p_media_format`,
+  matching the checked Community/Map migration signatures. No schema change is
+  justified by current evidence; live RPC invocation remains upstream-blocked.
+- Comment eligibility depends on `isRemote` and Community/Building context, not
+  image fields. Map Direct is mapped to remote Building scope and uses the
+  shared comment/reply RPCs; no comment code change was made.
+- Production Supabase, Cloud Admin, Cloudinary preset settings, and Pages were
+  not modified. Revert the local diagnostic commit to roll back the adapter
+  messaging and tests.
+
 ## 2026-09-24 - CLOUD ADMIN MAP / BUILDING + DELETE AUDIT
 
 - Scope: Community is limited to `all_km`, `college`, and `jurusan`; Building

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-25 - PRODUCTION PHOTO UPLOAD DIAGNOSIS (DASHBOARD FIX PENDING)
+
+- Reproduced the configured unsigned Cloudinary request against
+  `das8chiyz/image/upload`: HTTP 400 `Upload preset not found` for the exact
+  `EchoWall` preset. The production Origin received an allow-origin response;
+  no Cloudinary asset was created and no Supabase call was reached.
+- Cloudinary failures now parse JSON, surface safe actionable messages, and
+  log only sanitized status/message diagnostics. Added 400/401/403/429/network,
+  RPC parameter, and photo comment/reply regressions.
+- No preset, Supabase, Admin, or production configuration/database was changed;
+  release remains blocked on Cloudinary Dashboard verification.
+- Rollback: revert the local photo-diagnosis commit to restore the previous
+  adapter and tests. No uploaded diagnostic asset requires cleanup.
+
 ## 2026-09-24 - CLOUD ADMIN MAP / BUILDING + PERMANENT DELETE (PENDING RELEASE)
 
 - Extended the existing server-authorized Cloud Admin to real Building/Map

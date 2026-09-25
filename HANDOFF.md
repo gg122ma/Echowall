@@ -1,3 +1,33 @@
+# PRODUCTION PHOTO UPLOAD DIAGNOSIS (2026-09-25)
+
+Status: **CODE ERROR VISIBILITY FIXED; CLOUDINARY DASHBOARD CONFIGURATION REQUIRED; NOT DEPLOYED**.
+
+- Branch `fix/photo-cloudinary-production` starts at production main
+  `d1f10063902b9a1fece0fbb2ce46ea4843d685fc`.
+- The exact unsigned request to
+  `https://api.cloudinary.com/v1_1/das8chiyz/image/upload` with
+  `upload_preset=EchoWall` returned HTTP 400 `Upload preset not found`. With
+  the production Origin, Cloudinary returned the matching
+  `Access-Control-Allow-Origin`; the first failure is preset lookup, before
+  media validation or Supabase persistence. No test asset was created.
+- In the Cloudinary Dashboard for cloud `das8chiyz`, inspect Settings > Upload
+  > Upload presets. Verify the exact active preset name and signing mode,
+  permitted JPEG/PNG/WebP formats, maximum file size (the app emits around
+  900 KiB, with a 1.15x final guard), folder rules, moderation, and public
+  delivery access. Do not guess a replacement preset or weaken unrelated
+  restrictions.
+- After the correct unsigned preset is owner-verified, rerun the exact public
+  request and verify a successful response before testing the existing
+  `create_post_with_media` and `create_map_post_with_media` paths. The frontend
+  and repository migrations currently agree on all six media parameters; no
+  migration is indicated by local contract review.
+- Remote Community and Building posts, including Map Direct posts, remain
+  comment/reply capable independent of photo fields. This was verified through
+  mocked repository regressions; no production photo row exists to runtime-test.
+- No production database, Cloud Admin, live preset, or Pages deployment was
+  changed. Do not release until the unsigned preset check and end-to-end upload
+  pass.
+
 # CLOUD ADMIN MAP / BUILDING + PERMANENT DELETE HANDOFF (2026-09-24)
 
 Status: **DEVELOPMENT AND ISOLATED TESTING COMPLETE; PRODUCTION APPROVAL REQUIRED**.

@@ -1,5 +1,15 @@
 # Echo Wall 主项目优化日志
 
+## 2026-09-25 - Cloudinary photo error visibility
+
+- Parse Cloudinary JSON on non-2xx responses before translating known preset,
+  auth, format, size, and rate-limit failures into safe user-facing messages.
+- Keep diagnostics to HTTP status and a short redacted Cloudinary message; do
+  not log credentials, tokens, or file content.
+- Production upload diagnosis found `EchoWall` is not found by the live unsigned
+  endpoint. The production Origin is allowed; preset settings remain a manual
+  Cloudinary Dashboard check. No DB or deployment action was taken.
+
 ## 2026-09-24 - Cloud Admin Map / Building expansion
 
 - Reused the current Cloud Admin service, permission guards, dashboard, and

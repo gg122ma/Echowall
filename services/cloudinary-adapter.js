@@ -33,6 +33,32 @@
     return Object.freeze({ mode: "cloudinary", url: secureUrl, secureUrl, publicId, width, height, bytes, format });
   }
 
+  function sanitizeDiagnosticMessage(message) {
+    return String(message || "")
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/\bBearer\s+\S+/gi, "Bearer [redacted]")
+      .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}(?:\.[A-Za-z0-9_-]+)?\b/g, "[redacted token]")
+      .replace(/\b(api[_ -]?(?:secret|key)|authorization|(?:supabase[_ -]?)?jwt|(?:access|refresh)?[_ -]?token)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]")
+      .slice(0, 300);
+  }
+
+  function userFacingUploadError(status, message) {
+    const normalized = String(message || "").toLowerCase();
+    if (status === 429 || /rate[ -]?limit/.test(normalized)) {
+      return "Cloudinary is rate-limiting uploads. Please try again shortly.";
+    }
+    if (status === 401 || status === 403 || /upload preset/.test(normalized)) {
+      return "Photo upload configuration is unavailable.";
+    }
+    if (status === 413 || /file.{0,30}(too large|exceeds|maximum)|maximum.{0,20}file size/.test(normalized)) {
+      return "This photo is too large for the upload service.";
+    }
+    if (/unsupported.{0,20}(format|image|file)|(?:format|file type|extension).{0,30}(not accepted|not allowed|unsupported|invalid)/.test(normalized)) {
+      return "This photo format is not accepted by the upload service.";
+    }
+    return "Cloudinary could not publish this photo. Please try again.";
+  }
+
   class UnsignedCloudinaryAdapter {
     constructor(config = window.EchoConfig?.cloudinary || {}, dependencies = {}) {
       this.config = configuredValues(config);
@@ -52,9 +78,19 @@
       let response;
       try { response = await this.fetch(endpoint, { method: "POST", body: form }); }
       catch { throw new Error("Cloudinary upload could not reach the network. Please try again."); }
-      if (!response.ok) throw new Error(response.status === 429 ? "Cloudinary is rate-limiting uploads. Please try again shortly." : "Cloudinary upload failed.");
       let payload;
-      try { payload = await response.json(); } catch { throw new Error("Cloudinary returned an invalid upload result."); }
+      try { payload = await response.json(); } catch { payload = null; }
+      if (!response.ok) {
+        const status = Number(response.status) || 0;
+        const rawMessage = String(payload?.error?.message || "");
+        const diagnosticMessage = sanitizeDiagnosticMessage(rawMessage);
+        console.error("[EchoWall] Cloudinary upload rejected", {
+          httpStatus: status,
+          cloudinaryMessage: diagnosticMessage,
+        });
+        throw new Error(userFacingUploadError(status, rawMessage));
+      }
+      if (!payload) throw new Error("Cloudinary returned an invalid upload result.");
       return validateUploadResponse(payload, this.config.cloudName);
     }
   }

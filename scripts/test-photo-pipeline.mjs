@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = file => fs.readFileSync(path.join(ROOT, file), "utf8");
 let passed = 0;
+const diagnosticErrors = [];
+const testConsole = { error: (...args) => diagnosticErrors.push(args) };
 function check(name, condition) {
   assert.ok(condition, name);
   passed += 1;
@@ -23,7 +25,7 @@ const window = {
   EchoConfig: { cloudinary: { cloudName: "das8chiyz", uploadPreset: "EchoWall", mode: "unsigned", overwrite: false } },
 };
 window.window = window;
-const context = { window, console, Object, Number, String, Date, Math, Promise, Error, URL, Blob, FormData, Uint8Array, atob, setTimeout, clearTimeout };
+const context = { window, console: testConsole, Object, Number, String, Date, Math, Promise, Error, URL, Blob, FormData, Uint8Array, atob, setTimeout, clearTimeout };
 vm.createContext(context);
 for (const file of ["services/photo-service.js", "services/cloudinary-adapter.js", "services/photo-publish-service.js"]) {
   vm.runInContext(read(file), context, { filename: file });
@@ -102,21 +104,45 @@ const disabledAdapter = new window.UnsignedCloudinaryAdapter(window.EchoConfig.c
 check("photo feature switch disables the adapter", !disabledAdapter.isConfigured());
 let requestedUrl = "";
 let requestedForm;
+let requestedMethod = "";
 const adapter = new window.UnsignedCloudinaryAdapter(window.EchoConfig.cloudinary, {
   fetch: async (url, options) => {
     requestedUrl = url;
+    requestedMethod = options.method;
     requestedForm = options.body;
     return {
+      status: 200,
       ok: true,
       json: async () => ({ secure_url: "https://res.cloudinary.com/das8chiyz/image/upload/v1/echo/photo.webp", public_id: "echo/photo", width: 1200, height: 800, bytes: 345678, format: "webp" }),
     };
   },
 });
 const uploaded = await adapter.uploadPhoto(new Blob([new Uint8Array(100)], { type: "image/webp" }), { filename: "campus.webp" });
+check("successful unsigned Cloudinary response is accepted", requestedMethod === "POST" && uploaded.mode === "cloudinary");
 check("Cloudinary endpoint uses public cloud name das8chiyz", requestedUrl === "https://api.cloudinary.com/v1_1/das8chiyz/image/upload");
 check("unsigned request sends EchoWall preset", requestedForm.get("upload_preset") === "EchoWall");
+check("unsigned request sends the processed Blob as the file field", requestedForm.get("file") instanceof Blob && requestedForm.get("file").size === 100);
 check("unsigned request relies on Cloudinary's forced no-overwrite behavior", requestedForm.get("overwrite") === null);
 check("validated Cloudinary response retains useful metadata", uploaded.publicId === "echo/photo" && uploaded.width === 1200 && uploaded.bytes === 345678 && uploaded.format === "webp");
+
+function failedCloudinaryAdapter(status, message) {
+  return new window.UnsignedCloudinaryAdapter(window.EchoConfig.cloudinary, {
+    fetch: async () => ({ ok: false, status, json: async () => ({ error: { message } }) }),
+  });
+}
+await rejects("real 400 upload-preset JSON response is surfaced as a configuration problem", () => failedCloudinaryAdapter(400, "Upload preset not found").uploadPhoto(new Blob(["x"], { type: "image/png" })), /Photo upload configuration is unavailable/i);
+check("real 400 response logs only its status and Cloudinary message", diagnosticErrors.at(-1)?.[0] === "[EchoWall] Cloudinary upload rejected" && diagnosticErrors.at(-1)?.[1]?.httpStatus === 400 && diagnosticErrors.at(-1)?.[1]?.cloudinaryMessage === "Upload preset not found");
+await rejects("Cloudinary 400 unsupported-format JSON gives a safe format message", () => failedCloudinaryAdapter(400, "Unsupported image format").uploadPhoto(new Blob(["x"], { type: "image/png" })), /This photo format is not accepted/i);
+await rejects("other Cloudinary 400 JSON gives a safe generic message", () => failedCloudinaryAdapter(400, "Unexpected internal diagnostic").uploadPhoto(new Blob(["x"], { type: "image/png" })), /Cloudinary could not publish this photo/i);
+await rejects("Cloudinary error-message logging sanitizes credential-like text", () => failedCloudinaryAdapter(400, "Authorization=Bearer do-not-log-token api_secret=do-not-log-secret api_key=do-not-log-key supabase_jwt=do-not-log-jwt eyJabcdefghijklmnop.abcdefghijklmnop.signature").uploadPhoto(new Blob(["x"], { type: "image/png" })), /Cloudinary could not publish this photo/i);
+check("Cloudinary error diagnostics redact authorization, API secrets, and JWTs", (() => {
+  const log = diagnosticErrors.at(-1)?.[1]?.cloudinaryMessage || "";
+  return !/do-not-log-(?:token|secret|key|jwt)|eyJ[a-zA-Z0-9_.-]{20,}/.test(log);
+})());
+await rejects("Cloudinary 401 configuration JSON gives a safe configuration message", () => failedCloudinaryAdapter(401, "Upload preset must be whitelisted for unsigned uploads").uploadPhoto(new Blob(["x"], { type: "image/png" })), /Photo upload configuration is unavailable/i);
+check("Cloudinary 401 diagnostics retain only sanitized fields", diagnosticErrors.at(-1)?.[1]?.httpStatus === 401 && Object.keys(diagnosticErrors.at(-1)?.[1] || {}).sort().join(",") === "cloudinaryMessage,httpStatus");
+await rejects("Cloudinary 403 configuration JSON gives a safe configuration message", () => failedCloudinaryAdapter(403, "Not authorized").uploadPhoto(new Blob(["x"], { type: "image/png" })), /Photo upload configuration is unavailable/i);
+await rejects("Cloudinary 429 response gives a retryable rate-limit message", () => failedCloudinaryAdapter(429, "Too many requests").uploadPhoto(new Blob(["x"], { type: "image/png" })), /rate-limiting uploads/i);
 await rejects("invalid Cloudinary delivery host is rejected", async () => window.CloudinaryAdapter.validateUploadResponse({ secure_url: "https://evil.example/photo", public_id: "photo", width: 1, height: 1, bytes: 1, format: "jpg" }, "das8chiyz"), /invalid delivery URL/i);
 await rejects("incomplete Cloudinary success response is rejected", async () => window.CloudinaryAdapter.validateUploadResponse({ secure_url: "https://res.cloudinary.com/das8chiyz/image/upload/a.jpg" }, "das8chiyz"), /incomplete image metadata/i);
 const failingAdapter = new window.UnsignedCloudinaryAdapter(window.EchoConfig.cloudinary, { fetch: async () => { throw new Error("offline detail"); } });
