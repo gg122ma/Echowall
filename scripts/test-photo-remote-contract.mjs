@@ -14,7 +14,7 @@ function check(name, condition) {
 
 const storage = new Map();
 const window = {
-  EchoConfig: { cloudinary: { cloudName: "das8chiyz" } },
+  EchoConfig: { cloudinary: { cloudName: "Irx0uf7z" } },
   localStorage: {
     getItem: key => storage.get(key) ?? null,
     setItem: (key, value) => storage.set(key, String(value)),
@@ -103,7 +103,7 @@ for (const file of ["services/community-row-adapter.js", "services/community-sup
 
 const media = {
   publicId: "diagnostic/photo-1",
-  secureUrl: "https://res.cloudinary.com/das8chiyz/image/upload/v1/diagnostic/photo-1.png",
+  secureUrl: "https://res.cloudinary.com/Irx0uf7z/image/upload/v1/diagnostic/photo-1.png",
   bytes: 1234,
   width: 1,
   height: 1,

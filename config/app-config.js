@@ -31,7 +31,7 @@ window.EchoConfig = Object.freeze({
     requestHeaders: {},
   },
   cloudinary: Object.freeze({
-    cloudName: "das8chiyz",
+    cloudName: "Irx0uf7z",
     uploadPreset: "EchoWall",
     mode: "unsigned",
     overwrite: false,
